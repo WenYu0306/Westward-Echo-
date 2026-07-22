@@ -66,6 +66,8 @@ async def translate_novel(
             genre=genre,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
+    # Celery not available — release backpressure (no work was accepted)
+    backpressure.release()
     return JSONResponse(
         status_code=503,
         content={"error": "Celery worker not available", "job_id": job_id, "total_chapters": total},

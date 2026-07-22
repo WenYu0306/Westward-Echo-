@@ -15,6 +15,7 @@ from .api.editor import app as editor_api_router
 from .api.auth import APIKeyMiddleware
 from .api.logging import logger
 from .health import HealthChecker
+from .dashboard import DASHBOARD_PAGE, get_dashboard_data
 
 
 def create_app() -> FastAPI:
@@ -76,6 +77,16 @@ def create_app() -> FastAPI:
     @app.get("/editor/{job_id}", response_class=HTMLResponse)
     async def editor_page(job_id: str):
         return EDITOR_PAGE.replace("{JOB_ID}", job_id)
+
+    # Dashboard — observability page (no auth)
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard():
+        return DASHBOARD_PAGE
+
+    @app.get("/api/dashboard/metrics")
+    async def dashboard_metrics():
+        """JSON endpoint powering the dashboard's auto-refresh."""
+        return get_dashboard_data()
 
     # CMS API
     from .api.cms import app as cms_api
