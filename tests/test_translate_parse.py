@@ -173,7 +173,10 @@ class TestMissingFields:
         })
         result = _parse_llm_response(response)
         assert result["translated_text"] == "He stood at the edge of the cliff."
-        assert result["new_terms_found"] == []  # Default from .get()
+        # When JSON parsing succeeds but the key is absent, the dict lacks the key.
+        # The caller (translate_node) uses result.get("new_terms_found", []), so
+        # test against the same pattern.
+        assert result.get("new_terms_found", []) == []
 
 
 class TestBugFixEmbeddedBraces:

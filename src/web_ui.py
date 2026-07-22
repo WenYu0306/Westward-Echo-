@@ -143,7 +143,42 @@ body{
 .progress-wrap{margin-bottom:16px}
 .progress-bar{height:4px;background:#e5e5ea;border-radius:2px;overflow:hidden;margin-bottom:8px}
 .progress-bar .fill{height:100%;width:0;background:#0071e3;border-radius:2px;transition:width .3s ease}
-.progress-text{font-size:12px;color:#8e8e93;text-align:center}
+.progress-text{font-size:12px;color:#8e8e93;text-align:center;margin-bottom:4px}
+
+/* Progress actions — cancel + retry */
+.progress-actions{display:flex;gap:8px;margin-top:8px}
+.btn-cancel{
+  padding:7px 18px;font-family:Inter,sans-serif;font-size:12px;font-weight:500;
+  color:#6e6e73;background:#f0f0f5;border:1px solid #e5e5ea;border-radius:8px;
+  cursor:pointer;transition:all .15s;letter-spacing:.1px;width:100%;text-align:center;
+}
+.btn-cancel:hover{background:#e5e5ea;color:#3a3a3c}
+.btn-cancel:active{transform:scale(.98)}
+.btn-retry{
+  padding:7px 18px;font-family:Inter,sans-serif;font-size:12px;font-weight:500;
+  color:#fff;background:#0071e3;border:none;border-radius:8px;
+  cursor:pointer;transition:all .15s;letter-spacing:.1px;width:100%;text-align:center;
+}
+.btn-retry:hover{background:#0077ed}
+.btn-retry:active{transform:scale(.98)}
+
+/* Chapter progress log */
+.chapter-log{
+  margin-top:8px;max-height:140px;overflow-y:auto;
+  font-size:11px;font-family:"SF Mono","Fira Code","Cascadia Code",monospace;
+  color:#8e8e93;line-height:1.6;
+  background:#fafafa;border:1px solid #f0f0f5;border-radius:8px;padding:8px 12px;
+}
+.chapter-log .ch-entry{display:flex;align-items:center;gap:6px}
+.chapter-log .ch-done{color:#34c759;font-size:11px}
+.chapter-log .ch-fail{color:#ff3b30;font-size:11px}
+.chapter-log .ch-num{color:#aeaeb2;font-size:10px;min-width:28px}
+.chapter-log .ch-title{color:#6e6e73;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Chapter log scrollbar */
+.chapter-log::-webkit-scrollbar{width:4px}
+.chapter-log::-webkit-scrollbar-track{background:transparent}
+.chapter-log::-webkit-scrollbar-thumb{background:#e5e5ea;border-radius:2px}
 
 /* ═══════════════════════════════════════════════════════════════
    PREVIEW PANEL — the hero of the page
@@ -159,6 +194,24 @@ body{
 }
 .preview-empty .pe-icon{font-size:48px;margin-bottom:12px}
 .preview-empty .pe-text{font-size:14px;color:#aeaeb2}
+
+/* Preview state: translating */
+.preview-translating{display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px}
+.preview-translating .pt-icon{font-size:36px;margin-bottom:8px}
+.preview-translating .pt-text{font-size:13px;color:#8e8e93;margin-bottom:6px}
+
+/* Preview state: error */
+.preview-error{display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;background:#fef2f2}
+.preview-error .pe-icon{font-size:40px;margin-bottom:10px}
+.preview-error .pe-text{font-size:14px;color:#dc2626;margin-bottom:4px;text-align:center;max-width:300px}
+.preview-error .pe-detail{font-size:12px;color:#ef4444;margin-bottom:16px;text-align:center;max-width:360px}
+.preview-error .pe-retry-btn{
+  padding:8px 24px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;
+  color:#fff;background:#dc2626;border:none;border-radius:8px;cursor:pointer;
+  transition:all .15s;letter-spacing:.1px;
+}
+.preview-error .pe-retry-btn:hover{background:#b91c1c;transform:translateY(-1px);box-shadow:0 4px 12px rgba(220,38,38,.2)}
+.preview-error .pe-retry-btn:active{transform:scale(.98)}
 
 /* Tabs */
 .preview-tabs{display:flex;border-bottom:1px solid #f0f0f5;padding:0 20px}
@@ -295,6 +348,13 @@ body{
       <div class="progress-wrap" id="progress-wrap" style="display:none">
         <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
         <div class="progress-text" id="progress-text"></div>
+        <div class="chapter-log" id="chapter-log" style="display:none"></div>
+        <div class="progress-actions" id="progress-actions" style="display:none">
+          <button class="btn-cancel" id="cancel-btn">取消翻译</button>
+        </div>
+		<div class="progress-actions" id="error-actions" style="display:none">
+          <button class="btn-retry" id="retry-btn">重试</button>
+        </div>
       </div>
 
     </div>
@@ -303,10 +363,24 @@ body{
     <div class="main-right">
       <div class="preview-panel" id="preview-panel">
 
-        <!-- Empty state -->
-        <div class="preview-empty" id="preview-empty">
+        <!-- Idle state -->
+        <div class="preview-empty" id="preview-idle">
           <div class="pe-icon">&#128214;</div>
-          <div class="pe-text">译文将在此处展示</div>
+          <div class="pe-text">上传小说开始翻译</div>
+        </div>
+
+        <!-- Translating state -->
+        <div class="preview-translating" id="preview-translating" style="display:none">
+          <div class="pt-icon"><span class="spinner" style="width:24px;height:24px;border-width:3px;margin:0"></span></div>
+          <div class="pt-text">翻译进行中...</div>
+        </div>
+
+        <!-- Error state -->
+        <div class="preview-error" id="preview-error" style="display:none">
+          <div class="pe-icon">&#9888;</div>
+          <div class="pe-text">翻译失败</div>
+          <div class="pe-detail" id="preview-error-msg"></div>
+          <button class="pe-retry-btn" id="preview-retry-btn">重试</button>
         </div>
 
         <!-- Tabs (hidden until done) -->
@@ -334,11 +408,45 @@ const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 // elements
 const dropZone=$('#drop-zone'),fileInput=$('#file-input'),dzFilename=$('#dz-filename');
 const startBtn=$('#start-btn'),progressWrap=$('#progress-wrap'),progressFill=$('#progress-fill'),progressText=$('#progress-text');
-const previewEmpty=$('#preview-empty'),previewTabs=$('#preview-tabs');
+const chapterLog=$('#chapter-log'),progressActions=$('#progress-actions'),errorActions=$('#error-actions');
+const cancelBtn=$('#cancel-btn'),retryBtn=$('#retry-btn');
+const previewIdle=$('#preview-idle'),previewTranslating=$('#preview-translating'),previewError=$('#preview-error'),previewTabs=$('#preview-tabs');
+const previewErrorMsg=$('#preview-error-msg'),previewRetryBtn=$('#preview-retry-btn');
 const rangeInput=$('#qa-interval'),rangeLabel=$('#range-label');
 const toast=$('#toast');
 
 let selectedFile=null;
+let activeJobId=null;       // current job id, null when idle
+let activeForm=null;        // saved FormData for retry
+let cancelRequested=false;  // flag to break poll loop
+let chapterEntries=[];      // [{num,title,status:'done'|'fail'}]
+let retryCount=0;
+
+// ── visual state machine for preview panel ──
+function setPreviewState(state){
+  previewIdle.style.display=state==='idle'?'':'none';
+  previewTranslating.style.display=state==='translating'?'':'none';
+  previewError.style.display=state==='error'?'':'none';
+  previewTabs.style.display=state==='complete'?'flex':'none';
+}
+function resetPreview(){
+  setPreviewState('idle');
+  $$('.preview-body').forEach(x=>x.classList.remove('show'));
+}
+
+// ── reset UI to config mode ──
+function resetConfigUI(){
+  startBtn.disabled=false;startBtn.textContent='开始翻译';
+  progressWrap.style.display='none';progressFill.style.width='0%';
+  progressText.textContent='';
+  chapterLog.style.display='none';chapterLog.innerHTML='';
+  chapterEntries=[];
+  progressActions.style.display='none';
+  errorActions.style.display='none';
+  cancelRequested=false;
+  activeJobId=null;activeForm=null;
+  retryCount=0;
+}
 
 // ── file handling ──
 dropZone.addEventListener('click',()=>fileInput.click());
@@ -378,29 +486,84 @@ $$('.preview-tab').forEach(t=>{
 // ── toast ──
 function showToast(msg){toast.textContent=msg;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000)}
 
-// ── start translation ──
-startBtn.addEventListener('click',async()=>{
-  if(!selectedFile){showToast('请先选择 .txt 文件');return}
-  const text=await selectedFile.text();
-
-  startBtn.disabled=true;startBtn.textContent='翻译中...';
-  progressWrap.style.display='block';previewEmpty.style.display='none';
-
+// ── build form data from current settings ──
+function buildForm(){
   const form=new FormData();
-  form.append('file',new Blob([text],{type:'text/plain'}),selectedFile.name||'novel.txt');
+  form.append('file',new Blob([selectedFile.text_],{type:'text/plain'}),selectedFile.name||'novel.txt');
   form.append('target_lang',$('#target-lang').value);
   form.append('translate_mode',document.querySelector('input[name="model"]:checked').value);
   form.append('qa_interval',rangeInput.value);
+  return form;
+}
 
+// ── update chapter log (last 5 entries) ──
+function updateChapterLog(){
+  if(!chapterEntries.length){chapterLog.style.display='none';return}
+  chapterLog.style.display='block';
+  let h='';
+  for(let i=Math.max(0,chapterEntries.length-5);i<chapterEntries.length;i++){
+    const e=chapterEntries[i];
+    const icon=e.status==='done'?'<span class="ch-done">&#10003;</span>':'<span class="ch-fail">&#10007;</span>';
+    h+='<div class="ch-entry">'+icon+'<span class="ch-num">#'+e.num+'</span><span class="ch-title">'+e.title+'</span></div>';
+  }
+  chapterLog.innerHTML=h;
+  chapterLog.scrollTop=chapterLog.scrollHeight;
+}
+
+// ── cancel translation ──
+function abortTranslation(){
+  cancelRequested=true;activeJobId=null;
+  resetConfigUI();resetPreview();
+  showToast('翻译已取消');
+}
+
+// ── show error state ──
+function showErrorState(message,jobId,form){
+  activeJobId=jobId;activeForm=form;
+  progressActions.style.display='none';
+  errorActions.style.display='block';
+  progressText.textContent='错误: '+message;
+  setPreviewState('error');
+  previewErrorMsg.textContent=message;
+  showToast(message);
+}
+
+// ── retry translation ──
+async function retryTranslation(){
+  if(!activeForm){return}
+  retryCount++;
+  errorActions.style.display='none';
+  progressText.textContent='重试中...';
+  setPreviewState('translating');
+  doTranslate(activeForm);
+}
+
+// cancel button
+cancelBtn.addEventListener('click',abortTranslation);
+
+// retry buttons
+retryBtn.addEventListener('click',retryTranslation);
+previewRetryBtn.addEventListener('click',retryTranslation);
+
+// ── core: submit & poll ──
+async function doTranslate(form){
   // Submit translation job
   const res=await fetch('/api/translate',{method:'POST',body:form});
-  if(!res.ok){showToast('提交失败: '+(await res.text()).slice(0,100));startBtn.disabled=false;return}
+  if(!res.ok){
+    showToast('提交失败: '+(await res.text()).slice(0,100));
+    resetConfigUI();resetPreview();
+    return;
+  }
   const job=await res.json();
   const jobId=job.job_id;
   const total=job.total_chapters;
+  activeJobId=jobId;activeForm=form;
 
   // Poll for progress
   const poll=async()=>{
+    if(cancelRequested)return;
+    if(!activeJobId || activeJobId!==jobId)return;
+
     try{
       const r=await fetch('/api/translate/'+jobId);
       if(!r.ok){setTimeout(poll,2000);return}
@@ -410,9 +573,21 @@ startBtn.addEventListener('click',async()=>{
         const pct=Math.round(s.current/s.total*100);
         progressFill.style.width=pct+'%';
         progressText.innerHTML='<span class="spinner"></span>第 '+s.current+'/'+s.total+' 章 &mdash; '+s.chapter_title;
+
+        // Track chapter progress
+        if(s.current>chapterEntries.length){
+          for(let c=chapterEntries.length+1;c<=s.current;c++){
+            chapterEntries.push({num:c,title:c===s.current?s.chapter_title:'第'+c+'章',status:'done'});
+          }
+          updateChapterLog();
+        }
+
         setTimeout(poll,1500);
       }else if(s.status==='complete'){
         progressFill.style.width='100%';progressText.textContent='翻译完成 — 共 '+total+' 章';
+        chapterEntries=[];updateChapterLog();
+        progressActions.style.display='none';errorActions.style.display='none';
+        setPreviewState('complete');
 
         // Fetch translation
         const tr=await fetch('/api/translation/'+jobId);
@@ -432,23 +607,40 @@ startBtn.addEventListener('click',async()=>{
         $('#out-report').innerHTML=marked.parse('## 翻译完成\n\n| 指标 | 数值 |\n|------|------|\n| 章节数 | **'+total+'** |\n| 术语数 | **'+(Object.keys(gd).length||0)+'** |');
 
         // Show results
-        previewTabs.style.display='flex';
         $$('.preview-body').forEach(x=>x.classList.remove('show'));
         $('#body-translation').classList.add('show');
         $$('.preview-tab').forEach(x=>x.classList.remove('sel'));
         $$('.preview-tab')[0].classList.add('sel');
 
         startBtn.disabled=false;startBtn.textContent='开始翻译';
+        activeJobId=null;activeForm=null;
       }else if(s.status==='error'){
-        progressText.textContent='错误: '+s.message;
-        startBtn.disabled=false;startBtn.textContent='开始翻译';
-        showToast(s.message);
+        showErrorState(s.message||'翻译失败',jobId,form);
       }else{setTimeout(poll,2000)}
     }catch(e){
-      setTimeout(poll,3000);
+      // Network error — show error state with retry
+      showErrorState('网络请求失败，请检查连接后重试',jobId,form);
     }
   };
   setTimeout(poll,1000);
+}
+
+// ── start translation ──
+startBtn.addEventListener('click',async()=>{
+  if(!selectedFile){showToast('请先选择 .txt 文件');return}
+
+  startBtn.disabled=true;startBtn.textContent='翻译中...';
+  progressWrap.style.display='block';
+  progressActions.style.display='block';
+  chapterEntries=[];
+  updateChapterLog();
+  setPreviewState('translating');
+
+  // Cache file text for retry
+  selectedFile.text_=await selectedFile.text();
+  const form=buildForm();
+
+  doTranslate(form);
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

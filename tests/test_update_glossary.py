@@ -146,10 +146,14 @@ class TestUpdateGlossaryNode:
 
     @pytest.fixture
     def semantic_store(self):
+        """Create a SemanticGlossary with a temp persist path.
+
+        The ONNX embedding model may not be available in CI/test environments,
+        so we swallow initialization failures — tests that actually call
+        add_batch on it should mock that method.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
-            import chromadb
-            client = chromadb.PersistentClient(path=tmpdir)
-            store = SemanticGlossary(client=client)
+            store = SemanticGlossary(persist_path=tmpdir)
             yield store
 
     @pytest.fixture
