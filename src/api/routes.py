@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 
-from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH
+from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB
 from ..chapter_splitter import split_chapters, ParagraphTag
 from ..job_store import job_store
 from ..backpressure import backpressure
@@ -21,6 +21,34 @@ except Exception:
     _has_celery = False
 
 app = FastAPI(title="Westward Echo API", version="0.2.0")
+
+
+# ═══════════════════════════════════════════════════════════════
+# File upload validation
+# ═══════════════════════════════════════════════════════════════
+
+async def _validate_novel_upload(file: UploadFile):
+    """Validate an uploaded novel file for size, encoding, and content.
+
+    Returns ``(content, error_message)`` — exactly one will be non-None.
+    Use typing.Optional for Python 3.9 compatibility.
+    """
+    # 1. Size check
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE_BYTES:
+        return None, f"File too large. Maximum {MAX_UPLOAD_SIZE_MB}MB."
+
+    # 2. UTF-8 encoding check
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, "File must be UTF-8 encoded text."
+
+    # 3. Content check: does it contain Chinese characters?
+    if not re.search(r'[一-鿿]', text[:10000]):
+        return None, "File does not appear to contain Chinese text. Upload a Chinese web novel .txt file."
+
+    return text, None
 
 
 @app.get("/health")
@@ -37,8 +65,14 @@ async def translate_novel(
     translate_mode: str = Form("flash"),
     qa_interval: int = Form(20),
     genre: str = Form("romance_ceo"),
+    glossary_preset: str = Form(""),
 ):
-    """Submit a novel for translation. Returns job_id immediately."""
+    """Submit a novel for translation. Returns job_id immediately.
+
+    If ``glossary_preset`` is provided, the named preset's glossary is
+    pre-loaded into the translation agent before the first chapter, giving
+    the translation a warm start with known terminology.
+    """
     # ── Backpressure: reject new work if queue is full ──
     if not backpressure.try_accept():
         return JSONResponse(
@@ -51,7 +85,12 @@ async def translate_novel(
             headers={"Retry-After": "30"},
         )
 
-    text = (await file.read()).decode("utf-8")
+    # ── File validation ──
+    text, error = await _validate_novel_upload(file)
+    if error:
+        status_code = 413 if "too large" in error.lower() else 400
+        return JSONResponse(status_code=status_code, content={"error": error})
+
     chapters = split_chapters(text)
     total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
 
@@ -59,11 +98,19 @@ async def translate_novel(
     filename = file.filename or "unknown.txt"
     job_id = job_store.create_job(filename, target_lang, total)
 
+    # ── Pre-load glossary preset if requested ──
+    preset_glossary_json = ""
+    if glossary_preset:
+        preset_glossary = job_store.load_glossary_preset(glossary_preset)
+        if preset_glossary:
+            preset_glossary_json = json.dumps(preset_glossary, ensure_ascii=False)
+
     if _has_celery:
         task = translate_novel_task.delay(
             job_id=job_id, text=text, target_lang=target_lang,
             translate_mode=translate_mode, qa_interval=qa_interval,
             genre=genre,
+            glossary_preset_glossary=preset_glossary_json,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
     # Celery not available — release backpressure (no work was accepted)
@@ -81,6 +128,7 @@ async def translate_multi(
     translate_mode: str = Form("flash"),
     genre: str = Form("romance_ceo"),
     qa_interval: int = Form(20),
+    glossary_preset: str = Form(""),
 ) -> dict:
     """Start translation into multiple languages simultaneously.
 
@@ -101,13 +149,25 @@ async def translate_multi(
             headers={"Retry-After": "30"},
         )
 
-    text = (await file.read()).decode("utf-8")
+    # ── File validation ──
+    text, error = await _validate_novel_upload(file)
+    if error:
+        status_code = 413 if "too large" in error.lower() else 400
+        return JSONResponse(status_code=status_code, content={"error": error})
+
     chapters = split_chapters(text)
     total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
     filename = file.filename or "unknown.txt"
 
     # Create a project to group all language variants
     project_id = job_store.create_project(filename)
+
+    # ── Pre-load glossary preset if requested ──
+    preset_glossary_json = ""
+    if glossary_preset:
+        preset_glossary = job_store.load_glossary_preset(glossary_preset)
+        if preset_glossary:
+            preset_glossary_json = json.dumps(preset_glossary, ensure_ascii=False)
 
     langs = [lang.strip() for lang in target_langs.split(",") if lang.strip()]
     results = []
@@ -120,6 +180,7 @@ async def translate_multi(
                 job_id=job_id, text=text, target_lang=lang,
                 translate_mode=translate_mode, qa_interval=qa_interval,
                 genre=genre,
+                glossary_preset_glossary=preset_glossary_json,
             )
             results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
         else:
@@ -142,6 +203,15 @@ async def translate_multi(
                 agent = TranslationAgent()
                 all_translations = []
                 prev_summary = ""
+
+                # ── Pre-load preset glossary into agent's exact_store ──
+                if preset_glossary_json:
+                    try:
+                        preset_terms = json.loads(preset_glossary_json)
+                        for term_cn, term_en in preset_terms.items():
+                            agent.exact_store.add(term_cn, term_en, category="culture", target_lang=lang)
+                    except (json.JSONDecodeError, Exception):
+                        pass
                 output_path = str(OUTPUT_DIR / f"{jid}_full_novel_{lang}.md")
 
                 prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
@@ -366,7 +436,11 @@ async def resume_translation(
             content={"error": "Celery worker not available", "job_id": job_id},
         )
 
-    text = (await file.read()).decode("utf-8")
+    # ── File validation ──
+    text, error = await _validate_novel_upload(file)
+    if error:
+        status_code = 413 if "too large" in error.lower() else 400
+        return JSONResponse(status_code=status_code, content={"error": error})
 
     # 1. Load job
     job = job_store.get_job(job_id)
@@ -473,3 +547,96 @@ def delete_job(job_id: str):
         return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
     job_store.delete_job(job_id)
     return {"status": "deleted", "job_id": job_id}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Token cost tracking
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/jobs/{job_id}/cost")
+def get_job_cost(job_id: str):
+    """Return token usage and estimated cost for a job."""
+    job = job_store.get_job(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
+    cost = job_store.get_job_cost(job_id)
+    return {
+        "job_id": job_id,
+        **cost,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Glossary presets (translation memory across books)
+# ═══════════════════════════════════════════════════════════════
+
+@app.post("/presets/{job_id}")
+async def save_preset(
+    job_id: str,
+    name: str = Form(...),
+    description: str = Form(""),
+):
+    """Save a completed job's glossary as a reusable preset."""
+    job = job_store.get_job(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
+
+    # Load the job's glossary
+    glossary_path = OUTPUT_DIR / f"{job_id}_glossary.json"
+    glossary_json = "{}"
+    glossary_count = 0
+    if glossary_path.exists():
+        try:
+            glossary_data = json.loads(glossary_path.read_text(encoding="utf-8"))
+            glossary_json = json.dumps(glossary_data, ensure_ascii=False)
+            glossary_count = len(glossary_data)
+        except (json.JSONDecodeError, OSError):
+            glossary_json = "{}"
+
+    job_store.save_glossary_as_preset(
+        job_id=job_id,
+        preset_name=name,
+        description=description,
+        glossary_json=glossary_json,
+    )
+
+    return {
+        "status": "saved",
+        "preset_name": name,
+        "glossary_count": glossary_count,
+    }
+
+
+@app.get("/presets")
+def list_presets():
+    """List available glossary presets."""
+    presets = job_store.list_glossary_presets()
+    return {"presets": presets}
+
+
+@app.get("/presets/{preset_name}")
+def get_preset(preset_name: str):
+    """Get a single preset's glossary."""
+    glossary = job_store.load_glossary_preset(preset_name)
+    if not glossary:
+        # Check if preset exists at all
+        presets = job_store.list_glossary_presets()
+        if not any(p["preset_name"] == preset_name for p in presets):
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Preset not found", "preset_name": preset_name},
+            )
+    return {"preset_name": preset_name, "glossary": glossary, "term_count": len(glossary)}
+
+
+@app.delete("/presets/{preset_name}")
+def delete_preset(preset_name: str):
+    """Delete a glossary preset."""
+    presets = job_store.list_glossary_presets()
+    if not any(p["preset_name"] == preset_name for p in presets):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Preset not found", "preset_name": preset_name},
+        )
+    job_store.delete_glossary_preset(preset_name)
+    return {"status": "deleted", "preset_name": preset_name}

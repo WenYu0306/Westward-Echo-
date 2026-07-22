@@ -30,6 +30,7 @@ class TranslationStats:
     _chapters_failed: int = 0
     _api_calls_total: int = 0
     _api_calls_failed: int = 0
+    _tool_calls_total: int = 0
 
     # Per-language counters: lang -> count
     _api_calls_per_lang: Dict[str, int] = defaultdict(int)
@@ -42,8 +43,16 @@ class TranslationStats:
     _recent_api_calls: List[tuple] = []    # [(timestamp, lang, success), ...]
     _max_recent = 200
 
+    # Token / cost tracking
+    _tokens_input: int = 0
+    _tokens_output: int = 0
+
     # Session start time
     _start_time: float = time.monotonic()
+
+    # Pricing constants (DeepSeek V4, USD per million tokens)
+    _PRICE_INPUT_PER_M = 0.14   # $0.14/M input
+    _PRICE_OUTPUT_PER_M = 0.28  # $0.28/M output
 
     @classmethod
     def record_api_call(cls, lang: str = "en-US"):
@@ -98,6 +107,42 @@ class TranslationStats:
         cls.record_failure(lang)
 
     @classmethod
+    def record_tool_call(cls):
+        """Record that the LLM invoked a tool (e.g. glossary lookup)."""
+        with cls._lock:
+            cls._tool_calls_total += 1
+
+    @classmethod
+    def record_tokens(cls, input_tokens: int, output_tokens: int):
+        """Accumulate token usage from an LLM API response."""
+        with cls._lock:
+            cls._tokens_input += input_tokens
+            cls._tokens_output += output_tokens
+
+    @classmethod
+    def token_snapshot(cls) -> dict:
+        """Return {total, input, output, estimated_cost_usd} for the session."""
+        with cls._lock:
+            total = cls._tokens_input + cls._tokens_output
+            cost = (
+                (cls._tokens_input / 1_000_000) * cls._PRICE_INPUT_PER_M
+                + (cls._tokens_output / 1_000_000) * cls._PRICE_OUTPUT_PER_M
+            )
+            return {
+                "total": total,
+                "input": cls._tokens_input,
+                "output": cls._tokens_output,
+                "estimated_cost_usd": round(cost, 4),
+            }
+
+    @classmethod
+    def reset_tokens(cls):
+        """Reset token counters (e.g. at start of a new job)."""
+        with cls._lock:
+            cls._tokens_input = 0
+            cls._tokens_output = 0
+
+    @classmethod
     def snapshot(cls) -> dict:
         """Return a point-in-time snapshot of all metrics."""
         with cls._lock:
@@ -135,6 +180,7 @@ class TranslationStats:
                 "chapters_failed": cls._chapters_failed,
                 "api_calls_total": cls._api_calls_total,
                 "api_calls_failed": cls._api_calls_failed,
+                "tool_calls_total": cls._tool_calls_total,
                 "throughput_chapters_per_minute": round(throughput, 2),
                 "error_rates_per_language": per_lang_error,
                 "chapters_per_language": dict(cls._chapters_per_lang),
@@ -144,5 +190,13 @@ class TranslationStats:
                 "uptime_seconds": round(uptime, 1),
                 "session_start": time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ", time.gmtime(cls._start_time)
+                ),
+                "tokens_input": cls._tokens_input,
+                "tokens_output": cls._tokens_output,
+                "tokens_total": cls._tokens_input + cls._tokens_output,
+                "estimated_cost_usd": round(
+                    (cls._tokens_input / 1_000_000) * cls._PRICE_INPUT_PER_M
+                    + (cls._tokens_output / 1_000_000) * cls._PRICE_OUTPUT_PER_M,
+                    4,
                 ),
             }

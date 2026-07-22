@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS jobs (
                         CHECK(status IN ('queued','translating','complete','failed')),
     output_path         TEXT,
     glossary_count      INTEGER,
+    tokens_input        INTEGER NOT NULL DEFAULT 0,
+    tokens_output       INTEGER NOT NULL DEFAULT 0,
     error_message       TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at        TEXT
@@ -57,6 +59,14 @@ CREATE TABLE IF NOT EXISTS rejected_terms (
     rejected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (term_cn, rejected_en, target_lang)
 );
+
+CREATE TABLE IF NOT EXISTS glossary_presets (
+    preset_name         TEXT PRIMARY KEY,
+    description         TEXT,
+    created_from_job_id TEXT,
+    glossary_json       TEXT NOT NULL,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -67,7 +77,17 @@ class JobStore:
         """Ensure the schema exists on first use."""
         conn = _get_conn()
         conn.executescript(_SCHEMA)
+        # ── Migrations for existing databases ──
+        self._migrate_add_column(conn, "jobs", "tokens_input", "INTEGER NOT NULL DEFAULT 0")
+        self._migrate_add_column(conn, "jobs", "tokens_output", "INTEGER NOT NULL DEFAULT 0")
         conn.commit()
+
+    @staticmethod
+    def _migrate_add_column(conn, table: str, column: str, col_type: str):
+        """Add a column if it doesn't already exist (safe no-op on existing)."""
+        existing = [col[1] for col in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
 
     # ── helpers ──────────────────────────────────────────────
 
@@ -149,6 +169,100 @@ class JobStore:
                WHERE job_id = ?""",
             (error_message, self._now(), job_id),
         )
+        conn.commit()
+
+    def update_token_usage(self, job_id: str, input_tokens: int, output_tokens: int):
+        """Increment token counters for a job (for per-job cost tracking)."""
+        conn = _get_conn()
+        conn.execute(
+            """UPDATE jobs
+               SET tokens_input = tokens_input + ?,
+                   tokens_output = tokens_output + ?
+               WHERE job_id = ?""",
+            (input_tokens, output_tokens, job_id),
+        )
+        conn.commit()
+
+    def get_job_cost(self, job_id: str) -> dict:
+        """Return {tokens_input, tokens_output, total, estimated_cost_usd} for a job.
+
+        Uses DeepSeek V4 pricing: $0.14/M input, $0.28/M output (Flash).
+        """
+        conn = _get_conn()
+        row = conn.execute(
+            "SELECT tokens_input, tokens_output FROM jobs WHERE job_id = ?",
+            (job_id,),
+        ).fetchone()
+        if not row:
+            return {"tokens_input": 0, "tokens_output": 0, "total": 0, "estimated_cost_usd": 0.0}
+
+        _in = row["tokens_input"] or 0
+        _out = row["tokens_output"] or 0
+        total = _in + _out
+        cost = (_in / 1_000_000) * 0.14 + (_out / 1_000_000) * 0.28
+        return {
+            "tokens_input": _in,
+            "tokens_output": _out,
+            "total": total,
+            "estimated_cost_usd": round(cost, 4),
+        }
+
+    # ── glossary presets (translation memory across books) ──
+
+    def save_glossary_as_preset(
+        self, job_id: str, preset_name: str, description: str = "", glossary_json: str = ""
+    ):
+        """Save a completed job's glossary as a reusable preset.
+
+        If glossary_json is omitted, the preset is created empty — callers
+        should populate it after creating the preset.
+        """
+        conn = _get_conn()
+        conn.execute(
+            """INSERT OR REPLACE INTO glossary_presets
+               (preset_name, description, created_from_job_id, glossary_json, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (preset_name, description, job_id, glossary_json, self._now()),
+        )
+        conn.commit()
+
+    def load_glossary_preset(self, preset_name: str) -> dict:
+        """Load a preset glossary. Returns {term_cn: term_en} or empty dict."""
+        conn = _get_conn()
+        row = conn.execute(
+            "SELECT glossary_json FROM glossary_presets WHERE preset_name = ?",
+            (preset_name,),
+        ).fetchone()
+        if not row:
+            return {}
+        try:
+            import json as _json
+            return _json.loads(row["glossary_json"]) or {}
+        except Exception:
+            return {}
+
+    def load_glossary_preset_raw(self, preset_name: str) -> Optional[str]:
+        """Return the raw JSON string of a preset, or None if not found."""
+        conn = _get_conn()
+        row = conn.execute(
+            "SELECT glossary_json FROM glossary_presets WHERE preset_name = ?",
+            (preset_name,),
+        ).fetchone()
+        return row["glossary_json"] if row else None
+
+    def list_glossary_presets(self) -> list[dict]:
+        """List all available presets."""
+        conn = _get_conn()
+        rows = conn.execute(
+            "SELECT preset_name, description, created_from_job_id, created_at "
+            "FROM glossary_presets ORDER BY created_at DESC"
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
+    def delete_glossary_preset(self, preset_name: str):
+        """Remove a glossary preset."""
+        conn = _get_conn()
+        conn.execute("DELETE FROM glossary_presets WHERE preset_name = ?", (preset_name,))
         conn.commit()
 
     def get_job(self, job_id: str) -> Optional[dict]:

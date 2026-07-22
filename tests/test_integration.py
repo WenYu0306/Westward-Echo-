@@ -52,11 +52,17 @@ def _make_state(chapter_title, chapter_content, chapter_number,
 
 
 def _mock_translate_response(content_json):
-    """Create a MagicMock that mimics a ChatOpenAI instance returning content_json."""
+    """Create a MagicMock that mimics a ChatOpenAI instance returning content_json.
+
+    The mock supports .bind_tools() by returning itself, and .invoke() returns
+    a response with the given content and no tool_calls.
+    """
     mock_response = MagicMock()
     mock_response.content = json.dumps(content_json)
+    mock_response.tool_calls = []  # No tool calls by default
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = mock_response
+    mock_llm.bind_tools.return_value = mock_llm  # bind_tools returns self
     return mock_llm
 
 
@@ -578,8 +584,10 @@ class TestErrorHandlingGarbageResponse:
             # So let's mock it properly: the LLM.invoke returns content that IS the garbage text
             mock_response = MagicMock()
             mock_response.content = garbage_response
+            mock_response.tool_calls = []
             mock_llm = MagicMock()
             mock_llm.invoke.return_value = mock_response
+            mock_llm.bind_tools.return_value = mock_llm  # bind_tools returns self
             mock_trans_llm.return_value = mock_llm
 
             mock_val_llm.return_value = _mock_translate_response({
@@ -640,9 +648,12 @@ class TestErrorHandlingTimeout:
         )
 
         with patch("src.agent.nodes.translate.ChatOpenAI") as mock_trans_llm:
-            mock_trans_llm.return_value.invoke.side_effect = TimeoutError(
+            mock_llm = MagicMock()
+            mock_llm.invoke.side_effect = TimeoutError(
                 "LLM request timed out after 60 seconds"
             )
+            mock_llm.bind_tools.return_value = mock_llm
+            mock_trans_llm.return_value = mock_llm
 
             graph = build_graph(exact_store, semantic_store)
 

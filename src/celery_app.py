@@ -49,7 +49,8 @@ if _celery_ok:
     @app.task(bind=True, max_retries=2, default_retry_delay=30)
     def translate_novel_task(self, job_id: str, text: str, target_lang: str = "en-US",
                               translate_mode: str = "flash", qa_interval: int = 20,
-                              genre: str = "romance_ceo"):
+                              genre: str = "romance_ceo",
+                              glossary_preset_glossary: str = ""):
         """Main translation Celery task — durable, retryable, checkpointed."""
         progress = TranslationProgress(job_id)
         try:
@@ -58,6 +59,16 @@ if _celery_ok:
             total = len(translatable)
             agent = TranslationAgent()
             all_translations = []
+
+            # ── Pre-load glossary from preset (warm start) ──
+            if glossary_preset_glossary and glossary_preset_glossary != "{}":
+                try:
+                    preset_terms = json.loads(glossary_preset_glossary)
+                    for term_cn, term_en in preset_terms.items():
+                        agent.exact_store.add(term_cn, term_en, category="culture", target_lang=target_lang)
+                    logger.info("Pre-loaded %d glossary terms from preset for job %s", len(preset_terms), job_id)
+                except (json.JSONDecodeError, Exception) as exc:
+                    logger.warning("Failed to pre-load glossary preset for job %s: %s", job_id, exc)
             prev_summary = ""
             output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
 

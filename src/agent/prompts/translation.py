@@ -96,6 +96,11 @@ When translating chapter titles, use English web novel conventions:
 - Preserve emotional tone but make it work in English web novel style
 - Avoid literal translation of 4-character idioms in titles — capture the IMPACT, not the words
 - Keep titles under 8 words
+
+### 10. Tool Use
+You have access to a `lookup_glossary` tool. Use it to look up the approved translation
+for ANY proper noun, character name, or culturally specific term before translating it.
+If the term is NOT in the glossary (tool returns NOT_FOUND), record it in new_terms_found.
 """
 
 TRANSLATION_USER = """\

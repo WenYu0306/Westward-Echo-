@@ -10,8 +10,9 @@ re-translated after QA failure).
 """
 
 import json
+import logging
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
 from ..state import TranslatorState
 from ..prompts.translation import TRANSLATION_SYSTEM, TRANSLATION_USER
@@ -24,9 +25,16 @@ from ...cultural_rules import load_rules, format_rules_for_prompt
 from ...job_store import job_store
 from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
 from ...stats import TranslationStats
+from ...tools import ALL_TOOLS, handle_glossary_lookup
+
+logger = logging.getLogger(__name__)
 
 
-def _get_llm(chapter_number: int, is_retranslation: bool = False) -> ChatOpenAI:
+def _get_llm(
+    chapter_number: int,
+    is_retranslation: bool = False,
+    bind_tools: bool = True,
+) -> ChatOpenAI:
     """Select the model tier for this chapter.
 
     - Chapter 1 → Pro (sets the quality baseline for the whole book)
@@ -38,13 +46,24 @@ def _get_llm(chapter_number: int, is_retranslation: bool = False) -> ChatOpenAI:
     else:
         model = MODEL_MAP["translate"]
 
-    return ChatOpenAI(
+    llm = ChatOpenAI(
         model=model,
         api_key=DEEPSEEK_API_KEY,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.2,
         max_tokens=8192,
     )
+
+    # Optionally bind glossary-lookup tool for supported models.
+    # DeepSeek and most OpenAI-compatible endpoints support function calling.
+    # If .bind_tools() fails, the LLM falls back to prompt-injected glossary.
+    if bind_tools:
+        try:
+            llm = llm.bind_tools(ALL_TOOLS)
+        except (AttributeError, NotImplementedError) as exc:
+            logger.debug("bind_tools not supported by this model: %s", exc)
+
+    return llm
 
 
 def translate_node(state: TranslatorState) -> dict:
@@ -96,6 +115,10 @@ def translate_node(state: TranslatorState) -> dict:
     from ...onomatopoeia import build_onomatopoeia_context
     onoma_hint = build_onomatopoeia_context(state["chapter_content"])
 
+    # Detect Chinese idioms (成语) and build translation hints
+    from ...idioms import build_idiom_context
+    idiom_hint = build_idiom_context(state["chapter_content"])
+
     system_prompt = TRANSLATION_SYSTEM.format(cultural_rules_table=cultural_rules_table)
 
     user_prompt = TRANSLATION_USER.format(
@@ -116,6 +139,10 @@ def translate_node(state: TranslatorState) -> dict:
     # ── Inject onomatopoeia context hints ──────
     if onoma_hint:
         user_prompt = onoma_hint + "\n\n" + user_prompt
+
+    # ── Inject idiom context hints ──────
+    if idiom_hint:
+        user_prompt = idiom_hint + "\n\n" + user_prompt
 
     # ── Inject confirmed terms (locked by human reviewer) ──────
     confirmed = job_store.get_confirmed_terms(target_lang)
@@ -157,6 +184,54 @@ def translate_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_failure(target_lang)
         raise
 
+    # ── Capture token usage from primary LLM call ──────────
+    _capture_response_tokens(response)
+
+    # ── Tool Use support (MCP-style glossary lookup) ──────────
+    # If the LLM requests a glossary lookup, execute it and re-invoke the LLM
+    # with the tool result.  Max 3 round-trips to prevent infinite loops.
+    MAX_TOOL_ROUNDS = 3
+    tool_round = 0
+
+    while (hasattr(response, 'tool_calls') and response.tool_calls
+           and tool_round < MAX_TOOL_ROUNDS):
+        tool_round += 1
+        logger.debug("LLM tool call round %d: %d calls", tool_round, len(response.tool_calls))
+
+        # Append the assistant message (containing tool_calls) to the conversation
+        messages.append(response)
+
+        for tool_call in response.tool_calls:
+            tool_name = tool_call.get("name", "")
+            tool_args = tool_call.get("args", {})
+            tool_id = tool_call.get("id", "")
+
+            if tool_name == "lookup_glossary":
+                term_cn = tool_args.get("term_cn", "")
+                # Use the state's exact_glossary dict for lookups within the node
+                exact_glossary = state.get("exact_glossary", {})
+                result = exact_glossary.get(term_cn, "NOT_FOUND")
+                TranslationStats.record_tool_call()
+                logger.debug("lookup_glossary('%s') → %s", term_cn, result)
+            else:
+                result = f"Unknown tool: {tool_name}"
+
+            messages.append(ToolMessage(content=result, tool_call_id=tool_id))
+
+        # Re-invoke the LLM with the tool results
+        try:
+            TranslationStats.record_api_call(target_lang)
+            response = breaker.call(llm.invoke, messages)
+            TranslationStats.record_api_success(target_lang)
+        except CircuitBreakerOpenError:
+            TranslationStats.record_api_failure(target_lang)
+            raise
+        except Exception:
+            TranslationStats.record_api_failure(target_lang)
+            raise
+
+        _capture_response_tokens(response)
+
     result = _parse_llm_response(response.content)
 
     return {
@@ -165,6 +240,19 @@ def translate_node(state: TranslatorState) -> dict:
         "adaptation_notes": result.get("cultural_adaptation_notes", []),
         "chapter_summary": result.get("chapter_summary", ""),
     }
+
+
+def _capture_response_tokens(response) -> None:
+    """Extract token usage from a LangChain AIMessage and record it."""
+    try:
+        usage = response.response_metadata.get("token_usage", {})
+        if usage:
+            TranslationStats.record_tokens(
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+            )
+    except Exception:
+        pass  # Token tracking is best-effort; never break translation for it
 
 
 def _parse_llm_response(content: str) -> dict:

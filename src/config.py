@@ -58,6 +58,10 @@ CMS_FILE_BASE_DIR = os.getenv("CMS_FILE_BASE_DIR", str(ROOT_DIR / "novels"))
 CMS_WEBHOOK_URL = os.getenv("CMS_WEBHOOK_URL", "")
 CMS_WEBHOOK_API_KEY = os.getenv("CMS_WEBHOOK_API_KEY", "")
 
+# --- File upload security ---
+MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))  # 50MB default
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
 # --- Per-node model routing ---
 # Each node picks a model tier. The model string is resolved at runtime
 # from the DEEPSEEK_*_MODEL env vars, so you can update models without touching code.

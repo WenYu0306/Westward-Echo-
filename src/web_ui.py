@@ -581,6 +581,13 @@ body{
               </div>
 
               <div class="field">
+                <label>术语表预设</label>
+                <select id="glossary-preset">
+                  <option value="">（无 - 从头开始）</option>
+                </select>
+              </div>
+
+              <div class="field">
                 <label>质检频率（每 <span id="range-label">20</span> 章）</label>
                 <div class="range-wrap">
                   <span style="font-size:12px;color:#aeaeb2">5</span>
@@ -693,6 +700,23 @@ async function loadJobList(){
       projectsCache=await pr.json();
     }catch(e){projectsCache=[]}
     renderJobList();
+  }catch(e){/* silent */}
+}
+
+// ── Load glossary presets into the dropdown ──
+async function loadPresets(){
+  try{
+    const r=await fetch('/api/presets');
+    const d=await r.json();
+    const sel=$('#glossary-preset');
+    // Clear all except the default option
+    sel.innerHTML='<option value="">（无 - 从头开始）</option>';
+    d.presets.forEach(p=>{
+      const opt=document.createElement('option');
+      opt.value=p.preset_name;
+      opt.textContent=p.preset_name+(p.description?' — '+p.description:'');
+      sel.appendChild(opt);
+    });
   }catch(e){/* silent */}
 }
 
@@ -885,6 +909,7 @@ function renderJobDetail(job){
   h+='<div class="job-detail-header">';
   h+='<div class="job-detail-title">'+esc(job.filename)+' <span class="status-badge '+job.status+'">'+statusLabel+'</span></div>';
   h+='<div class="job-detail-actions">';
+  if(job.status==='complete')h+='<button class="btn-cancel" id="btn-save-preset" data-job-id="'+job.job_id+'" style="width:auto">保存术语表预设</button>';
   h+='<button class="btn-delete-job" id="btn-delete-job" data-job-id="'+job.job_id+'">删除</button>';
   h+='</div>';
   h+='</div>';
@@ -893,6 +918,14 @@ function renderJobDetail(job){
   h+='<div class="job-detail-card"><div class="job-detail-card-label">目标语言</div><div class="job-detail-card-value">'+langLabel+'</div></div>';
   h+='<div class="job-detail-card"><div class="job-detail-card-label">总章节</div><div class="job-detail-card-value">'+job.total_chapters+'</div></div>';
   if(job.glossary_count)h+='<div class="job-detail-card"><div class="job-detail-card-label">术语数</div><div class="job-detail-card-value">'+job.glossary_count+'</div></div>';
+  // Show cost if token data exists
+  if(job.tokens_input||job.tokens_output){
+    const totalTokens=(job.tokens_input||0)+(job.tokens_output||0);
+    const cost=((job.tokens_input||0)/1e6*0.14+(job.tokens_output||0)/1e6*0.28).toFixed(4);
+    const kIn=Math.round((job.tokens_input||0)/1000);
+    const kOut=Math.round((job.tokens_output||0)/1000);
+    h+='<div class="job-detail-card" style="flex:2"><div class="job-detail-card-label">成本估算</div><div class="job-detail-card-value" style="font-size:13px">~$'+cost+' | '+totalTokens.toLocaleString()+' tokens ('+kIn+'K in / '+kOut+'K out)</div></div>';
+  }
   h+='<div class="job-detail-card"><div class="job-detail-card-label">创建时间</div><div class="job-detail-card-value" style="font-size:13px">'+(job.created_at||'—')+'</div></div>';
   h+=extraCards;
   h+='</div>';
@@ -946,6 +979,22 @@ function renderJobDetail(job){
     }catch(e){showToast('删除失败: '+e.message)}
   });
 
+  // Wire "save as preset" button
+  const savePresetBtn=$('#btn-save-preset');
+  if(savePresetBtn)savePresetBtn.addEventListener('click',async()=>{
+    const name=prompt('请输入预设名称（例如：斗破苍穹 术语表）');
+    if(!name)return;
+    try{
+      const form=new FormData();
+      form.append('name',name);
+      form.append('description','');
+      const r=await fetch('/api/presets/'+job.job_id,{method:'POST',body:form});
+      if(!r.ok)throw new Error(await r.text());
+      showToast('术语表已保存为预设: '+name);
+      loadPresets();
+    }catch(e){showToast('保存失败: '+e.message)}
+  });
+
   // Wire tabs if complete
   if(job.status==='complete'){
     $$('#view-job .preview-tab').forEach(t=>{
@@ -980,7 +1029,16 @@ async function loadJobResults(jobId, job){
   }catch(e){/* ignore */}
   // Report
   const glossaryCount=job.glossary_count||0;
-  $('#job-out-report').innerHTML='<h2>翻译概况</h2><table><tr><th>指标</th><th>数值</th></tr><tr><td>总章节</td><td><strong>'+job.total_chapters+'</strong></td></tr><tr><td>术语数</td><td><strong>'+glossaryCount+'</strong></td></tr><tr><td>目标语言</td><td>'+job.target_lang+'</td></tr><tr><td>完成时间</td><td>'+(job.completed_at||'—')+'</td></tr></table>';
+  // Build cost line
+  let costLine='';
+  if(job.tokens_input||job.tokens_output){
+    const totalTokens=(job.tokens_input||0)+(job.tokens_output||0);
+    const cost=((job.tokens_input||0)/1e6*0.14+(job.tokens_output||0)/1e6*0.28).toFixed(2);
+    const kIn=Math.round((job.tokens_input||0)/1000);
+    const kOut=Math.round((job.tokens_output||0)/1000);
+    costLine='<tr><td>成本估算</td><td><strong>~$'+cost+'</strong> | '+totalTokens.toLocaleString()+' tokens ('+kIn+'K in / '+kOut+'K out)</td></tr>';
+  }
+  $('#job-out-report').innerHTML='<h2>翻译概况</h2><table><tr><th>指标</th><th>数值</th></tr><tr><td>总章节</td><td><strong>'+job.total_chapters+'</strong></td></tr><tr><td>术语数</td><td><strong>'+glossaryCount+'</strong></td></tr><tr><td>目标语言</td><td>'+job.target_lang+'</td></tr><tr><td>完成时间</td><td>'+(job.completed_at||'—')+'</td></tr>'+costLine+'</table>';
 }
 
 // Polling while viewing a job (for in-progress jobs)
@@ -1112,6 +1170,7 @@ function buildForm(){
   form.append('translate_mode',document.querySelector('input[name="model"]:checked').value);
   form.append('qa_interval',rangeInput.value);
   form.append('genre',$('#genre').value);
+  form.append('glossary_preset',$('#glossary-preset').value);
   return form;
 }
 
@@ -1350,6 +1409,7 @@ function showNewTranslationView(){
   resetConfigUI();
   resetPreview();
   toggleMultiLangs(false);
+  loadPresets();
 }
 
 // ═══════════════════════════════════════════════════════════════
