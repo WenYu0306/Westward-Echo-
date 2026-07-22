@@ -7,7 +7,10 @@ Install: pip install celery[redis]
 import json
 import time
 import sqlite3
+import logging
 from pathlib import Path
+
+logger = logging.getLogger("westward_echo.celery")
 
 try:
     from celery import Celery
@@ -24,6 +27,9 @@ from .config import (
 from .chapter_splitter import split_chapters, merge_chapters, ParagraphTag
 from .agent.graph import TranslationAgent
 from .prefetch import ChapterPrefetcher
+from .backpressure import backpressure
+from .stats import TranslationStats
+from .circuit_breaker import CircuitBreakerOpenError
 
 
 if _celery_ok:
@@ -67,13 +73,25 @@ if _celery_ok:
                     agent.set_prefetched_glossary(cached[0], cached[1])
 
                 progress.update(i + 1, total, chapter.title)
-                result = agent.translate_chapter(
-                    chapter_title=chapter.title, chapter_content=chapter.content,
-                    chapter_number=chapter.index, previous_summary=prev_summary,
-                    target_lang=target_lang, genre=genre,
-                )
+                try:
+                    result = agent.translate_chapter(
+                        chapter_title=chapter.title, chapter_content=chapter.content,
+                        chapter_number=chapter.index, previous_summary=prev_summary,
+                        target_lang=target_lang, genre=genre,
+                    )
+                except CircuitBreakerOpenError:
+                    # Circuit is open for this language — skip remaining chapters
+                    logger.warning(
+                        "Circuit breaker OPEN for language '%s' at chapter %d/%d — "
+                        "skipping remaining chapters for this language.",
+                        target_lang, chapter.index, total,
+                    )
+                    TranslationStats.record_chapter_failed(target_lang)
+                    break
+
                 all_translations.append(result["translated_text"])
                 prev_summary = result.get("chapter_summary", "")
+                TranslationStats.record_chapter_complete(target_lang)
                 _save_checkpoint(job_id, chapter.index, result["translated_text"],
                                  result.get("glossary_snapshot_json", "{}"), prev_summary)
 
@@ -90,9 +108,12 @@ if _celery_ok:
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8")
             progress.complete(output_path, len(glossary))
+            backpressure.release()
             return {"status": "complete", "output_path": output_path, "total_chapters": total, "glossary_count": len(glossary)}
         except Exception as exc:
             progress.error(str(exc))
+            TranslationStats.record_chapter_failed(target_lang)
+            backpressure.release()
             raise self.retry(exc=exc)
 
     @app.task(bind=True, max_retries=1, default_retry_delay=30)
@@ -152,13 +173,24 @@ if _celery_ok:
                 if cached:
                     agent.set_prefetched_glossary(cached[0], cached[1])
 
-                result = agent.translate_chapter(
-                    chapter_title=chapter.title, chapter_content=chapter.content,
-                    chapter_number=chapter.index, previous_summary=prev_summary,
-                    target_lang=target_lang, genre=genre,
-                )
+                try:
+                    result = agent.translate_chapter(
+                        chapter_title=chapter.title, chapter_content=chapter.content,
+                        chapter_number=chapter.index, previous_summary=prev_summary,
+                        target_lang=target_lang, genre=genre,
+                    )
+                except CircuitBreakerOpenError:
+                    logger.warning(
+                        "Circuit breaker OPEN for language '%s' at chapter %d — "
+                        "skipping remaining chapters for this language.",
+                        target_lang, chapter.index,
+                    )
+                    TranslationStats.record_chapter_failed(target_lang)
+                    break
+
                 all_translations.append(result["translated_text"])
                 prev_summary = result.get("chapter_summary", "")
+                TranslationStats.record_chapter_complete(target_lang)
                 _save_checkpoint(job_id, chapter.index, result["translated_text"],
                                  result.get("glossary_snapshot_json", "{}"), prev_summary)
 
@@ -178,9 +210,12 @@ if _celery_ok:
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8")
             progress.complete(output_path, len(glossary))
+            backpressure.release()
             return {"status": "complete", "output_path": output_path, "total_chapters": total, "glossary_count": len(glossary)}
         except Exception as exc:
             progress.error(str(exc))
+            TranslationStats.record_chapter_failed(target_lang)
+            backpressure.release()
             raise self.retry(exc=exc)
 
 else:

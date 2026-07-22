@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse, FileResponse
 from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH
 from ..chapter_splitter import split_chapters, ParagraphTag
 from ..job_store import job_store
+from ..backpressure import backpressure
+from ..stats import TranslationStats
 
 try:
     from ..celery_app import translate_novel_task, resume_translate_task
@@ -37,6 +39,18 @@ async def translate_novel(
     genre: str = Form("romance_ceo"),
 ):
     """Submit a novel for translation. Returns job_id immediately."""
+    # ── Backpressure: reject new work if queue is full ──
+    if not backpressure.try_accept():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "service_overloaded",
+                "message": "Too many translations in progress. Try again later.",
+                "queue_depth": backpressure.queue_depth,
+            },
+            headers={"Retry-After": "30"},
+        )
+
     text = (await file.read()).decode("utf-8")
     chapters = split_chapters(text)
     total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
@@ -73,6 +87,18 @@ async def translate_multi(
 
     Returns ``{project_id, filename, jobs: [{lang, job_id, status}]}``.
     """
+    # ── Backpressure: reject new work if queue is full ──
+    if not backpressure.try_accept():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "service_overloaded",
+                "message": "Too many translations in progress. Try again later.",
+                "queue_depth": backpressure.queue_depth,
+            },
+            headers={"Retry-After": "30"},
+        )
+
     text = (await file.read()).decode("utf-8")
     chapters = split_chapters(text)
     total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
@@ -103,12 +129,13 @@ async def translate_multi(
         def _run_translation(lang: str, jid: str):
             """Run translation synchronously in a background thread."""
             import asyncio as _asyncio
+            from ..agent.graph import TranslationAgent
+            from ..prefetch import ChapterPrefetcher
+            from ..circuit_breaker import CircuitBreakerOpenError
+
             loop = _asyncio.new_event_loop()
             _asyncio.set_event_loop(loop)
             try:
-                from ..agent.graph import TranslationAgent
-                from ..prefetch import ChapterPrefetcher
-
                 chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
                 agent = TranslationAgent()
                 all_translations = []
@@ -134,7 +161,12 @@ async def translate_multi(
                         prev_summary = result.summary or prev_summary
                         title = ch.heading or f"Chapter {i + 1}"
                         job_store.update_progress(jid, i + 1, len(chapters_list), title)
+                        TranslationStats.record_chapter_complete(lang)
+                    except CircuitBreakerOpenError:
+                        TranslationStats.record_chapter_failed(lang)
+                        break
                     except Exception:
+                        TranslationStats.record_chapter_failed(lang)
                         continue
 
                 merged = "\n\n".join(all_translations)
@@ -145,6 +177,8 @@ async def translate_multi(
                 job_store.complete_job(jid, output_path, 0)
             except Exception as exc:
                 job_store.fail_job(jid, str(exc))
+            finally:
+                backpressure.release()
 
         executor = ThreadPoolExecutor(max_workers=len(langs))
         for entry in results:

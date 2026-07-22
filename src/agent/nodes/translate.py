@@ -22,6 +22,8 @@ from ...config import (
 )
 from ...cultural_rules import load_rules, format_rules_for_prompt
 from ...job_store import job_store
+from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
+from ...stats import TranslationStats
 
 
 def _get_llm(chapter_number: int, is_retranslation: bool = False) -> ChatOpenAI:
@@ -108,7 +110,21 @@ def translate_node(state: TranslatorState) -> dict:
         HumanMessage(content=user_prompt),
     ]
 
-    response = llm.invoke(messages)
+    # ── Circuit breaker per language ──
+    target_lang = state.get("target_lang", "en-US")
+    breaker = get_breaker(target_lang)
+
+    try:
+        TranslationStats.record_api_call(target_lang)
+        response = breaker.call(llm.invoke, messages)
+        TranslationStats.record_api_success(target_lang)
+    except CircuitBreakerOpenError:
+        TranslationStats.record_api_failure(target_lang)
+        raise  # Propagate to orchestration loop for graceful skip
+    except Exception:
+        TranslationStats.record_api_failure(target_lang)
+        raise
+
     result = _parse_llm_response(response.content)
 
     return {
