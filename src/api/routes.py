@@ -2,15 +2,16 @@
 
 import json
 import re
+import sqlite3
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 
-from ..config import OUTPUT_DIR
+from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH
 from ..chapter_splitter import split_chapters, ParagraphTag
 from ..job_store import job_store
 
 try:
-    from ..celery_app import translate_novel_task
+    from ..celery_app import translate_novel_task, resume_translate_task
     _has_celery = True
 except Exception:
     _has_celery = False
@@ -20,7 +21,9 @@ app = FastAPI(title="Westward Echo API", version="0.2.0")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "celery": _has_celery, "version": "0.2.0"}
+    """Full subsystem health report. Always available (no auth, no rate limit)."""
+    from ..health import HealthChecker
+    return HealthChecker().check_all()
 
 
 @app.post("/translate")
@@ -202,6 +205,93 @@ def download_epub(job_id: str):
 # ═══════════════════════════════════════════════════════════════
 # Job management endpoints
 # ═══════════════════════════════════════════════════════════════
+
+@app.post("/translate/resume/{job_id}")
+async def resume_translation(
+    job_id: str,
+    file: UploadFile = File(...),
+    translate_mode: str = Form("flash"),
+    qa_interval: int = Form(20),
+    genre: str = Form("romance_ceo"),
+):
+    """Resume a crashed translation from its last checkpoint.
+
+    1. Load the job from JobStore
+    2. Read the SQLite checkpoint table to find the last completed chapter number
+    3. Reload the glossary snapshot from that checkpoint
+    4. Re-split the uploaded original text to find remaining chapters
+    5. Resume translation from chapter N+1 with the restored glossary
+    """
+    if not _has_celery:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Celery worker not available", "job_id": job_id},
+        )
+
+    text = (await file.read()).decode("utf-8")
+
+    # 1. Load job
+    job = job_store.get_job(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
+
+    if job["status"] not in ("translating", "queued", "failed"):
+        return JSONResponse(status_code=400, content={
+            "error": f"Job has terminal status '{job['status']}' and cannot be resumed",
+            "job_id": job_id,
+        })
+
+    # 2. Read the checkpoint table to find the last completed chapter
+    last_chapter = 0
+    glossary_snapshot = "{}"
+    try:
+        conn = sqlite3.connect(CHECKPOINT_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT chapter_number, glossary_snapshot "
+            "FROM translation_checkpoint "
+            "WHERE job_id = ? "
+            "ORDER BY chapter_number DESC LIMIT 1",
+            (job_id,),
+        ).fetchone()
+        if row:
+            last_chapter = row["chapter_number"]
+            glossary_snapshot = row["glossary_snapshot"] or "{}"
+        conn.close()
+    except sqlite3.OperationalError:
+        # No checkpoint table yet — start from chapter 0
+        pass
+
+    # 4. Re-split to verify total chapters
+    chapters = split_chapters(text)
+    total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
+
+    # 5. Start the resume task from chapter N+1
+    start_chapter = last_chapter + 1
+    target_lang = job.get("target_lang", "en-US")
+    task = resume_translate_task.delay(
+        job_id=job_id,
+        start_chapter=start_chapter,
+        glossary_snapshot=glossary_snapshot,
+        text=text,
+        target_lang=target_lang,
+        translate_mode=translate_mode,
+        qa_interval=qa_interval,
+        genre=genre,
+    )
+
+    # 6. Update job status back to translating
+    job_store.update_progress(job_id, last_chapter, total, "")
+
+    return {
+        "job_id": job_id,
+        "task_id": task.id,
+        "resumed_from_chapter": last_chapter,
+        "next_chapter": start_chapter,
+        "total_chapters": total,
+        "status": "resuming",
+    }
+
 
 @app.get("/jobs")
 def list_jobs(limit: int = 50):

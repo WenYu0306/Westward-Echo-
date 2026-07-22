@@ -103,6 +103,15 @@ class TranslationAgent:
         """Restore glossary from SQLite on startup / resume."""
         self.exact_store.load_from_db(target_lang)
 
+    def load_glossary_snapshot(self, snapshot_json: str):
+        """Restore glossary from a JSON checkpoint snapshot.
+
+        Used during crash recovery to restore the exact glossary state as it
+        was at the last checkpoint.
+        """
+        if snapshot_json and snapshot_json != "{}":
+            self.exact_store.restore_snapshot(snapshot_json)
+
     def translate_chapter(
         self,
         chapter_title: str,

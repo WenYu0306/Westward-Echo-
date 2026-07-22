@@ -12,6 +12,7 @@ from .api.routes import app as api_router
 from .api.review import app as review_api_router
 from .api.auth import APIKeyMiddleware
 from .api.logging import logger
+from .health import HealthChecker
 
 
 def create_app() -> FastAPI:
@@ -21,6 +22,27 @@ def create_app() -> FastAPI:
         description="AI-powered web novel translation with cultural adaptation",
         version="0.2.0",
     )
+
+    # ── Startup health checks ──
+    health = HealthChecker()
+    report = health.check_all()
+
+    if report["status"] == "unhealthy":
+        msg = f"Startup health check FAILED: {report['status']}"
+        logger.critical(msg)
+        # Log each failing check for diagnostics
+        for name, check in report["checks"].items():
+            if check["status"] == "error":
+                logger.critical("  %s: %s", name, check["message"])
+        raise RuntimeError(f"System unhealthy — refusing to start. {report}")
+
+    if report["status"] == "degraded":
+        logger.warning("Startup health check DEGRADED")
+        for name, check in report["checks"].items():
+            if check["status"] in ("warn", "error"):
+                logger.warning("  %s: %s", name, check["message"])
+    elif report["status"] == "healthy":
+        logger.info("Startup health check HEALTHY")
 
     app.add_middleware(
         CORSMiddleware,
@@ -52,7 +74,7 @@ def create_app() -> FastAPI:
     app.mount("/api", api_router)
     app.mount("/api/review", review_api_router)
 
-    logger.info("Westward Echo v0.2.0 (Celery + Redis + Auth + Logging)")
+    logger.info("Westward Echo v0.2.0 (Celery + Redis + Auth + Logging + Health)")
 
     return app
 

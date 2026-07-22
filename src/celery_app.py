@@ -78,9 +78,76 @@ if _celery_ok:
             progress.error(str(exc))
             raise self.retry(exc=exc)
 
+    @app.task(bind=True, max_retries=1, default_retry_delay=30)
+    def resume_translate_task(self, job_id: str, start_chapter: int, glossary_snapshot: str,
+                               text: str = "", target_lang: str = "en-US",
+                               translate_mode: str = "flash", qa_interval: int = 20,
+                               genre: str = "romance_ceo"):
+        """Resume a crashed translation from the given starting chapter number.
+
+        Accepts a glossary snapshot (JSON) and a start_chapter index so the
+        translation picks up from the last checkpoint without re-processing
+        already-translated chapters.  Previously translated chapters are
+        loaded from the checkpoint DB for the final merge.
+        """
+        progress = TranslationProgress(job_id)
+        try:
+            chapters = split_chapters(text)
+            translatable = [c for c in chapters if c.action != ParagraphTag.SKIP]
+            total = len(translatable)
+            agent = TranslationAgent()
+
+            # Restore glossary from the checkpoint snapshot
+            agent.load_glossary_snapshot(glossary_snapshot)
+
+            # Load previously-translated chapters from checkpoints
+            all_translations = []
+            prev_summary = ""
+            if start_chapter > 0:
+                completed = _load_checkpoint_translations(job_id)
+                # completed is a dict {chapter_index: translated_text}
+                for ch in translatable:
+                    if ch.index in completed:
+                        all_translations.append(completed[ch.index])
+                    elif ch.index >= start_chapter:
+                        break
+                if completed:
+                    # Use the summary from the last completed checkpoint
+                    max_idx = max(completed.keys())
+                    prev_summary = _load_checkpoint_summary(job_id, max_idx) or ""
+
+            output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
+
+            for i, chapter in enumerate(translatable):
+                if chapter.index < start_chapter:
+                    continue  # Skip already-translated chapters
+                progress.update(i + 1, total, chapter.title)
+                result = agent.translate_chapter(
+                    chapter_title=chapter.title, chapter_content=chapter.content,
+                    chapter_number=chapter.index, previous_summary=prev_summary,
+                    target_lang=target_lang, genre=genre,
+                )
+                all_translations.append(result["translated_text"])
+                prev_summary = result.get("chapter_summary", "")
+                _save_checkpoint(job_id, chapter.index, result["translated_text"],
+                                 result.get("glossary_snapshot_json", "{}"), prev_summary)
+                time.sleep(CHAPTER_COOLDOWN_SECONDS)
+
+            full_text = merge_chapters(all_translations)
+            Path(output_path).write_text(full_text, encoding="utf-8")
+            glossary = agent.exact_store.to_dict()
+            glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
+            Path(glossary_path).write_text(json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8")
+            progress.complete(output_path, len(glossary))
+            return {"status": "complete", "output_path": output_path, "total_chapters": total, "glossary_count": len(glossary)}
+        except Exception as exc:
+            progress.error(str(exc))
+            raise self.retry(exc=exc)
+
 else:
     app = None  # type: ignore
     translate_novel_task = None  # type: ignore
+    resume_translate_task = None  # type: ignore
 
 
 class TranslationProgress:
@@ -138,3 +205,41 @@ def _save_checkpoint(job_id: str, chapter_number: int, translated_text: str,
             (job_id, chapter_number, translated_text, glossary_snapshot, previous_summary),
         )
         conn.commit()
+
+
+def _load_checkpoint_translations(job_id: str) -> dict[int, str]:
+    """Load all previously translated chapter texts from the checkpoint DB.
+
+    Returns a dict mapping chapter_number -> translated_text.
+    """
+    db_path = CHECKPOINT_DB_PATH
+    if not Path(db_path).exists():
+        return {}
+    try:
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT chapter_number, translated_text FROM translation_checkpoint "
+                "WHERE job_id = ? ORDER BY chapter_number ASC",
+                (job_id,),
+            ).fetchall()
+        return {row["chapter_number"]: row["translated_text"] for row in rows}
+    except Exception:
+        return {}
+
+
+def _load_checkpoint_summary(job_id: str, chapter_number: int) -> str:
+    """Load the previous_summary field for a specific checkpoint."""
+    db_path = CHECKPOINT_DB_PATH
+    if not Path(db_path).exists():
+        return ""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT previous_summary FROM translation_checkpoint "
+                "WHERE job_id = ? AND chapter_number = ?",
+                (job_id, chapter_number),
+            ).fetchone()
+        return row[0] if row else ""
+    except Exception:
+        return ""

@@ -47,6 +47,44 @@ class TokenBucket:
                 return True
             return False
 
+    def wait_if_needed(self, max_wait_seconds: float = 5.0) -> float:
+        """If rate limited, block until a token is available (up to max_wait).
+
+        This is the "soft" mode used internally by the translation loop to
+        self-throttle.  The HTTP middleware still returns 429 for external
+        clients.
+
+        Returns actual wait time in seconds.  Returns 0 if a token was
+        immediately available.
+        """
+        start = time.monotonic()
+        deadline = start + max_wait_seconds
+
+        while True:
+            now = time.monotonic()
+            if self.consume(now):
+                return now - start
+
+            # Calculate how long until next token is available
+            remaining = deadline - now
+            if remaining <= 0:
+                break
+
+            # Calculate required wait directly (avoid calling seconds_until_next_token
+            # which acquires the lock, to prevent reentrant lock issues)
+            with self._lock:
+                deficit = 1.0 - self._tokens
+                wait = deficit / (self._rate / 60.0) if deficit > 0 else 0.0
+            # Sleep for a fraction of the wait (or remaining time), whichever is smaller
+            sleep_time = min(wait, remaining, 0.5)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+
+        # Timeout — one last try
+        if self.consume():
+            return time.monotonic() - start
+        return max_wait_seconds
+
     @property
     def remaining(self) -> int:
         """Approximate remaining tokens (for informational headers)."""

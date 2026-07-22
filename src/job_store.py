@@ -162,6 +162,17 @@ class JobStore:
         conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
         conn.commit()
 
+    def get_incomplete_jobs(self) -> list[dict]:
+        """Return jobs with status 'translating' that may need recovery."""
+        conn = _get_conn()
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE status = 'translating' ORDER BY created_at DESC"
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
 
 # Module-level singleton
 job_store = JobStore()
+
+# Convenience function for external callers
+get_incomplete_jobs = job_store.get_incomplete_jobs

@@ -50,6 +50,10 @@ class SemanticGlossary:
     - Fallback fuzzy matching when exact string-contains fails
     """
 
+    # Class-level flag shared across instances so recovery is attempted
+    # at most once per process lifecycle (or after a 60s cooldown).
+    _last_retry_time: float = 0.0
+
     def __init__(self, persist_path: typing.Optional[str] = None):
         path = persist_path or CHROMA_PERSIST_PATH
         import os
@@ -57,6 +61,7 @@ class SemanticGlossary:
 
         self._ready = False
         self._warned = False  # guard against log spam per instance
+        self._persist_path = path
         self.client: typing.Optional[chromadb.PersistentClient] = None
 
         try:
@@ -71,6 +76,33 @@ class SemanticGlossary:
                 "Exact term lookups, translation, and chapter processing are unaffected.",
                 exc,
             )
+
+    def try_recover(self) -> bool:
+        """Attempt re-initialisation if the store was previously unhealthy.
+
+        Returns True on successful recovery, False if still unhealthy.
+        """
+        import time as _time
+        now = _time.monotonic()
+        if self._ready:
+            # Already healthy — nothing to do but update the retry timestamp
+            # so is_healthy() re-checks correctly.
+            return True
+        if now - SemanticGlossary._last_retry_time < 60:
+            # Throttle recovery attempts to once every 60 seconds
+            return False
+        SemanticGlossary._last_retry_time = now
+        try:
+            self.client = self._init_chroma(self._persist_path)
+            self._ready = True
+            self._warned = False
+            logger.info("Chroma semantic store recovered")
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Chroma semantic store recovery failed: %s", exc
+            )
+            return False
 
     @_INIT_RETRY
     def _init_chroma(self, path: str) -> chromadb.PersistentClient:
@@ -95,10 +127,16 @@ class SemanticGlossary:
     def is_healthy(self) -> bool:
         """Return True when Chroma is initialised and the embedding model is loaded.
 
+        If the store was previously unhealthy, automatically attempt recovery
+        (throttled to once every 60 seconds).
+
         Intended for API health-checks so operators know whether semantic
         search is actually working.
         """
-        return self._ready and self.client is not None
+        if self._ready and self.client is not None:
+            return True
+        # Auto-attempt recovery if enough time has passed
+        return self.try_recover()
 
     def _warn_once(self):
         """Emit a single WARNING when ops are attempted on an unready store."""
