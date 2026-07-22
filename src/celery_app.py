@@ -41,7 +41,8 @@ if _celery_ok:
 
     @app.task(bind=True, max_retries=2, default_retry_delay=30)
     def translate_novel_task(self, job_id: str, text: str, target_lang: str = "en-US",
-                              translate_mode: str = "flash", qa_interval: int = 20):
+                              translate_mode: str = "flash", qa_interval: int = 20,
+                              genre: str = "romance_ceo"):
         """Main translation Celery task — durable, retryable, checkpointed."""
         progress = TranslationProgress(job_id)
         try:
@@ -58,7 +59,7 @@ if _celery_ok:
                 result = agent.translate_chapter(
                     chapter_title=chapter.title, chapter_content=chapter.content,
                     chapter_number=chapter.index, previous_summary=prev_summary,
-                    target_lang=target_lang,
+                    target_lang=target_lang, genre=genre,
                 )
                 all_translations.append(result["translated_text"])
                 prev_summary = result.get("chapter_summary", "")
@@ -83,7 +84,7 @@ else:
 
 
 class TranslationProgress:
-    """Track job progress in Redis (or no-op if Celery unavailable)."""
+    """Track job progress in Redis + SQLite JobStore."""
     def __init__(self, job_id: str):
         self.job_id = job_id
         self.key = f"translation:{job_id}"
@@ -94,12 +95,27 @@ class TranslationProgress:
 
     def update(self, current: int, total: int, chapter_title: str):
         self._set({"status": "translating", "current": current, "total": total, "chapter_title": chapter_title})
+        try:
+            from .job_store import job_store
+            job_store.update_progress(self.job_id, current, total, chapter_title)
+        except Exception:
+            pass  # non-critical
 
     def complete(self, output_path: str, glossary_count: int):
         self._set({"status": "complete", "output_path": output_path, "glossary_count": glossary_count})
+        try:
+            from .job_store import job_store
+            job_store.complete_job(self.job_id, output_path, glossary_count)
+        except Exception:
+            pass
 
     def error(self, message: str):
         self._set({"status": "error", "message": message})
+        try:
+            from .job_store import job_store
+            job_store.fail_job(self.job_id, message)
+        except Exception:
+            pass
 
 
 def _save_checkpoint(job_id: str, chapter_number: int, translated_text: str,

@@ -2,12 +2,12 @@
 
 import json
 import re
-import uuid
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 
 from ..config import OUTPUT_DIR
 from ..chapter_splitter import split_chapters, ParagraphTag
+from ..job_store import job_store
 
 try:
     from ..celery_app import translate_novel_task
@@ -29,17 +29,22 @@ async def translate_novel(
     target_lang: str = Form("en-US"),
     translate_mode: str = Form("flash"),
     qa_interval: int = Form(20),
+    genre: str = Form("romance_ceo"),
 ):
     """Submit a novel for translation. Returns job_id immediately."""
-    job_id = str(uuid.uuid4())[:8]
     text = (await file.read()).decode("utf-8")
     chapters = split_chapters(text)
     total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
+
+    # Create persistent job record
+    filename = file.filename or "unknown.txt"
+    job_id = job_store.create_job(filename, target_lang, total)
 
     if _has_celery:
         task = translate_novel_task.delay(
             job_id=job_id, text=text, target_lang=target_lang,
             translate_mode=translate_mode, qa_interval=qa_interval,
+            genre=genre,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
     return JSONResponse(
@@ -192,3 +197,32 @@ def download_epub(job_id: str):
         media_type="application/epub+zip",
         filename=f"Westward_Echo_{job_id}.epub",
     )
+
+
+# ═══════════════════════════════════════════════════════════════
+# Job management endpoints
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/jobs")
+def list_jobs(limit: int = 50):
+    """List recent jobs, newest first."""
+    return job_store.list_jobs(limit=limit)
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str):
+    """Get a single job by id."""
+    job = job_store.get_job(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
+    return job
+
+
+@app.delete("/jobs/{job_id}")
+def delete_job(job_id: str):
+    """Delete a job record."""
+    job = job_store.get_job(job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
+    job_store.delete_job(job_id)
+    return {"status": "deleted", "job_id": job_id}

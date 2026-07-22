@@ -22,51 +22,121 @@ body{
 ::selection{background:rgba(0,102,204,.18)}
 
 /* ═══════════════════════════════════════════════════════════════
-   LAYOUT — centered, breathing
+   LAYOUT — full-width app shell with fixed sidebar
    ═══════════════════════════════════════════════════════════════ */
-.app{max-width:920px;margin:0 auto;padding:0 24px}
+.app-shell{display:flex;height:100vh;overflow:hidden}
 
-/* ═══════════════════════════════════════════════════════════════
-   NAVBAR — subtle top bar
-   ═══════════════════════════════════════════════════════════════ */
-.nav{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:16px 0;margin-bottom:8px;
+/* ── SIDEBAR ── */
+.sidebar{
+  width:280px;min-width:280px;background:#fff;
+  border-right:1px solid #e5e5ea;
+  display:flex;flex-direction:column;
+  overflow:hidden;
 }
-.nav-brand{font-family:"Noto Serif SC",serif;font-size:18px;font-weight:700;letter-spacing:1px;color:#1c1c1e}
-.nav-brand span{font-weight:400;color:#8e8e93;margin:0 3px;font-family:Inter,sans-serif;font-size:14px}
-.nav-badge{
-  font-size:11px;font-weight:500;color:#0071e3;
-  padding:4px 10px;border-radius:12px;background:rgba(0,113,227,.08);
+.sidebar-header{
+  padding:20px 20px 16px;border-bottom:1px solid #f0f0f5;
+}
+.sidebar-brand{
+  font-family:"Noto Serif SC",serif;font-size:17px;font-weight:700;
+  letter-spacing:1.5px;color:#1c1c1e;margin-bottom:14px;
+}
+.sidebar-brand .en{
+  font-family:Inter,sans-serif;font-weight:400;font-size:12px;
+  color:#8e8e93;letter-spacing:0;display:block;margin-top:1px;
+}
+.btn-new-translation{
+  width:100%;padding:10px 0;font-family:Inter,sans-serif;font-size:13px;font-weight:600;
+  color:#fff;background:#0071e3;border:none;border-radius:8px;cursor:pointer;
+  transition:all .15s;letter-spacing:.1px;
+}
+.btn-new-translation:hover{background:#0077ed;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,113,227,.25)}
+.btn-new-translation:active{transform:scale(.98)}
+
+.sidebar-jobs{
+  flex:1;overflow-y:auto;padding:8px 0;
+}
+.sidebar-jobs-label{
+  font-size:10px;font-weight:600;color:#aeaeb2;text-transform:uppercase;
+  letter-spacing:.8px;padding:12px 20px 6px;
+}
+.sidebar-jobs::-webkit-scrollbar{width:4px}
+.sidebar-jobs::-webkit-scrollbar-track{background:transparent}
+.sidebar-jobs::-webkit-scrollbar-thumb{background:#e5e5ea;border-radius:2px}
+
+/* Job item in sidebar */
+.job-item{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 20px;cursor:pointer;transition:background .12s;
+  border-left:3px solid transparent;
+}
+.job-item:hover{background:#f5f5f7}
+.job-item.active{background:rgba(0,113,227,.06);border-left-color:#0071e3}
+.job-item-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.job-item-info{flex:1;min-width:0}
+.job-item-filename{
+  font-size:12px;font-weight:500;color:#1c1c1e;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.job-item-meta{font-size:10px;color:#aeaeb2;margin-top:1px}
+
+/* Status badges */
+.status-badge{
+  font-size:10px;font-weight:600;padding:2px 7px;border-radius:8px;
+  flex-shrink:0;line-height:1.4;margin-top:2px;
+}
+.status-badge.queued{background:rgba(142,142,147,.12);color:#8e8e93}
+.status-badge.translating{background:rgba(0,113,227,.1);color:#0071e3}
+.status-badge.complete{background:rgba(52,199,89,.1);color:#34c759}
+.status-badge.failed{background:rgba(255,59,48,.1);color:#ff3b30}
+
+/* Empty sidebar */
+.sidebar-empty{
+  text-align:center;padding:32px 20px;font-size:12px;color:#aeaeb2;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   HERO
-   ═══════════════════════════════════════════════════════════════ */
-.hero{
-  text-align:center;padding:48px 0 56px;
+/* ── MAIN CONTENT ── */
+.main-content{
+  flex:1;overflow-y:auto;background:#f5f5f7;
+  display:flex;flex-direction:column;
+}
+.main-content-inner{flex:1;padding:24px 32px;max-width:900px}
+
+/* ── VIEW: New Translation (default) ── */
+.view-new-translation .hero{
+  text-align:center;padding:32px 0 36px;
   background:linear-gradient(180deg,transparent 0%,rgba(0,113,227,.03) 100%);
-  border-radius:20px;margin-bottom:40px;
+  border-radius:20px;margin-bottom:28px;
 }
-.hero h1{
-  font-family:"Noto Serif SC",serif;font-size:40px;font-weight:700;
-  letter-spacing:3px;color:#1c1c1e;margin-bottom:8px;
+.view-new-translation .hero h1{
+  font-family:"Noto Serif SC",serif;font-size:32px;font-weight:700;
+  letter-spacing:3px;color:#1c1c1e;margin-bottom:6px;
 }
-.hero h1 .slash{font-weight:300;color:#c7c7cc;margin:0 6px;font-family:Inter,sans-serif}
-.hero h1 .en{font-family:Inter,sans-serif;font-weight:300;font-size:36px;letter-spacing:-.5px;color:#8e8e93}
-.hero p{font-size:15px;color:#6e6e73;max-width:460px;margin:12px auto 0;line-height:1.5}
+.view-new-translation .hero h1 .slash{font-weight:300;color:#c7c7cc;margin:0 6px;font-family:Inter,sans-serif}
+.view-new-translation .hero h1 .en{font-family:Inter,sans-serif;font-weight:300;font-size:28px;letter-spacing:-.5px;color:#8e8e93}
+.view-new-translation .hero p{font-size:14px;color:#6e6e73;max-width:420px;margin:8px auto 0;line-height:1.5}
 
-/* ═══════════════════════════════════════════════════════════════
-   TWO-COLUMN LAYOUT — config left, preview right
-   ═══════════════════════════════════════════════════════════════ */
-.main-layout{display:flex;gap:32px;align-items:flex-start}
-.main-left{flex:0 0 340px}
-.main-right{flex:1;min-width:0}
+.translation-form-layout{display:flex;gap:32px;align-items:flex-start}
+.form-left{flex:0 0 340px}
+.form-right{flex:1;min-width:0}
 
-@media(max-width:780px){
-  .main-layout{flex-direction:column}
-  .main-left{flex:1 1 auto;width:100%}
+@media(max-width:820px){
+  .translation-form-layout{flex-direction:column}
+  .form-left{flex:1 1 auto;width:100%}
 }
+
+/* ── VIEW: Job Detail ── */
+.view-job-detail .job-detail-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;gap:16px;
+}
+.job-detail-title{font-size:17px;font-weight:600;color:#1c1c1e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.job-detail-actions{display:flex;gap:6px;flex-shrink:0}
+.btn-delete-job{
+  padding:6px 14px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;
+  color:#ff3b30;background:rgba(255,59,48,.06);border:1px solid rgba(255,59,48,.15);
+  border-radius:6px;cursor:pointer;transition:all .15s;
+}
+.btn-delete-job:hover{background:rgba(255,59,48,.12)}
 
 /* ═══════════════════════════════════════════════════════════════
    CARD — unified look
@@ -175,13 +245,12 @@ body{
 .chapter-log .ch-num{color:#aeaeb2;font-size:10px;min-width:28px}
 .chapter-log .ch-title{color:#6e6e73;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* Chapter log scrollbar */
 .chapter-log::-webkit-scrollbar{width:4px}
 .chapter-log::-webkit-scrollbar-track{background:transparent}
 .chapter-log::-webkit-scrollbar-thumb{background:#e5e5ea;border-radius:2px}
 
 /* ═══════════════════════════════════════════════════════════════
-   PREVIEW PANEL — the hero of the page
+   PREVIEW PANEL — in form-right or job-detail view
    ═══════════════════════════════════════════════════════════════ */
 .preview-panel{
   background:#fff;border-radius:14px;
@@ -214,7 +283,7 @@ body{
 .preview-error .pe-retry-btn:active{transform:scale(.98)}
 
 /* Tabs */
-.preview-tabs{display:flex;border-bottom:1px solid #f0f0f5;padding:0 20px}
+.preview-tabs{display:flex;border-bottom:1px solid #f0f0f5;padding:0 20px;align-items:center}
 .preview-tab{
   padding:14px 18px;font-size:13px;font-weight:500;color:#8e8e93;
   background:none;border:none;border-bottom:2px solid transparent;
@@ -253,8 +322,26 @@ body{
 #out-report th,#out-report td{padding:8px 14px;border:1px solid #e5e5ea;font-size:13px;text-align:left}
 #out-report th{background:#fafafa;font-weight:600}
 
+/* EPUB download button (in tab bar) */
+.epub-dl-btn{
+  display:inline-block;padding:8px 16px;font-family:Inter,sans-serif;font-size:12px;font-weight:600;
+  color:#0071e3;background:rgba(0,113,227,.08);border-radius:8px;text-decoration:none;
+  transition:all .15s;line-height:1;white-space:nowrap;
+}
+.epub-dl-btn:hover{background:rgba(0,113,227,.16);color:#0077ed}
+
+/* Job detail info cards */
+.job-detail-cards{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.job-detail-card{
+  background:#fff;border-radius:10px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.02);
+  padding:16px 20px;flex:1;min-width:140px;
+}
+.job-detail-card-label{font-size:10px;font-weight:600;color:#8e8e93;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.job-detail-card-value{font-size:16px;font-weight:600;color:#1c1c1e}
+
 /* ═══════════════════════════════════════════════════════════════
-   TOAST — for errors
+   TOAST
    ═══════════════════════════════════════════════════════════════ */
 .toast{
   position:fixed;top:24px;left:50%;transform:translateX(-50%);
@@ -270,170 +357,473 @@ body{
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #d2d2d7;border-top-color:#0071e3;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px;position:relative;top:-1px}
 
-/* EPUB download button (in tab bar) */
-.epub-dl-btn{
-  display:inline-block;padding:8px 16px;font-family:Inter,sans-serif;font-size:12px;font-weight:600;
-  color:#0071e3;background:rgba(0,113,227,.08);border-radius:8px;text-decoration:none;
-  transition:all .15s;line-height:1;white-space:nowrap;
+/* Glyph link in sidebar footer */
+.sidebar-footer{
+  padding:12px 20px;border-top:1px solid #f0f0f5;
 }
-.epub-dl-btn:hover{background:rgba(0,113,227,.16);color:#0077ed}
-
-/* ═══════════════════════════════════════════════════════════════
-   FOOTER
-   ═══════════════════════════════════════════════════════════════ */
-.ft{text-align:center;padding:60px 0 40px;font-size:12px;color:#aeaeb2}
+.sidebar-footer a{
+  font-size:11px;color:#8e8e93;text-decoration:none;
+}
+.sidebar-footer a:hover{color:#0071e3}
 </style>
 </head>
 <body>
 
 <div class="toast" id="toast"></div>
 
-<div class="app">
+<div class="app-shell">
 
-  <!-- Nav -->
-  <nav class="nav">
-    <div class="nav-brand">西渡 <span>/</span> Westward Echo</div>
-    <div class="nav-badge">LangGraph + DeepSeek V4</div>
-  </nav>
-
-  <!-- Hero -->
-  <header class="hero">
-    <h1>西渡<span class="slash"> / </span><span class="en">Westward Echo</span></h1>
-    <p>AI 驱动的网文翻译引擎 &mdash; 术语全本统一，文化自适应适配，覆盖英语、西班牙语、阿拉伯语</p>
-  </header>
-
-  <!-- Main: config left + preview right -->
-  <div class="main-layout">
-
-    <!-- ==== LEFT: CONFIG ==== -->
-    <div class="main-left">
-
-      <div class="card">
-        <div class="card-label">1. 上传小说</div>
-        <div class="drop-zone" id="drop-zone">
-          <div>
-            <div class="dz-icon">&#128196;</div>
-            <div class="dz-text">拖拽 <strong>.txt</strong> 到此处，或 <strong>点击选择</strong></div>
-            <div class="dz-hint">自动按章节拆分 &middot; 中文网文专用</div>
-            <input type="file" id="file-input" accept=".txt">
-            <div class="dz-filename" id="dz-filename"></div>
-          </div>
-        </div>
+  <!-- ═════════════ SIDEBAR ═════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        西渡
+        <span class="en">Westward Echo</span>
       </div>
-
-      <div class="card">
-        <div class="card-label">2. 翻译设置</div>
-
-        <div class="field">
-          <label>目标语言</label>
-          <select id="target-lang">
-            <option value="en-US">English（英语）</option>
-            <option value="es-ES">Espa&ntilde;ol（西班牙语）</option>
-            <option value="ar-SA">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;（阿拉伯语）</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>翻译模型</label>
-          <div class="toggle-group" id="tgl-model">
-            <label class="on"><input type="radio" name="model" value="flash" checked>V4 Flash</label>
-            <label><input type="radio" name="model" value="pro">V4 Pro</label>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>质检频率（每 <span id="range-label">20</span> 章）</label>
-          <div class="range-wrap">
-            <span style="font-size:12px;color:#aeaeb2">5</span>
-            <input type="range" id="qa-interval" min="5" max="50" step="5" value="20">
-            <span style="font-size:12px;color:#aeaeb2">50</span>
-          </div>
-        </div>
-      </div>
-
-      <button class="btn" id="start-btn">开始翻译</button>
-
-      <div class="progress-wrap" id="progress-wrap" style="display:none">
-        <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
-        <div class="progress-text" id="progress-text"></div>
-        <div class="chapter-log" id="chapter-log" style="display:none"></div>
-        <div class="progress-actions" id="progress-actions" style="display:none">
-          <button class="btn-cancel" id="cancel-btn">取消翻译</button>
-        </div>
-		<div class="progress-actions" id="error-actions" style="display:none">
-          <button class="btn-retry" id="retry-btn">重试</button>
-        </div>
-      </div>
-
+      <button class="btn-new-translation" id="btn-new-translation">+ 新建翻译</button>
     </div>
 
-    <!-- ==== RIGHT: PREVIEW ==== -->
-    <div class="main-right">
-      <div class="preview-panel" id="preview-panel">
-
-        <!-- Idle state -->
-        <div class="preview-empty" id="preview-idle">
-          <div class="pe-icon">&#128214;</div>
-          <div class="pe-text">上传小说开始翻译</div>
-        </div>
-
-        <!-- Translating state -->
-        <div class="preview-translating" id="preview-translating" style="display:none">
-          <div class="pt-icon"><span class="spinner" style="width:24px;height:24px;border-width:3px;margin:0"></span></div>
-          <div class="pt-text">翻译进行中...</div>
-        </div>
-
-        <!-- Error state -->
-        <div class="preview-error" id="preview-error" style="display:none">
-          <div class="pe-icon">&#9888;</div>
-          <div class="pe-text">翻译失败</div>
-          <div class="pe-detail" id="preview-error-msg"></div>
-          <button class="pe-retry-btn" id="preview-retry-btn">重试</button>
-        </div>
-
-        <!-- Tabs (hidden until done) -->
-        <div class="preview-tabs" id="preview-tabs" style="display:none">
-          <button class="preview-tab sel" data-tab="translation">译文</button>
-          <button class="preview-tab" data-tab="glossary">术语表</button>
-          <button class="preview-tab" data-tab="report">质量报告</button>
-          <span style="flex:1"></span>
-          <a class="epub-dl-btn" id="epub-dl-btn" href="#" title="下载 EPUB 电子书">下载 EPUB</a>
-        </div>
-
-        <div class="preview-body" id="body-translation"><div id="out-translation"></div></div>
-        <div class="preview-body" id="body-glossary"><div id="out-glossary"></div></div>
-        <div class="preview-body" id="body-report"><div id="out-report"></div></div>
-
-      </div>
+    <div class="sidebar-jobs" id="sidebar-jobs">
+      <div class="sidebar-jobs-label">翻译记录</div>
+      <div id="job-list"></div>
     </div>
 
-  </div>
+    <div class="sidebar-footer">
+      <a href="/review">术语审核 &rarr;</a>
+    </div>
+  </aside>
 
-  <footer class="ft">Westward Echo &middot; LangGraph + DeepSeek V4</footer>
+  <!-- ═════════════ MAIN CONTENT ═════════════ -->
+  <main class="main-content" id="main-content">
+    <div class="main-content-inner">
+
+      <!-- ═══ VIEW: New Translation ═══ -->
+      <div class="view-new-translation" id="view-new">
+
+        <header class="hero">
+          <h1>西渡<span class="slash"> / </span><span class="en">Westward Echo</span></h1>
+          <p>AI 驱动的网文翻译引擎 &mdash; 术语全本统一，文化自适应适配，覆盖英语、西班牙语、阿拉伯语</p>
+        </header>
+
+        <div class="translation-form-layout">
+          <div class="form-left">
+            <div class="card">
+              <div class="card-label">1. 上传小说</div>
+              <div class="drop-zone" id="drop-zone">
+                <div>
+                  <div class="dz-icon">&#128196;</div>
+                  <div class="dz-text">拖拽 <strong>.txt</strong> 到此处，或 <strong>点击选择</strong></div>
+                  <div class="dz-hint">自动按章节拆分 &middot; 中文网文专用</div>
+                  <input type="file" id="file-input" accept=".txt">
+                  <div class="dz-filename" id="dz-filename"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-label">2. 翻译设置</div>
+
+              <div class="field">
+                <label>目标语言</label>
+                <select id="target-lang">
+                  <option value="en-US">English（英语）</option>
+                  <option value="es-ES">Espa&ntilde;ol（西班牙语）</option>
+                  <option value="ar-SA">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;（阿拉伯语）</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label>翻译模型</label>
+                <div class="toggle-group" id="tgl-model">
+                  <label class="on"><input type="radio" name="model" value="flash" checked>V4 Flash</label>
+                  <label><input type="radio" name="model" value="pro">V4 Pro</label>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>小说类型</label>
+                <select id="genre">
+                  <option value="romance_ceo">现代言情 / 总裁 (romance_ceo)</option>
+                  <option value="xianxia">仙侠 / 修真 (xianxia)</option>
+                  <option value="urban">都市 / 现实 (urban)</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label>质检频率（每 <span id="range-label">20</span> 章）</label>
+                <div class="range-wrap">
+                  <span style="font-size:12px;color:#aeaeb2">5</span>
+                  <input type="range" id="qa-interval" min="5" max="50" step="5" value="20">
+                  <span style="font-size:12px;color:#aeaeb2">50</span>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn" id="start-btn">开始翻译</button>
+
+            <div class="progress-wrap" id="progress-wrap" style="display:none">
+              <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+              <div class="progress-text" id="progress-text"></div>
+              <div class="chapter-log" id="chapter-log" style="display:none"></div>
+              <div class="progress-actions" id="progress-actions" style="display:none">
+                <button class="btn-cancel" id="cancel-btn">取消翻译</button>
+              </div>
+              <div class="progress-actions" id="error-actions" style="display:none">
+                <button class="btn-retry" id="retry-btn">重试</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-right">
+            <div class="preview-panel" id="preview-panel">
+              <div class="preview-empty" id="preview-idle">
+                <div class="pe-icon">&#128214;</div>
+                <div class="pe-text">上传小说开始翻译</div>
+              </div>
+              <div class="preview-translating" id="preview-translating" style="display:none">
+                <div class="pt-icon"><span class="spinner" style="width:24px;height:24px;border-width:3px;margin:0"></span></div>
+                <div class="pt-text">翻译进行中...</div>
+              </div>
+              <div class="preview-error" id="preview-error" style="display:none">
+                <div class="pe-icon">&#9888;</div>
+                <div class="pe-text">翻译失败</div>
+                <div class="pe-detail" id="preview-error-msg"></div>
+                <button class="pe-retry-btn" id="preview-retry-btn">重试</button>
+              </div>
+              <div class="preview-tabs" id="preview-tabs" style="display:none">
+                <button class="preview-tab sel" data-tab="translation">译文</button>
+                <button class="preview-tab" data-tab="glossary">术语表</button>
+                <button class="preview-tab" data-tab="report">质量报告</button>
+                <span style="flex:1"></span>
+                <a class="epub-dl-btn" id="epub-dl-btn" href="#" title="下载 EPUB 电子书">下载 EPUB</a>
+              </div>
+              <div class="preview-body" id="body-translation"><div id="out-translation"></div></div>
+              <div class="preview-body" id="body-glossary"><div id="out-glossary"></div></div>
+              <div class="preview-body" id="body-report"><div id="out-report"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ VIEW: Job Detail ═══ -->
+      <div class="view-job-detail" id="view-job" style="display:none"></div>
+    </div>
+  </main>
 </div>
 
 <script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 
-// elements
+// ── DOM refs ──
+const sidebarJobs=$('#sidebar-jobs'),jobList=$('#job-list');
+const viewNew=$('#view-new'),viewJob=$('#view-job');
+
+// New-translation form elements
 const dropZone=$('#drop-zone'),fileInput=$('#file-input'),dzFilename=$('#dz-filename');
 const startBtn=$('#start-btn'),progressWrap=$('#progress-wrap'),progressFill=$('#progress-fill'),progressText=$('#progress-text');
 const chapterLog=$('#chapter-log'),progressActions=$('#progress-actions'),errorActions=$('#error-actions');
 const cancelBtn=$('#cancel-btn'),retryBtn=$('#retry-btn');
 const previewIdle=$('#preview-idle'),previewTranslating=$('#preview-translating'),previewError=$('#preview-error'),previewTabs=$('#preview-tabs');
 const previewErrorMsg=$('#preview-error-msg'),previewRetryBtn=$('#preview-retry-btn');
-	const epubDlBtn=$('#epub-dl-btn');
+const epubDlBtn=$('#epub-dl-btn');
 const rangeInput=$('#qa-interval'),rangeLabel=$('#range-label');
 const toast=$('#toast');
 
+// ── State ──
 let selectedFile=null;
-let activeJobId=null;       // current job id, null when idle
-let activeForm=null;        // saved FormData for retry
-let cancelRequested=false;  // flag to break poll loop
-let chapterEntries=[];      // [{num,title,status:'done'|'fail'}]
+let activeJobId=null;
+let activeForm=null;
+let cancelRequested=false;
+let chapterEntries=[];
 let retryCount=0;
+let currentView='new';        // 'new' | 'job'
+let selectedJobId=null;      // job currently displayed in detail view
+let pollTimer=null;
+let jobsCache=[];
 
-// ── visual state machine for preview panel ──
+// ── Show a specific view ──
+function showView(name){
+  currentView=name;
+  viewNew.style.display=name==='new'?'':'none';
+  viewJob.style.display=name==='job'?'':'none';
+}
+
+// ── Load sidebar job list ──
+async function loadJobList(){
+  try{
+    const r=await fetch('/api/jobs?limit=50');
+    jobsCache=await r.json();
+    renderJobList();
+  }catch(e){/* silent */}
+}
+
+function renderJobList(){
+  if(!jobsCache.length){
+    jobList.innerHTML='<div class="sidebar-empty">暂无翻译记录</div>';
+    return;
+  }
+  let h='';
+  jobsCache.forEach(j=>{
+    const isActive=selectedJobId===j.job_id;
+    const icon=j.status==='complete'?'&#9989;':j.status==='failed'?'&#10060;':j.status==='translating'?'&#9881;':'&#128196;';
+    const statusLabel={'queued':'排队中','translating':'翻译中','complete':'已完成','failed':'失败'}[j.status]||j.status;
+    let meta=formatDate(j.created_at);
+    if(j.status==='translating' && j.completed_chapters && j.total_chapters)
+      meta=j.completed_chapters+'/'+j.total_chapters+' 章';
+    if(j.status==='complete' && j.completed_chapters)
+      meta=j.completed_chapters+' 章';
+    h+='<div class="job-item'+(isActive?' active':'')+'" data-job-id="'+j.job_id+'">';
+    h+='<span class="job-item-icon">'+icon+'</span>';
+    h+='<div class="job-item-info">';
+    h+='<div class="job-item-filename">'+esc(j.filename)+'</div>';
+    h+='<div class="job-item-meta">'+meta+'</div>';
+    h+='</div>';
+    h+='<span class="status-badge '+j.status+'">'+statusLabel+'</span>';
+    h+='</div>';
+  });
+  jobList.innerHTML=h;
+
+  // Click handlers
+  $$('.job-item').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const jid=el.dataset.jobId;
+      openJobDetail(jid);
+    });
+  });
+}
+
+function formatDate(s){
+  if(!s)return '';
+  try{
+    const d=new Date(s.replace(' ','T')+'Z');
+    const now=new Date();
+    const diff=now-d;
+    if(diff<6e4)return '刚刚';
+    if(diff<36e5)return Math.floor(diff/6e4)+' 分钟前';
+    if(diff<864e5)return Math.floor(diff/36e5)+' 小时前';
+    return s.slice(0,10);
+  }catch(e){return s.slice(0,10)}
+}
+
+function highlightSidebarItem(jobId){
+  selectedJobId=jobId;
+  $$('.job-item').forEach(el=>el.classList.toggle('active',el.dataset.jobId===jobId));
+}
+
+// ── Open job detail view ──
+async function openJobDetail(jobId){
+  // Stop any active polling on the new-translation view
+  cancelRequested=true;
+  if(pollTimer)clearTimeout(pollTimer);
+  activeJobId=null;activeForm=null;
+
+  selectedJobId=jobId;
+  highlightSidebarItem(jobId);
+  showView('job');
+
+  // Fetch job data
+  let job=null;
+  try{
+    const r=await fetch('/api/jobs/'+jobId);
+    if(!r.ok)throw new Error('not found');
+    job=await r.json();
+  }catch(e){
+    viewJob.innerHTML='<div class="preview-empty" style="height:300px"><div class="pe-icon">&#10060;</div><div class="pe-text">无法加载翻译记录</div></div>';
+    return;
+  }
+
+  renderJobDetail(job);
+
+  // If this job is currently translating, start polling in job-detail mode
+  if(job.status==='translating' || job.status==='queued'){
+    startJobDetailPolling(jobId);
+  }
+
+  // If complete, fetch and show results
+  if(job.status==='complete'){
+    loadJobResults(jobId, job);
+  }
+}
+
+function renderJobDetail(job){
+  const statusLabel={'queued':'排队中','translating':'翻译中','complete':'已完成','failed':'失败'}[job.status]||job.status;
+  let extraCards='';
+  if(job.status==='translating'){
+    const pct=job.total_chapters?Math.round(job.completed_chapters/job.total_chapters*100):0;
+    extraCards+='<div class="job-detail-card"><div class="job-detail-card-label">进度</div><div class="job-detail-card-value" id="jd-progress">'+pct+'%</div></div>';
+    extraCards+='<div class="job-detail-card"><div class="job-detail-card-label">当前章节</div><div class="job-detail-card-value" id="jd-chapter" style="font-size:14px">'+(job.current_chapter_title||'—')+'</div></div>';
+  }
+  if(job.status==='failed' && job.error_message){
+    extraCards+='<div class="job-detail-card" style="flex:2"><div class="job-detail-card-label">错误信息</div><div class="job-detail-card-value" style="font-size:13px;color:#ff3b30">'+esc(job.error_message)+'</div></div>';
+  }
+
+  let langLabel=job.target_lang;
+  if(job.target_lang==='en-US')langLabel='英语';
+  else if(job.target_lang==='es-ES')langLabel='西班牙语';
+  else if(job.target_lang==='ar-SA')langLabel='阿拉伯语';
+
+  let h='';
+  h+='<div class="job-detail-header">';
+  h+='<div class="job-detail-title">'+esc(job.filename)+' <span class="status-badge '+job.status+'">'+statusLabel+'</span></div>';
+  h+='<div class="job-detail-actions">';
+  h+='<button class="btn-delete-job" id="btn-delete-job" data-job-id="'+job.job_id+'">删除</button>';
+  h+='</div>';
+  h+='</div>';
+
+  h+='<div class="job-detail-cards">';
+  h+='<div class="job-detail-card"><div class="job-detail-card-label">目标语言</div><div class="job-detail-card-value">'+langLabel+'</div></div>';
+  h+='<div class="job-detail-card"><div class="job-detail-card-label">总章节</div><div class="job-detail-card-value">'+job.total_chapters+'</div></div>';
+  if(job.glossary_count)h+='<div class="job-detail-card"><div class="job-detail-card-label">术语数</div><div class="job-detail-card-value">'+job.glossary_count+'</div></div>';
+  h+='<div class="job-detail-card"><div class="job-detail-card-label">创建时间</div><div class="job-detail-card-value" style="font-size:13px">'+(job.created_at||'—')+'</div></div>';
+  h+=extraCards;
+  h+='</div>';
+
+  // Progress bar for translating jobs
+  if(job.status==='translating'){
+    const pct=job.total_chapters?Math.round(job.completed_chapters/job.total_chapters*100):0;
+    h+='<div class="progress-wrap">';
+    h+='<div class="progress-bar"><div class="fill" id="jd-progress-fill" style="width:'+pct+'%"></div></div>';
+    h+='<div class="progress-text" id="jd-progress-text"><span class="spinner"></span>第 '+job.completed_chapters+'/'+job.total_chapters+' 章</div>';
+    h+='</div>';
+  }
+
+  // Translation output area for completed jobs
+  if(job.status==='complete'){
+    h+='<div class="preview-panel" id="job-preview-panel">';
+    h+='<div class="preview-tabs" style="display:flex">';
+    h+='<button class="preview-tab sel" data-tab="translation">译文</button>';
+    h+='<button class="preview-tab" data-tab="glossary">术语表</button>';
+    h+='<button class="preview-tab" data-tab="report">质量报告</button>';
+    h+='<span style="flex:1"></span>';
+    h+='<a class="epub-dl-btn" href="/api/epub/'+job.job_id+'" title="下载 EPUB 电子书">下载 EPUB</a>';
+    h+='</div>';
+    h+='<div class="preview-body show" id="job-body-translation"><div id="job-out-translation"></div></div>';
+    h+='<div class="preview-body" id="job-body-glossary"><div id="job-out-glossary"></div></div>';
+    h+='<div class="preview-body" id="job-body-report"><div id="job-out-report"></div></div>';
+    h+='</div>';
+  }
+
+  // Loading state for queued
+  if(job.status==='queued'){
+    h+='<div class="preview-panel"><div class="preview-translating">';
+    h+='<div class="pt-icon"><span class="spinner" style="width:24px;height:24px;border-width:3px;margin:0"></span></div>';
+    h+='<div class="pt-text">等待翻译开始...</div>';
+    h+='</div></div>';
+  }
+
+  viewJob.innerHTML=h;
+
+  // Wire delete button
+  const delBtn=$('#btn-delete-job');
+  if(delBtn)delBtn.addEventListener('click',async()=>{
+    if(!confirm('确定要删除此翻译记录吗？'))return;
+    try{
+      await fetch('/api/jobs/'+job.job_id,{method:'DELETE'});
+      showToast('已删除');
+      selectedJobId=null;
+      highlightSidebarItem(null);
+      showNewTranslationView();
+      loadJobList();
+    }catch(e){showToast('删除失败: '+e.message)}
+  });
+
+  // Wire tabs if complete
+  if(job.status==='complete'){
+    $$('#view-job .preview-tab').forEach(t=>{
+      t.addEventListener('click',()=>{
+        $$('#view-job .preview-tab').forEach(x=>x.classList.remove('sel'));
+        t.classList.add('sel');
+        $$('#view-job .preview-body').forEach(x=>x.classList.remove('show'));
+        $('#job-body-'+t.dataset.tab).classList.add('show');
+      });
+    });
+  }
+}
+
+async function loadJobResults(jobId, job){
+  // Translation
+  try{
+    const tr=await fetch('/api/translation/'+jobId);
+    const td=await tr.json();
+    $('#job-out-translation').innerHTML=marked.parse(td.text||'*无内容*');
+  }catch(e){/* ignore */}
+  // Glossary
+  try{
+    const gr=await fetch('/api/glossary/'+jobId);
+    const gd=await gr.json();
+    if(!gd.error){
+      let g='<table class="glossary-table"><thead><tr><th>中文</th><th>英文</th></tr></thead><tbody>';
+      const entries=Object.entries(gd).sort();
+      entries.forEach(([cn,en])=>{g+='<tr><td>'+esc(cn)+'</td><td>'+esc(en)+'</td></tr>'});
+      g+='</tbody></table>';
+      $('#job-out-glossary').innerHTML=g;
+    }
+  }catch(e){/* ignore */}
+  // Report
+  const glossaryCount=job.glossary_count||0;
+  $('#job-out-report').innerHTML='<h2>翻译概况</h2><table><tr><th>指标</th><th>数值</th></tr><tr><td>总章节</td><td><strong>'+job.total_chapters+'</strong></td></tr><tr><td>术语数</td><td><strong>'+glossaryCount+'</strong></td></tr><tr><td>目标语言</td><td>'+job.target_lang+'</td></tr><tr><td>完成时间</td><td>'+(job.completed_at||'—')+'</td></tr></table>';
+}
+
+// Polling while viewing a job (for in-progress jobs)
+async function startJobDetailPolling(jobId){
+  const poll=async()=>{
+    if(currentView!=='job' || selectedJobId!==jobId)return;
+    try{
+      const r=await fetch('/api/jobs/'+jobId);
+      if(!r.ok){pollTimer=setTimeout(poll,3000);return}
+      const job=await r.json();
+      if(job.status==='translating'){
+        // Update progress bar
+        const pct=job.total_chapters?Math.round(job.completed_chapters/job.total_chapters*100):0;
+        const fill=$('#jd-progress-fill');
+        if(fill)fill.style.width=pct+'%';
+        const txt=$('#jd-progress-text');
+        if(txt)txt.innerHTML='<span class="spinner"></span>第 '+job.completed_chapters+'/'+job.total_chapters+' 章';
+        const cp=$('#jd-chapter');
+        if(cp)cp.textContent=job.current_chapter_title||'—';
+        const prog=$('#jd-progress');
+        if(prog)prog.textContent=pct+'%';
+        // Refresh sidebar
+        loadJobList();
+        pollTimer=setTimeout(poll,2000);
+      }else if(job.status==='complete'){
+        loadJobList();
+        renderJobDetail(job);
+        loadJobResults(jobId, job);
+      }else if(job.status==='failed'){
+        loadJobList();
+        renderJobDetail(job);
+      }else{
+        pollTimer=setTimeout(poll,3000);
+      }
+    }catch(e){
+      pollTimer=setTimeout(poll,3000);
+    }
+  };
+  pollTimer=setTimeout(poll,1500);
+}
+
+// ── Show new translation view ──
+function showNewTranslationView(){
+  selectedJobId=null;
+  highlightSidebarItem(null);
+  showView('new');
+  resetConfigUI();
+  resetPreview();
+}
+
+// ── "New Translation" button ──
+$('#btn-new-translation').addEventListener('click',()=>{
+  if(pollTimer)clearTimeout(pollTimer);
+  cancelRequested=true;
+  activeJobId=null;activeForm=null;
+  showNewTranslationView();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// NEW-TRANSLATION FORM LOGIC (same as before, plus job sidebar)
+// ═══════════════════════════════════════════════════════════════
+
 function setPreviewState(state){
   previewIdle.style.display=state==='idle'?'':'none';
   previewTranslating.style.display=state==='translating'?'':'none';
@@ -442,10 +832,9 @@ function setPreviewState(state){
 }
 function resetPreview(){
   setPreviewState('idle');
-  $$('.preview-body').forEach(x=>x.classList.remove('show'));
+  $$('#preview-panel .preview-body').forEach(x=>x.classList.remove('show'));
 }
 
-// ── reset UI to config mode ──
 function resetConfigUI(){
   startBtn.disabled=false;startBtn.textContent='开始翻译';
   progressWrap.style.display='none';progressFill.style.width='0%';
@@ -460,7 +849,7 @@ function resetConfigUI(){
   epubDlBtn.href='#';
 }
 
-// ── file handling ──
+// File handling
 dropZone.addEventListener('click',()=>fileInput.click());
 dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag')});
 dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
@@ -472,7 +861,7 @@ fileInput.addEventListener('change',()=>{if(fileInput.files.length)setFile(fileI
 
 function setFile(f){selectedFile=f;dzFilename.textContent=f.name}
 
-// ── toggle groups ──
+// Toggle groups
 $$('.toggle-group').forEach(g=>{
   g.querySelectorAll('label').forEach(l=>{
     l.addEventListener('click',()=>{
@@ -482,33 +871,33 @@ $$('.toggle-group').forEach(g=>{
   });
 });
 
-// ── range slider ──
+// Range slider
 rangeInput.addEventListener('input',()=>{rangeLabel.textContent=rangeInput.value});
 
-// ── tabs ──
-$$('.preview-tab').forEach(t=>{
+// Tabs (in new-translation view)
+$$('#preview-tabs .preview-tab').forEach(t=>{
   t.addEventListener('click',()=>{
-    $$('.preview-tab').forEach(x=>x.classList.remove('sel'));
+    $$('#preview-panel .preview-tab').forEach(x=>x.classList.remove('sel'));
     t.classList.add('sel');
-    $$('.preview-body').forEach(x=>x.classList.remove('show'));
+    $$('#preview-panel .preview-body').forEach(x=>x.classList.remove('show'));
     $('#body-'+t.dataset.tab).classList.add('show');
   });
 });
 
-// ── toast ──
 function showToast(msg){toast.textContent=msg;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000)}
 
-// ── build form data from current settings ──
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
 function buildForm(){
   const form=new FormData();
   form.append('file',new Blob([selectedFile.text_],{type:'text/plain'}),selectedFile.name||'novel.txt');
   form.append('target_lang',$('#target-lang').value);
   form.append('translate_mode',document.querySelector('input[name="model"]:checked').value);
   form.append('qa_interval',rangeInput.value);
+  form.append('genre',$('#genre').value);
   return form;
 }
 
-// ── update chapter log (last 5 entries) ──
 function updateChapterLog(){
   if(!chapterEntries.length){chapterLog.style.display='none';return}
   chapterLog.style.display='block';
@@ -522,14 +911,14 @@ function updateChapterLog(){
   chapterLog.scrollTop=chapterLog.scrollHeight;
 }
 
-// ── cancel translation ──
 function abortTranslation(){
   cancelRequested=true;activeJobId=null;
+  if(pollTimer)clearTimeout(pollTimer);
   resetConfigUI();resetPreview();
   showToast('翻译已取消');
+  loadJobList();
 }
 
-// ── show error state ──
 function showErrorState(message,jobId,form){
   activeJobId=jobId;activeForm=form;
   progressActions.style.display='none';
@@ -540,7 +929,6 @@ function showErrorState(message,jobId,form){
   showToast(message);
 }
 
-// ── retry translation ──
 async function retryTranslation(){
   if(!activeForm){return}
   retryCount++;
@@ -550,16 +938,13 @@ async function retryTranslation(){
   doTranslate(activeForm);
 }
 
-// cancel button
 cancelBtn.addEventListener('click',abortTranslation);
-
-// retry buttons
 retryBtn.addEventListener('click',retryTranslation);
 previewRetryBtn.addEventListener('click',retryTranslation);
 
-// ── core: submit & poll ──
+// ── Core: submit & poll ──
 async function doTranslate(form){
-  // Submit translation job
+  cancelRequested=false;
   const res=await fetch('/api/translate',{method:'POST',body:form});
   if(!res.ok){
     showToast('提交失败: '+(await res.text()).slice(0,100));
@@ -571,14 +956,16 @@ async function doTranslate(form){
   const total=job.total_chapters;
   activeJobId=jobId;activeForm=form;
 
-  // Poll for progress
+  // Refresh sidebar
+  loadJobList();
+
   const poll=async()=>{
     if(cancelRequested)return;
     if(!activeJobId || activeJobId!==jobId)return;
 
     try{
       const r=await fetch('/api/translate/'+jobId);
-      if(!r.ok){setTimeout(poll,2000);return}
+      if(!r.ok){pollTimer=setTimeout(poll,2000);return}
       const s=await r.json();
 
       if(s.status==='translating'){
@@ -586,61 +973,57 @@ async function doTranslate(form){
         progressFill.style.width=pct+'%';
         progressText.innerHTML='<span class="spinner"></span>第 '+s.current+'/'+s.total+' 章 &mdash; '+s.chapter_title;
 
-        // Track chapter progress
         if(s.current>chapterEntries.length){
           for(let c=chapterEntries.length+1;c<=s.current;c++){
             chapterEntries.push({num:c,title:c===s.current?s.chapter_title:'第'+c+'章',status:'done'});
           }
           updateChapterLog();
         }
-
-        setTimeout(poll,1500);
+        // Refresh sidebar for progress
+        loadJobList();
+        pollTimer=setTimeout(poll,1500);
       }else if(s.status==='complete'){
         progressFill.style.width='100%';progressText.textContent='翻译完成 — 共 '+total+' 章';
         chapterEntries=[];updateChapterLog();
         progressActions.style.display='none';errorActions.style.display='none';
         setPreviewState('complete');
 
-        // Fetch translation
         const tr=await fetch('/api/translation/'+jobId);
         const td=await tr.json();
         $('#out-translation').innerHTML=marked.parse(td.text||'*无内容*');
 
-        // Fetch glossary
         const gr=await fetch('/api/glossary/'+jobId);
         const gd=await gr.json();
         if(!gd.error){
           let g='<table class="glossary-table"><thead><tr><th>中文</th><th>英文</th></tr></thead><tbody>';
-          Object.entries(gd).sort().forEach(([cn,en])=>{g+='<tr><td>'+cn+'</td><td>'+en+'</td></tr>'});
+          Object.entries(gd).sort().forEach(([cn,en])=>{g+='<tr><td>'+esc(cn)+'</td><td>'+esc(en)+'</td></tr>'});
           g+='</tbody></table>';
           $('#out-glossary').innerHTML=g;
         }
-
         $('#out-report').innerHTML=marked.parse('## 翻译完成\n\n| 指标 | 数值 |\n|------|------|\n| 章节数 | **'+total+'** |\n| 术语数 | **'+(Object.keys(gd).length||0)+'** |');
 
-        // Wire up EPUB download
         epubDlBtn.href='/api/epub/'+jobId;
 
-        // Show results
-        $$('.preview-body').forEach(x=>x.classList.remove('show'));
+        $$('#preview-panel .preview-body').forEach(x=>x.classList.remove('show'));
         $('#body-translation').classList.add('show');
-        $$('.preview-tab').forEach(x=>x.classList.remove('sel'));
-        $$('.preview-tab')[0].classList.add('sel');
+        $$('#preview-panel .preview-tab').forEach(x=>x.classList.remove('sel'));
+        $$('#preview-panel .preview-tab')[0].classList.add('sel');
 
         startBtn.disabled=false;startBtn.textContent='开始翻译';
         activeJobId=null;activeForm=null;
+        loadJobList();
       }else if(s.status==='error'){
         showErrorState(s.message||'翻译失败',jobId,form);
-      }else{setTimeout(poll,2000)}
+        loadJobList();
+      }else{pollTimer=setTimeout(poll,2000)}
     }catch(e){
-      // Network error — show error state with retry
       showErrorState('网络请求失败，请检查连接后重试',jobId,form);
     }
   };
-  setTimeout(poll,1000);
+  pollTimer=setTimeout(poll,1000);
 }
 
-// ── start translation ──
+// ── Start translation ──
 startBtn.addEventListener('click',async()=>{
   if(!selectedFile){showToast('请先选择 .txt 文件');return}
 
@@ -651,12 +1034,14 @@ startBtn.addEventListener('click',async()=>{
   updateChapterLog();
   setPreviewState('translating');
 
-  // Cache file text for retry
   selectedFile.text_=await selectedFile.text();
   const form=buildForm();
-
   doTranslate(form);
 });
+
+// ── Init ──
+loadJobList();
+showNewTranslationView();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </body>

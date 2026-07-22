@@ -1,0 +1,141 @@
+{
+  "common": {
+    "en-US": {
+      "穿越": {
+        "target": "Transmigration",
+        "note": "Established genre term"
+      },
+      "穿书": {
+        "target": "Transmigrated into a novel",
+        "note": "Specific sub-genre of transmigration"
+      },
+      "系统": {
+        "target": "System",
+        "note": "Capitalized, established LitRPG convention"
+      },
+      "打脸": {
+        "target": "face-slap / epic takedown",
+        "note": "Established webnovel convention"
+      },
+      "装逼": {
+        "target": "flex / show off",
+        "note": "Colloquial Chinese internet slang"
+      },
+      "龙傲天": {
+        "target": "the overpowered hero / the Chosen One",
+        "note": "Stock protagonist archetype in web fiction"
+      },
+      "白莲花": {
+        "target": "goody-two-shoes / sanctimonious act",
+        "note": "Derogatory term for a fake-innocent person"
+      },
+      "玛丽苏": {
+        "target": "Mary Sue",
+        "note": "Keep as-is — already an English loanword"
+      },
+      "吃瓜群众": {
+        "target": "popcorn gallery / bystanders with popcorn",
+        "note": "Idiomatic: onlookers enjoying the drama"
+      },
+      "牛逼": {
+        "target": "badass / epic / legendary",
+        "note": "Colloquial Chinese — match intensity level"
+      },
+      "卧槽": {
+        "target": "Holy shit / WTF / Damn",
+        "note": "Chinese expletive — choose based on context intensity"
+      },
+      "金手指": {
+        "target": "cheat code / golden finger",
+        "note": "Established LitRPG/game-world term"
+      },
+      "备胎": {
+        "target": "backup / second choice",
+        "note": "Literal spare tire → romantic backup"
+      },
+      "社畜": {
+        "target": "corporate drone / wage slave",
+        "note": "Convey the exhaustion and dehumanization"
+      },
+      "带球跑": {
+        "target": "run away pregnant / bun in the oven and gone",
+        "note": "Idiomatic: fleeing while pregnant"
+      },
+      "暖男": {
+        "target": "sweet guy / teddy-bear boyfriend",
+        "note": "Warm, caring male archetype"
+      },
+      "996": {
+        "target": "996 grind (China's brutal overtime culture)",
+        "note": "Keep the number + contextualize as brutal work culture"
+      }
+    },
+    "es-ES": {},
+    "ar-SA": {}
+  },
+  "genres": {
+    "romance_ceo": {
+      "en-US": {
+        "霸总": {
+          "target": "Alpha CEO / dominant CEO",
+          "note": "Maps to US romance novel alpha-male archetype"
+        },
+        "八零年代": {
+          "target": "80s rural America / small-town 80s",
+          "note": "Convey the socio-economic vibe, not just the decade"
+        }
+      }
+    },
+    "xianxia": {
+      "en-US": {
+        "修真": {
+          "target": "Cultivation",
+          "note": "Established xianxia genre convention"
+        },
+        "修仙": {
+          "target": "Immortal Cultivation",
+          "note": "Variant of Cultivation, more explicitly immortality-focused"
+        },
+        "飞升": {
+          "target": "Ascension",
+          "note": "Capitalized — major milestone in cultivation"
+        },
+        "渡劫": {
+          "target": "Heavenly Tribulation",
+          "note": "Key cultivation world event"
+        },
+        "金丹": {
+          "target": "Golden Core",
+          "note": "Cultivation stage — keep Chinese fantasy flavor"
+        },
+        "元婴": {
+          "target": "Nascent Soul",
+          "note": "Cultivation stage — keep Chinese fantasy flavor"
+        },
+        "门派": {
+          "target": "Sect",
+          "note": "Not 'school' or 'faction' — matches fantasy genre convention"
+        },
+        "丹田": {
+          "target": "Dantian",
+          "note": "Keep untranslated, explain once on first occurrence"
+        },
+        "师兄": {
+          "target": "senior brother",
+          "note": "Keep hierarchy flavor; use name when known"
+        },
+        "师姐": {
+          "target": "senior sister",
+          "note": "Keep hierarchy flavor; use name when known"
+        },
+        "社会摇": {
+          "target": "street dance / hood shuffle",
+          "note": "Colloquial Chinese internet phenomenon"
+        }
+      }
+    },
+    "urban": {
+      "en-US": {}
+    }
+  }
+}

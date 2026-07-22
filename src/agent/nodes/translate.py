@@ -20,6 +20,7 @@ from ...config import (
     DEEPSEEK_BASE_URL,
     MODEL_MAP,
 )
+from ...cultural_rules import load_rules, format_rules_for_prompt
 
 
 def _get_llm(chapter_number: int, is_retranslation: bool = False) -> ChatOpenAI:
@@ -64,6 +65,14 @@ def translate_node(state: TranslatorState) -> dict:
         is_retranslation=state.get("retranslation_count", 0) > 0,
     )
 
+    # Load cultural rules for the target language and genre
+    target_lang = state.get("target_lang", "en-US")
+    genre = state.get("genre", "romance_ceo")
+    rules = load_rules(target_lang=target_lang, genre=genre)
+    cultural_rules_table = format_rules_for_prompt(rules)
+
+    system_prompt = TRANSLATION_SYSTEM.format(cultural_rules_table=cultural_rules_table)
+
     user_prompt = TRANSLATION_USER.format(
         previous_summary=state.get("previous_chapter_summary", "(This is the first chapter — no previous summary.)"),
         exact_matches=state.get("exact_matches_text", "(No glossary terms matched.)"),
@@ -74,7 +83,7 @@ def translate_node(state: TranslatorState) -> dict:
     )
 
     messages = [
-        SystemMessage(content=TRANSLATION_SYSTEM),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt),
     ]
 

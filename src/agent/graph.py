@@ -110,6 +110,7 @@ class TranslationAgent:
         chapter_number: int,
         previous_summary: str = "",
         target_lang: str = "en-US",
+        genre: str = "romance_ceo",
     ) -> dict:
         """
         Translate a single chapter through the full agent pipeline.
@@ -128,6 +129,7 @@ class TranslationAgent:
             "chapter_content": chapter_content,
             "chapter_number": chapter_number,
             "target_lang": target_lang,
+            "genre": genre,
             "exact_glossary": self.exact_store.to_dict(),
             "semantic_terms": [],
             "exact_matches_text": "",

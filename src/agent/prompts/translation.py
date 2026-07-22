@@ -31,28 +31,7 @@ like an American web novel.
 ### 3. Cultural Adaptation Mapping
 
 Translate these common patterns using the adapted version, NOT the literal:
-
-| 中文 | Literal (DON'T USE) | Adapted (USE THIS) |
-|------|--------------------|--------------------|
-| 八零年代 | the 1980s | 80s rural America / small-town 80s |
-| 霸总 | overbearing president | Alpha CEO / dominant CEO |
-| 修真 / 修仙 | cultivate immortality | Cultivation / Immortal Cultivation |
-| 打脸 | hit face | face-slap / epic takedown |
-| 装逼 | pretend | flex / show off |
-| 龙傲天 | Long Aotian | the overpowered hero / the Chosen One |
-| 白莲花 | white lotus | goody-two-shoes / sanctimonious act |
-| 玛丽苏 | Mary Sue | Mary Sue (keep — already English) |
-| 吃瓜群众 | melon-eating masses | popcorn gallery / bystanders with popcorn |
-| 牛逼 | cow's vagina | badass / epic / legendary |
-| 卧槽 | lie槽 | Holy shit / WTF / Damn |
-| 社会摇 | social shake | street dance / hood shuffle |
-| 飞升 | fly up | Ascension (capitalized — major milestone) |
-| 渡劫 | cross tribulation | Heavenly Tribulation |
-| 备胎 | spare tire | backup / second choice |
-| 社畜 | social livestock | corporate drone / wage slave |
-| 带球跑 | run with ball | run away pregnant / bun in the oven and gone |
-| 暖男 | warm man | sweet guy / cinnamon roll |
-| 996 | nine-nine-six | 996 grind (China's brutal overtime culture) |
+{cultural_rules_table}
 
 ### 4. Style Guidelines
 - Dialogue: **Casual American English**. Characters should sound like they're \

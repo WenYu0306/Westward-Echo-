@@ -20,28 +20,10 @@ Classify each term as one of:
 - **item**: Artifacts, special objects, branded items (e.g. 储物袋, 筑基丹)
 - **era**: Time periods, dynasties, historical markers
 
-## CULTURAL ADAPTATION GUIDELINES (for en-US market)
+## CULTURAL ADAPTATION GUIDELINES (for {target_lang} market)
 
-Prioritize American reader comprehension:
-- 八零年代 → "80s rural America" (NOT literal "the 1980s" — convey the socio-economic vibe)
-- 霸总 → "Alpha CEO" (NOT "overbearing president" — map to familiar US archetype)
-- 修真 → "Cultivation" (established convention in the xianxia genre)
-- 修仙 → "Immortal Cultivation"
-- 金丹/元婴 → "Golden Core / Nascent Soul" (keep Chinese fantasy flavor)
-- 门派 → "Sect" (not "school" or "faction" — matches fantasy genre convention)
-- 师兄/师姐 → Use names or "senior brother/sister" (keep hierarchy flavor)
-- 穿越 → "Transmigration" (established genre term)
-- 穿书 → "Transmigrated into a novel" (specific sub-genre)
-- 系统 → "System" (capitalized, established LitRPG convention)
-- 打脸 → "Face-slapping" (established webnovel convention)
-- 丹田 → "Dantian" (keep untranslated, explain once on first occurrence)
-- 白莲花 → "goody-two-shoes / sanctimonious act" (derogatory)
-- 备胎 → "backup / second choice" (literal + figurative)
-- 社畜 → "corporate drone / wage slave" (convey the exhaustion)
-- 带球跑 → "runaway with a bun in the oven" (idiomatic)
-- 暖男 → "sweet guy / teddy-bear boyfriend"
-- 金手指 → "cheat code / golden finger" (established LitRPG/game-world term)
-- 996 → "996 grind" (keep the number + contextualize as brutal work culture)
+Prioritize reader comprehension:
+{cultural_rules_bullets}
 
 ## OUTPUT FORMAT
 
