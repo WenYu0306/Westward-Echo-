@@ -3,6 +3,7 @@
 Requires DEEPSEEK_API_KEY in environment. Skip if not available.
 """
 
+import json
 import os
 import re
 
@@ -158,10 +159,26 @@ class TestLiveTranslation:
                 chapter_number=ch.index,
                 previous_summary=summary,
             )
-            translations.append(result["translated_text"])
+            tt = result["translated_text"]
+
+            # Handle LLM returning JSON wrapper instead of plain text
+            if isinstance(tt, str) and tt.strip().startswith("{"):
+                try:
+                    parsed = json.loads(tt)
+                    tt = parsed.get("translated_text", tt)
+                except json.JSONDecodeError:
+                    pass
+
+            translations.append(tt)
             summary = result.get("chapter_summary", "")
 
-        # Verify "Su Nian" appears in both chapters (not "Sue Nian" or other variant)
-        # This tests the glossary consistency mechanism
+        # Verify "Su Nian" appears in all chapters (glossary consistency)
         for i, tt in enumerate(translations):
             assert len(tt.strip()) > 0, f"Chapter {i+1} translation should not be empty"
+            # Check for the female lead's name — it MUST appear in every chapter
+            # because she's the protagonist and narrator
+            if "苏念" in translatable[i].content:
+                assert "Su Nian" in tt, (
+                    f"Chapter {i+1}: 'Su Nian' must appear when 苏念 is in the source. "
+                    f"Translation starts with: {tt[:200]}"
+                )
