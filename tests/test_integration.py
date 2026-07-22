@@ -195,8 +195,8 @@ class TestFullPipeline:
 
 class TestRetranslationOnLowQuality:
 
-    def test_retranslation_triggered_when_score_below_threshold(self, sample_chapter):
-        """When quality_score < 3.5, the graph should route back to translate_node."""
+    def test_qa_failure_routes_to_polish_editor(self, sample_chapter):
+        """When quality_score < 3.5, route to polish_node (editor, not blind retranslate)."""
         exact_store = ExactGlossary(
             db_path=os.path.join(tempfile.gettempdir(), "test_int_retrans.db")
         )
@@ -224,40 +224,50 @@ class TestRetranslationOnLowQuality:
             "translated_text": first_translation,
             "new_terms_found": [{"term_cn": "霸总", "term_en": "Alpha CEO", "category": "culture"}],
             "cultural_adaptation_notes": ["Test note"],
-            "chapter_summary": "Testing retranslation.",
+            "chapter_summary": "Testing polish editor.",
         }
 
-        call_count = [0]
+        translate_calls = [0]
+        polish_calls = [0]
 
         with patch("src.agent.nodes.translate.ChatOpenAI") as mock_trans_llm, \
+             patch("src.agent.nodes.polish.ChatOpenAI") as mock_polish_llm, \
              patch("src.agent.nodes.update_glossary.ChatOpenAI") as mock_val_llm, \
              patch("src.agent.nodes.quality_check.ChatOpenAI") as mock_qa_llm:
 
             def trans_factory(*args, **kwargs):
-                call_count[0] += 1
+                translate_calls[0] += 1
                 return _mock_translate_response(response_content)
 
             mock_trans_llm.side_effect = trans_factory
+
+            # Polish node returns editor-style JSON
+            def polish_factory(*args, **kwargs):
+                polish_calls[0] += 1
+                return _mock_translate_response({
+                    "polished_text": first_translation.replace("opened her eyes", "blinked awake"),
+                    "changes_made": ["Fixed 'opened her eyes' → 'blinked awake' for more natural English"],
+                })
+
+            mock_polish_llm.side_effect = polish_factory
 
             mock_val_llm.return_value = _mock_translate_response({
                 "validated_terms": response_content["new_terms_found"],
                 "rejected": [],
             })
 
-            # QA creates 2 ChatOpenAI instances (back-translate + score)
-            # 3 samples --> 3 back-translate + 3 score calls = 6 total per QA cycle
-            # First QA cycle: score 2.0 (below threshold) -> triggers retranslation
-            # Second QA cycle: score 4.0 (above threshold) -> end
+            # First QA cycle: score 2.0 (below threshold) → triggers polish_node
+            # Second QA cycle: score 4.0 (above threshold) → end
             mock_qa_llm.return_value.invoke.side_effect = [
-                # First QA: 3 back-translate + 3 score
-                MagicMock(content="苏念睁开眼睛，发现自己在一个陌生的房间里。"),
-                MagicMock(content=json.dumps({"overall": 2.0, "issues": ["Poor translation"]})),
+                # First QA: 3 back-translate + 3 score (all return 2.0)
+                MagicMock(content="苏念睁开眼睛。"),
+                MagicMock(content=json.dumps({"overall": 2.0, "issues": [{"severity": "major", "detail": "Poor translation quality"}]})),
                 MagicMock(content="她慢慢坐起来。"),
-                MagicMock(content=json.dumps({"overall": 2.0, "issues": ["Awkward phrasing"]})),
+                MagicMock(content=json.dumps({"overall": 2.0, "issues": [{"severity": "minor", "detail": "Awkward phrasing"}]})),
                 MagicMock(content="一切都是财富和权力。"),
-                MagicMock(content=json.dumps({"overall": 2.0, "issues": ["Missing nuance"]})),
-                # Second QA (after retranslation): 3 back-translate + 3 score
-                MagicMock(content="苏念睁开眼睛，发现自己在一个陌生的房间里。"),
+                MagicMock(content=json.dumps({"overall": 2.0, "issues": [{"severity": "critical", "detail": "Missing nuance"}]})),
+                # Second QA (after polish): 3 back-translate + 3 score (all return 4.0)
+                MagicMock(content="苏念睁开眼睛。"),
                 MagicMock(content=json.dumps({"overall": 4.0, "issues": []})),
                 MagicMock(content="她慢慢坐起来。"),
                 MagicMock(content=json.dumps({"overall": 4.0, "issues": []})),
@@ -268,15 +278,17 @@ class TestRetranslationOnLowQuality:
             graph = build_graph(exact_store, semantic_store)
             result = graph.invoke(initial_state)
 
-        # Translate node should have been called twice (initial + retranslation)
-        assert call_count[0] == 2, (
-            f"Expected translate_node to be called 2 times (initial + retranslation), "
-            f"but was called {call_count[0]} times"
+        # Translate node called once (initial), polish node called once (repair)
+        assert translate_calls[0] == 1, (
+            f"Expected translate_node to be called 1 time (initial), "
+            f"but was called {translate_calls[0]} times"
         )
-        # Retranslation count should be incremented in the state
-        # (LangGraph's Annotated[list, operator.add] handles accumulation)
+        assert polish_calls[0] == 1, (
+            f"Expected polish_node to be called 1 time (repair after QA failure), "
+            f"but was called {polish_calls[0]} times"
+        )
         assert result["quality_score"] > 3.5, (
-            f"Final quality score should be above threshold after retranslation, got {result['quality_score']}"
+            f"Final quality score should be above threshold after polish, got {result['quality_score']}"
         )
 
 

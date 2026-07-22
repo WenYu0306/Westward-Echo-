@@ -1,10 +1,14 @@
-"""LangGraph graph assembly for the translation agent.
+"""LangGraph graph assembly — Multi-Agent pipeline.
 
-Builds a state graph with 4 nodes and conditional routing:
+Builds a state graph with 5 nodes and conditional routing:
   START → fetch_glossary → translate → update_glossary → quality_check
                                                               ↓
-                                              (score < 3.5) → retranslate → END
-                                              (score ≥ 3.5) → END
+          (score < 3.5) → polish_node(editor) → update_glossary → quality_check
+          (score ≥ 3.5) → END
+
+The polish node is a different agent with a different prompt and mindset
+(editor, not translator) — it fixes specific QA issues instead of blindly
+re-translating the same text with the same prompt.
 """
 
 from langgraph.graph import StateGraph, END
@@ -12,6 +16,7 @@ from langgraph.graph import StateGraph, END
 from .state import TranslatorState
 from .nodes.fetch_glossary import fetch_glossary_node
 from .nodes.translate import translate_node
+from .nodes.polish import polish_node
 from .nodes.update_glossary import update_glossary_node
 from .nodes.quality_check import quality_check_node
 from ..glossary.exact_store import ExactGlossary
@@ -19,17 +24,18 @@ from ..glossary.semantic_store import SemanticGlossary
 from ..config import MAX_RETRANSLATION_ATTEMPTS
 
 
-def _should_retranslate(state: TranslatorState) -> str:
-    """Conditional routing after QA.
+def _should_repair(state: TranslatorState) -> str:
+    """Route QA failures to the polish editor agent.
 
-    If the quality score is below 3.5 AND we haven't exceeded max retries,
-    route back to the translate node. Otherwise, end.
+    If score < 3.5 and we haven't exceeded max attempts, route to the
+    polish node — a different agent that fixes specific issues rather
+    than blindly re-translating.
     """
     score = state.get("quality_score", 5.0)
     retries = state.get("retranslation_count", 0)
 
     if score < 3.5 and retries < MAX_RETRANSLATION_ATTEMPTS:
-        return "translate_node"
+        return "polish_node"
     return END
 
 
@@ -37,62 +43,45 @@ def build_graph(
     exact_store: ExactGlossary,
     semantic_store: SemanticGlossary,
 ) -> StateGraph:
-    """
-    Build and compile the translation agent graph.
-
-    The exact_store and semantic_store are injected as closures so each node
-    can access them without global state.
-    """
     builder = StateGraph(TranslatorState)
 
-    # --- Nodes ---
+    # ── Nodes ──
     builder.add_node(
         "fetch_glossary",
         lambda s: fetch_glossary_node(s, exact_store, semantic_store),
     )
     builder.add_node("translate_node", translate_node)
+    builder.add_node("polish_node", polish_node)  # ← Multi-Agent upgrade
     builder.add_node(
         "update_glossary",
         lambda s: update_glossary_node(s, exact_store, semantic_store),
     )
     builder.add_node("quality_check", quality_check_node)
 
-    # --- Edges ---
+    # ── Edges ──
     builder.set_entry_point("fetch_glossary")
     builder.add_edge("fetch_glossary", "translate_node")
     builder.add_edge("translate_node", "update_glossary")
     builder.add_edge("update_glossary", "quality_check")
 
-    # --- Conditional: retranslate if QA fails ---
+    # ── Conditional: QA failure → polish editor (NOT blind retranslate) ──
     builder.add_conditional_edges(
         "quality_check",
-        _should_retranslate,
+        _should_repair,
         {
-            "translate_node": "translate_node",
+            "polish_node": "polish_node",
             END: END,
         },
     )
 
-    # When retranslating, go back to update_glossary → quality_check again
-    # (translate → update → QA → ...)
+    # Polish → update glossary (in case edits surface new terms) → QA again
+    builder.add_edge("polish_node", "update_glossary")
 
     return builder.compile()
 
 
 class TranslationAgent:
-    """
-    High-level wrapper around the LangGraph graph.
-
-    Usage:
-        agent = TranslationAgent()
-        result = agent.translate_chapter(
-            chapter_title="第一章 穿成霸总文女主",
-            chapter_content="...",
-            chapter_number=1,
-            previous_summary="",
-            target_lang="en-US",
-        )
-    """
+    """High-level wrapper around the multi-agent LangGraph pipeline."""
 
     def __init__(self):
         self.exact_store = ExactGlossary()
@@ -100,15 +89,9 @@ class TranslationAgent:
         self.graph = build_graph(self.exact_store, self.semantic_store)
 
     def load_glossary(self, target_lang: str = "en-US"):
-        """Restore glossary from SQLite on startup / resume."""
         self.exact_store.load_from_db(target_lang)
 
     def load_glossary_snapshot(self, snapshot_json: str):
-        """Restore glossary from a JSON checkpoint snapshot.
-
-        Used during crash recovery to restore the exact glossary state as it
-        was at the last checkpoint.
-        """
         if snapshot_json and snapshot_json != "{}":
             self.exact_store.restore_snapshot(snapshot_json)
 
@@ -121,18 +104,6 @@ class TranslationAgent:
         target_lang: str = "en-US",
         genre: str = "romance_ceo",
     ) -> dict:
-        """
-        Translate a single chapter through the full agent pipeline.
-
-        Returns a dict with keys:
-        - translated_text: The English chapter
-        - new_terms_found: New glossary terms discovered
-        - adaptation_notes: Cultural adaptation decisions
-        - chapter_summary: Summary for next chapter's context
-        - quality_score: QA score (1-5)
-        - quality_issues: QA issues found
-        - glossary_snapshot_json: Current exact glossary state (for checkpoint)
-        """
         initial_state: TranslatorState = {
             "chapter_title": chapter_title,
             "chapter_content": chapter_content,
@@ -154,5 +125,4 @@ class TranslationAgent:
             "glossary_snapshot_json": "",
         }
 
-        result = self.graph.invoke(initial_state)
-        return result
+        return self.graph.invoke(initial_state)
