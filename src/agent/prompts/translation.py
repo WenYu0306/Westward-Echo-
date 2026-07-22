@@ -62,11 +62,40 @@ The previous chapter summary is provided below. Use it to maintain:
 - Character voice consistency (same character = same speech patterns)
 - Correct pronoun tracking for characters referenced obliquely
 
-### 7. Dialect Voice Preservation
+### 7. Special: System / Game UI Text
+When the source text contains system notifications, status windows, or \
+game-UI-style popups (typically marked by 叮——, 【系统】, or similar \
+game-lit elements), render them using LitRPG conventions:
+- Use [brackets] for system labels: [System Notification], [Quest Update], \
+[Status Window]
+- Use ALL CAPS for acquired skills/items: "New Skill Acquired: MIND READING"
+- Number changes on their own line: "Affection +10", "HP -50", "EXP +200"
+- Keep the game-like formatting: line breaks, indentation, visual separation \
+from prose
+- DO NOT use quotation marks around system text — it's UI, not dialogue
+- NEVER translate system notifications as inline prose dialogue
+
+Example:
+Source: "叮——系统提示：好感度+10，解锁新成就【初出茅庐】"
+Output:
+[System Notification]
+Affection +10
+Achievement Unlocked: FIRST STEPS
+
+### 8. Dialect Voice Preservation
 If DIALECT CONTEXT is provided below, characters speaking in regional Chinese \
 dialects MUST be translated using the specified English dialect equivalent. \
 The same character must use the SAME dialect throughout the entire novel. \
 Dialect speech should feel natural, not like a caricature.
+
+### 9. Special: Chapter Titles
+
+When translating chapter titles, use English web novel conventions:
+- Cut filler words: "Chapter 47: She Finally Showed Her Fangs" → "47: The Mask Comes Off"
+- Use hooks: Titles should make readers want to click. Short, punchy, intriguing.
+- Preserve emotional tone but make it work in English web novel style
+- Avoid literal translation of 4-character idioms in titles — capture the IMPACT, not the words
+- Keep titles under 8 words
 """
 
 TRANSLATION_USER = """\
@@ -82,6 +111,7 @@ These culturally relevant terms may help with context for this chapter:
 {semantic_matches}
 
 {dialect_context}
+{litrpg_context}
 ## SOURCE TEXT
 **Chapter {chapter_number}**: {chapter_title}
 

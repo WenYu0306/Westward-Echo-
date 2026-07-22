@@ -88,6 +88,25 @@ DIALECT_MAPPING: dict[str, dict[str, str]] = {
 }
 
 
+# ── LitRPG / System text detection ──────────────────────────
+
+SYSTEM_TEXT_MARKERS = [
+    "叮——", "系统提示", "系统通知", "【系统】", "好感度", "主线任务",
+    "支线任务", "经验值", "技能", "成就", "道具",
+]
+
+
+def has_system_text(text: str) -> bool:
+    """Detect if chapter contains LitRPG-style system popups.
+
+    Returns True when any of the common Chinese web novel system notification
+    markers are found in the text. These indicate game-UI elements (status
+    windows, skill acquisition notices, stat changes) that should be rendered
+    using LitRPG formatting conventions rather than as prose dialogue.
+    """
+    return any(m in text for m in SYSTEM_TEXT_MARKERS)
+
+
 def detect_dialects(text: str) -> dict[str, int]:
     """Scan text for dialect markers. Returns {dialect_name: marker_count}.
 

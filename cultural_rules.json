@@ -302,16 +302,52 @@
           "note": "Keep untranslated, explain once on first occurrence"
         },
         "师兄": {
-          "target": "senior brother",
-          "note": "Keep hierarchy flavor; use name when known"
+          "target": "Senior Brother",
+          "note": "Male senior disciple. Must use 'Senior Brother', not just the name."
         },
         "师姐": {
-          "target": "senior sister",
-          "note": "Keep hierarchy flavor; use name when known"
+          "target": "Senior Sister",
+          "note": "Female senior disciple"
         },
         "社会摇": {
           "target": "street dance / hood shuffle",
           "note": "Colloquial Chinese internet phenomenon"
+        },
+        "师叔": {
+          "target": "Martial Uncle (junior to master)",
+          "note": "Must be 'Martial Uncle', NEVER 'uncle-master' or 'Shishu'"
+        },
+        "师伯": {
+          "target": "Martial Uncle (senior to master)",
+          "note": "Must be 'Martial Uncle', NEVER 'uncle-master'"
+        },
+        "师父": {
+          "target": "Master",
+          "note": "Must be 'Master', NEVER 'Shifu' or 'teacher'"
+        },
+        "师尊": {
+          "target": "Honored Master",
+          "note": "More formal than 师父"
+        },
+        "师弟": {
+          "target": "Junior Brother",
+          "note": "Male junior disciple"
+        },
+        "师妹": {
+          "target": "Junior Sister",
+          "note": "Female junior disciple"
+        },
+        "前辈": {
+          "target": "Senior / Esteemed Senior",
+          "note": "Respectful address for any cultivator of higher rank"
+        },
+        "晚辈": {
+          "target": "Junior / This Junior",
+          "note": "Self-deprecating address, must sound humble"
+        },
+        "道友": {
+          "target": "Fellow Daoist",
+          "note": "Neutral address between cultivators of equal standing"
         }
       },
       "es-ES": {
@@ -348,16 +384,52 @@
           "note": "Sin traducir. Explicar una vez en la primera aparición como 'el centro de energía espiritual'"
         },
         "师兄": {
-          "target": "hermano mayor de secta",
-          "note": "Mantener la jerarquía; usar el nombre propio cuando se conozca"
+          "target": "Hermano Mayor",
+          "note": "Discípulo varón de mayor rango. Usar 'Hermano Mayor', no solo el nombre"
         },
         "师姐": {
-          "target": "hermana mayor de secta",
-          "note": "Mantener la jerarquía; usar el nombre propio cuando se conozca"
+          "target": "Hermana Mayor",
+          "note": "Discípula mujer de mayor rango"
         },
         "社会摇": {
           "target": "baile callejero chino",
           "note": "Fenómeno viral chino de baile urbano. Mantener el contexto cultural chino con breve explicación"
+        },
+        "师叔": {
+          "target": "Tío Marcial (menor que el maestro)",
+          "note": "Siempre 'Tío Marcial', NUNCA 'tío-maestro' ni 'Shishu'"
+        },
+        "师伯": {
+          "target": "Tío Marcial (mayor que el maestro)",
+          "note": "Siempre 'Tío Marcial', NUNCA 'tío-maestro'"
+        },
+        "师父": {
+          "target": "Maestro",
+          "note": "Siempre 'Maestro', NUNCA 'Shifu' ni 'profesor'"
+        },
+        "师尊": {
+          "target": "Honorable Maestro",
+          "note": "Más formal que 师父"
+        },
+        "师弟": {
+          "target": "Hermano Menor",
+          "note": "Discípulo varón de menor rango"
+        },
+        "师妹": {
+          "target": "Hermana Menor",
+          "note": "Discípula mujer de menor rango"
+        },
+        "前辈": {
+          "target": "Señor Mayor / Venerable Señor",
+          "note": "Tratamiento respetuoso para cualquier cultivador de rango superior"
+        },
+        "晚辈": {
+          "target": "Joven / Este Joven",
+          "note": "Tratamiento humilde de autodesprecio, debe sonar modesto"
+        },
+        "道友": {
+          "target": "Compañero Daoísta",
+          "note": "Tratamiento neutral entre cultivadores de igual rango"
         }
       },
       "ar-SA": {
@@ -398,16 +470,52 @@
           "note": "Keep untranslated. Explain once: 'the spiritual energy center within the body'"
         },
         "师兄": {
-          "target": "الأخ الأكبر في الطائفة",
-          "note": "Senior brother within the sect. Maintain hierarchy and respect connotations"
+          "target": "الأخ الأكبر",
+          "note": "Male senior disciple. Must use 'Al-Akh Al-Akbar', not just the name"
         },
         "师姐": {
-          "target": "الأخت الكبرى في الطائفة",
-          "note": "Senior sister within the sect. Maintain hierarchy and respect connotations"
+          "target": "الأخت الكبرى",
+          "note": "Female senior disciple. Must use 'Al-Ukht Al-Kubra'"
         },
         "社会摇": {
           "target": "رقص الشارع الصيني",
           "note": "Chinese street dance viral phenomenon. Explain briefly on first occurrence"
+        },
+        "师叔": {
+          "target": "العم القتالي (الأصغر من المعلم)",
+          "note": "Must use 'Al-Amm Al-Qitali', NEVER transliterate as 'Shishu'"
+        },
+        "师伯": {
+          "target": "العم القتالي (الأكبر من المعلم)",
+          "note": "Must use 'Al-Amm Al-Qitali', NEVER transliterate"
+        },
+        "师父": {
+          "target": "المعلم",
+          "note": "Must be 'Al-Mu'allim', NEVER 'Shifu' or 'teacher'"
+        },
+        "师尊": {
+          "target": "المعلم الموقر",
+          "note": "More formal than 师父 — 'Al-Mu'allim Al-Muwaqqar'"
+        },
+        "师弟": {
+          "target": "الأخ الأصغر",
+          "note": "Male junior disciple — 'Al-Akh Al-Asghar'"
+        },
+        "师妹": {
+          "target": "الأخت الصغرى",
+          "note": "Female junior disciple — 'Al-Ukht As-Sughra'"
+        },
+        "前辈": {
+          "target": "الأكبر / الفاضل الأكبر",
+          "note": "Respectful address for any cultivator of higher rank"
+        },
+        "晚辈": {
+          "target": "الأصغر / هذا الأصغر",
+          "note": "Self-deprecating humble address"
+        },
+        "道友": {
+          "target": "رفيق الداو",
+          "note": "Neutral address between cultivators of equal standing — 'Rafiq Ad-Dao'"
         }
       }
     },

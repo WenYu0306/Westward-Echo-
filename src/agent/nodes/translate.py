@@ -75,8 +75,26 @@ def translate_node(state: TranslatorState) -> dict:
     cultural_rules_table = format_rules_for_prompt(rules)
 
     # Detect dialect markers and build dialect context
-    from ...dialect import build_dialect_context
+    from ...dialect import build_dialect_context, has_system_text
     dialect_context = build_dialect_context(state["chapter_content"])
+
+    # Detect LitRPG system notification markers
+    litrpg_context = ""
+    if has_system_text(state["chapter_content"]):
+        litrpg_context = (
+            "## LITRPG CONTEXT\n"
+            "This chapter contains game-like system notifications or status "
+            "windows. See Section 7 (Special: System / Game UI Text) in your "
+            "system instructions for LitRPG formatting conventions.\n\n"
+        )
+
+    # Detect Chinese measurements and build localization hints
+    from ...measurements import build_measurements_hint
+    measurements_hint = build_measurements_hint(state["chapter_content"])
+
+    # Detect onomatopoeia and build translation hints
+    from ...onomatopoeia import build_onomatopoeia_context
+    onoma_hint = build_onomatopoeia_context(state["chapter_content"])
 
     system_prompt = TRANSLATION_SYSTEM.format(cultural_rules_table=cultural_rules_table)
 
@@ -85,10 +103,19 @@ def translate_node(state: TranslatorState) -> dict:
         exact_matches=state.get("exact_matches_text", "(No glossary terms matched.)"),
         semantic_matches=state.get("semantic_matches_text", "(No semantic matches.)"),
         dialect_context=dialect_context,
+        litrpg_context=litrpg_context,
         chapter_number=state["chapter_number"],
         chapter_title=state["chapter_title"],
         chapter_content=state["chapter_content"],
     )
+
+    # ── Inject measurement localization hints ──────
+    if measurements_hint:
+        user_prompt = measurements_hint + "\n\n" + user_prompt
+
+    # ── Inject onomatopoeia context hints ──────
+    if onoma_hint:
+        user_prompt = onoma_hint + "\n\n" + user_prompt
 
     # ── Inject confirmed terms (locked by human reviewer) ──────
     confirmed = job_store.get_confirmed_terms(target_lang)
