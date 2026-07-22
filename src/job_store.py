@@ -33,6 +33,7 @@ def _get_conn() -> sqlite3.Connection:
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     job_id              TEXT PRIMARY KEY,
+    project_id          TEXT,
     filename            TEXT NOT NULL,
     target_lang         TEXT NOT NULL,
     total_chapters      INTEGER NOT NULL,
@@ -46,6 +47,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at        TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_jobs_project_id ON jobs(project_id);
 
 CREATE TABLE IF NOT EXISTS rejected_terms (
     term_cn     TEXT NOT NULL,
@@ -83,14 +86,15 @@ class JobStore:
         filename: str,
         target_lang: str,
         total_chapters: int,
+        project_id: Optional[str] = None,
     ) -> str:
         """Create a new job record and return its job_id."""
         job_id = str(uuid.uuid4())[:8]
         conn = _get_conn()
         conn.execute(
-            """INSERT INTO jobs (job_id, filename, target_lang, total_chapters, status)
-               VALUES (?, ?, ?, ?, 'queued')""",
-            (job_id, filename, target_lang, total_chapters),
+            """INSERT INTO jobs (job_id, project_id, filename, target_lang, total_chapters, status)
+               VALUES (?, ?, ?, ?, ?, 'queued')""",
+            (job_id, project_id, filename, target_lang, total_chapters),
         )
         conn.commit()
         return job_id
@@ -178,6 +182,60 @@ class JobStore:
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
+    # ── project / multi-language ────────────────────────────
+
+    def create_project(self, source_filename: str) -> str:
+        """Create a project grouping for multi-language translations.
+
+        Returns a project_id that all language variants share.
+        """
+        return str(uuid.uuid4())[:8]
+
+    def add_language_job(self, project_id: str, target_lang: str,
+                        filename: str, total_chapters: int) -> str:
+        """Create a job within a project for a specific target language."""
+        return self.create_job(filename, target_lang, total_chapters, project_id=project_id)
+
+    def get_project_jobs(self, project_id: str) -> list[dict]:
+        """Return all jobs (language variants) belonging to a project."""
+        conn = _get_conn()
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE project_id = ? ORDER BY target_lang",
+            (project_id,),
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
+    def list_projects(self, limit: int = 20) -> list[dict]:
+        """Return recent projects with their language-variant jobs grouped.
+
+        Each entry: {project_id, filename, created_at, jobs: [{lang, job_id, status, ...}]}
+        """
+        conn = _get_conn()
+        # Get distinct projects, ordered by most recent job creation
+        rows = conn.execute(
+            """SELECT project_id, filename, MAX(created_at) AS created_at
+               FROM jobs
+               WHERE project_id IS NOT NULL
+               GROUP BY project_id
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (limit,),
+        ).fetchall()
+
+        projects = []
+        for row in rows:
+            pid = row["project_id"]
+            job_rows = conn.execute(
+                "SELECT * FROM jobs WHERE project_id = ? ORDER BY target_lang",
+                (pid,),
+            ).fetchall()
+            projects.append({
+                "project_id": pid,
+                "filename": row["filename"],
+                "created_at": row["created_at"],
+                "jobs": [self._row_to_dict(j) for j in job_rows],
+            })
+        return projects
 
     # ── rejected terms ──────────────────────────────────────
 

@@ -52,6 +52,12 @@ QUALITY_CHECK_INTERVAL = 20           # Run QA every N chapters
 MAX_RETRANSLATION_ATTEMPTS = 2        # Max retries for failed chapters
 CHAPTER_COOLDOWN_SECONDS = 0.5        # Rate-limit buffer between chapters
 
+# --- CMS ---
+CMS_SOURCE_TYPE = os.getenv("CMS_SOURCE_TYPE", "file")     # 'file' or 'webhook'
+CMS_FILE_BASE_DIR = os.getenv("CMS_FILE_BASE_DIR", str(ROOT_DIR / "novels"))
+CMS_WEBHOOK_URL = os.getenv("CMS_WEBHOOK_URL", "")
+CMS_WEBHOOK_API_KEY = os.getenv("CMS_WEBHOOK_API_KEY", "")
+
 # --- Per-node model routing ---
 # Each node picks a model tier. The model string is resolved at runtime
 # from the DEEPSEEK_*_MODEL env vars, so you can update models without touching code.

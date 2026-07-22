@@ -3,6 +3,8 @@
 import json
 import re
 import sqlite3
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 
@@ -54,6 +56,106 @@ async def translate_novel(
         status_code=503,
         content={"error": "Celery worker not available", "job_id": job_id, "total_chapters": total},
     )
+
+
+@app.post("/translate/multi")
+async def translate_multi(
+    file: UploadFile = File(...),
+    target_langs: str = Form("en-US,es-ES,ar-SA"),
+    translate_mode: str = Form("flash"),
+    genre: str = Form("romance_ceo"),
+    qa_interval: int = Form(20),
+) -> dict:
+    """Start translation into multiple languages simultaneously.
+
+    Creates a project, then one job per language. All language variants
+    share the same project_id so they can be grouped in the UI.
+
+    Returns ``{project_id, filename, jobs: [{lang, job_id, status}]}``.
+    """
+    text = (await file.read()).decode("utf-8")
+    chapters = split_chapters(text)
+    total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
+    filename = file.filename or "unknown.txt"
+
+    # Create a project to group all language variants
+    project_id = job_store.create_project(filename)
+
+    langs = [lang.strip() for lang in target_langs.split(",") if lang.strip()]
+    results = []
+
+    for lang in langs:
+        job_id = job_store.add_language_job(project_id, lang, filename, total)
+
+        if _has_celery:
+            task = translate_novel_task.delay(
+                job_id=job_id, text=text, target_lang=lang,
+                translate_mode=translate_mode, qa_interval=qa_interval,
+                genre=genre,
+            )
+            results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
+        else:
+            # Fallback: run in a background thread (no task_id)
+            results.append({"lang": lang, "job_id": job_id})
+
+    # If Celery is not available, spawn background threads
+    if not _has_celery:
+        def _run_translation(lang: str, jid: str):
+            """Run translation synchronously in a background thread."""
+            import asyncio as _asyncio
+            loop = _asyncio.new_event_loop()
+            _asyncio.set_event_loop(loop)
+            try:
+                from ..agent.graph import TranslationAgent
+                from ..prefetch import ChapterPrefetcher
+
+                chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
+                agent = TranslationAgent()
+                all_translations = []
+                prev_summary = ""
+                output_path = str(OUTPUT_DIR / f"{jid}_full_novel_{lang}.md")
+
+                prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
+                if len(chapters_list) > 1:
+                    try:
+                        prefetcher.prefetch(chapters_list[1].heading or chapters_list[1].content[:200])
+                    except Exception:
+                        pass
+
+                for i, ch in enumerate(chapters_list):
+                    try:
+                        result = agent.process(
+                            chapter=ch, chapter_num=i + 1, total_chapters=len(chapters_list),
+                            target_lang=lang, prev_summary=prev_summary,
+                            translate_mode=translate_mode,
+                            genre=genre,
+                        )
+                        all_translations.append(result.translation)
+                        prev_summary = result.summary or prev_summary
+                        title = ch.heading or f"Chapter {i + 1}"
+                        job_store.update_progress(jid, i + 1, len(chapters_list), title)
+                    except Exception:
+                        continue
+
+                merged = "\n\n".join(all_translations)
+                import os as _os
+                _os.makedirs(str(OUTPUT_DIR), exist_ok=True)
+                with open(output_path, "w", encoding="utf-8") as fh:
+                    fh.write(merged)
+                job_store.complete_job(jid, output_path, 0)
+            except Exception as exc:
+                job_store.fail_job(jid, str(exc))
+
+        executor = ThreadPoolExecutor(max_workers=len(langs))
+        for entry in results:
+            executor.submit(_run_translation, entry["lang"], entry["job_id"])
+
+    return {
+        "project_id": project_id,
+        "filename": filename,
+        "total_chapters": total,
+        "jobs": results,
+    }
 
 
 @app.get("/translate/{job_id}")
@@ -306,6 +408,25 @@ def get_job(job_id: str):
     if job is None:
         return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
     return job
+
+
+@app.get("/projects")
+def list_projects(limit: int = 20):
+    """List recent multi-language projects with grouped jobs."""
+    return job_store.list_projects(limit=limit)
+
+
+@app.get("/projects/{project_id}")
+def get_project(project_id: str):
+    """Get a single project with all its language-variant jobs."""
+    jobs = job_store.get_project_jobs(project_id)
+    if not jobs:
+        return JSONResponse(status_code=404, content={"error": "Project not found", "project_id": project_id})
+    return {
+        "project_id": project_id,
+        "filename": jobs[0].get("filename", ""),
+        "jobs": jobs,
+    }
 
 
 @app.delete("/jobs/{job_id}")

@@ -52,6 +52,66 @@ body{
 .btn-new-translation:hover{background:#0077ed;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,113,227,.25)}
 .btn-new-translation:active{transform:scale(.98)}
 
+.btn-cms-import{
+  width:100%;padding:8px 0;margin-top:8px;
+  font-family:Inter,sans-serif;font-size:12px;font-weight:500;
+  color:#0071e3;background:rgba(0,113,227,.06);
+  border:1px solid rgba(0,113,227,.15);border-radius:8px;cursor:pointer;
+  transition:all .15s;letter-spacing:.1px;
+}
+.btn-cms-import:hover{background:rgba(0,113,227,.12);border-color:rgba(0,113,227,.3)}
+.btn-cms-import:active{transform:scale(.98)}
+
+/* CMS import modal */
+.cms-modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.35);
+  display:none;align-items:center;justify-content:center;z-index:1000;
+}
+.cms-modal-overlay.open{display:flex}
+.cms-modal{
+  background:#fff;border-radius:16px;padding:28px 32px;
+  width:420px;max-width:90vw;
+  box-shadow:0 20px 60px rgba(0,0,0,.15);
+}
+.cms-modal h3{
+  font-size:16px;font-weight:600;color:#1c1c1e;margin-bottom:6px;
+}
+.cms-modal .sub{font-size:12px;color:#8e8e93;margin-bottom:20px}
+.cms-modal .field{margin-bottom:16px}
+.cms-modal .field label{display:block;font-size:12px;font-weight:500;color:#3a3a3c;margin-bottom:5px}
+.cms-modal .field input,.cms-modal .field select{
+  width:100%;padding:9px 12px;font-size:13px;font-family:Inter,sans-serif;
+  border:1px solid #d2d2d7;border-radius:8px;outline:none;color:#1c1c1e;
+  transition:border-color .15s;
+}
+.cms-modal .field input:focus,.cms-modal .field select:focus{
+  border-color:#0071e3;box-shadow:0 0 0 3px rgba(0,113,227,.12);
+}
+.cms-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.cms-modal .btn-cancel{
+  padding:8px 20px;font-family:Inter,sans-serif;font-size:12px;font-weight:500;
+  color:#6e6e73;background:#f0f0f5;border:1px solid #e5e5ea;border-radius:8px;
+  cursor:pointer;transition:all .15s;
+}
+.cms-modal .btn-cancel:hover{background:#e5e5ea}
+.cms-modal .btn-submit{
+  padding:8px 20px;font-family:Inter,sans-serif;font-size:12px;font-weight:600;
+  color:#fff;background:#0071e3;border:none;border-radius:8px;cursor:pointer;
+  transition:all .15s;
+}
+.cms-modal .btn-submit:hover{background:#0077ed}
+.cms-modal .btn-submit:disabled{background:#aeaeb2;cursor:not-allowed}
+
+/* CMS source dropdown in modal */
+.cms-source-list{max-height:160px;overflow-y:auto;margin-top:4px;border:1px solid #e5e5ea;border-radius:8px}
+.cms-source-item{
+  padding:8px 12px;font-size:13px;cursor:pointer;transition:background .12s;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.cms-source-item:hover{background:#f5f5f7}
+.cms-source-item.sel{background:rgba(0,113,227,.06);color:#0071e3;font-weight:500}
+.cms-loading-sources{font-size:12px;color:#aeaeb2;padding:12px;text-align:center}
+
 .sidebar-jobs{
   flex:1;overflow-y:auto;padding:8px 0;
 }
@@ -93,6 +153,43 @@ body{
 .sidebar-empty{
   text-align:center;padding:32px 20px;font-size:12px;color:#aeaeb2;
 }
+
+/* ── Project group in sidebar ── */
+.project-group{margin-bottom:2px}
+.project-group-header{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 20px;cursor:pointer;transition:background .12s;
+  border-left:3px solid transparent;
+}
+.project-group-header:hover{background:#f5f5f7}
+.project-group-toggle{
+  font-size:10px;color:#aeaeb2;transition:transform .2s;width:14px;text-align:center;
+}
+.project-group-toggle.open{transform:rotate(90deg)}
+.project-group-name{
+  font-size:12px;font-weight:600;color:#1c1c1e;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
+}
+.project-group-badge{
+  font-size:9px;font-weight:600;padding:2px 6px;border-radius:6px;
+  background:rgba(142,142,147,.1);color:#8e8e93;flex-shrink:0;
+}
+.project-group-body{display:none}
+.project-group-body.open{display:block}
+
+/* ── Multi-lang selector in form ── */
+.multi-lang-chips{display:flex;flex-wrap:wrap;gap:6px}
+.lang-chip{
+  padding:6px 12px;font-size:11px;font-weight:500;
+  color:#6e6e73;background:#f5f5f7;border:1px solid #e5e5ea;border-radius:16px;
+  cursor:pointer;transition:all .15s;user-select:none;
+}
+.lang-chip.on{background:#0071e3;color:#fff;border-color:#0071e3}
+.lang-chip:hover:not(.on){border-color:#d2d2d7}
+.multi-lang-hint{font-size:10px;color:#aeaeb2;margin-top:4px}
+
+/* Child job under project group */
+.job-item.child{padding-left:36px}
 
 /* ── MAIN CONTENT ── */
 .main-content{
@@ -371,6 +468,29 @@ body{
 
 <div class="toast" id="toast"></div>
 
+<!-- ═════════════ CMS IMPORT MODAL ═════════════ -->
+<div class="cms-modal-overlay" id="cms-modal-overlay">
+  <div class="cms-modal">
+    <h3>从 CMS 导入小说</h3>
+    <p class="sub">从文件系统或 CMS 中选取小说，自动开始翻译</p>
+
+    <div class="field">
+      <label>来源标识 (source_id)</label>
+      <input type="text" id="cms-source-id" placeholder="输入文件名或 CMS ID">
+    </div>
+    <div class="field">
+      <label>或从已有来源中选择</label>
+      <div class="cms-source-list" id="cms-source-list">
+        <div class="cms-loading-sources">加载中...</div>
+      </div>
+    </div>
+    <div class="cms-modal-actions">
+      <button class="btn-cancel" id="cms-modal-cancel">取消</button>
+      <button class="btn-submit" id="cms-modal-submit">导入并翻译</button>
+    </div>
+  </div>
+</div>
+
 <div class="app-shell">
 
   <!-- ═════════════ SIDEBAR ═════════════ -->
@@ -381,6 +501,8 @@ body{
         <span class="en">Westward Echo</span>
       </div>
       <button class="btn-new-translation" id="btn-new-translation">+ 新建翻译</button>
+      <button class="btn-cms-import" id="btn-cms-import">&larr; 从 CMS 导入</button>
+      <button class="btn-cms-import" id="btn-multi-translate" style="margin-top:4px">+ 多语种翻译</button>
     </div>
 
     <div class="sidebar-jobs" id="sidebar-jobs">
@@ -423,13 +545,22 @@ body{
             <div class="card">
               <div class="card-label">2. 翻译设置</div>
 
-              <div class="field">
+              <div class="field" id="field-target-lang">
                 <label>目标语言</label>
                 <select id="target-lang">
                   <option value="en-US">English（英语）</option>
                   <option value="es-ES">Espa&ntilde;ol（西班牙语）</option>
                   <option value="ar-SA">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;（阿拉伯语）</option>
                 </select>
+              </div>
+              <div class="field" id="field-multi-langs" style="display:none">
+                <label>多语种选择</label>
+                <div class="multi-lang-chips" id="multi-lang-chips">
+                  <span class="lang-chip on" data-lang="en-US">English</span>
+                  <span class="lang-chip on" data-lang="es-ES">Espa&ntilde;ol</span>
+                  <span class="lang-chip on" data-lang="ar-SA">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</span>
+                </div>
+                <div class="multi-lang-hint">点击语言标签选择/取消。所选语言将同时翻译。</div>
               </div>
 
               <div class="field">
@@ -540,6 +671,9 @@ let currentView='new';        // 'new' | 'job'
 let selectedJobId=null;      // job currently displayed in detail view
 let pollTimer=null;
 let jobsCache=[];
+let projectsCache=[];
+let isMultiLangs=false;      // whether we're in multi-language mode
+let expandedProjects={};     // which project groups are expanded in sidebar
 
 // ── Show a specific view ──
 function showView(name){
@@ -553,17 +687,83 @@ async function loadJobList(){
   try{
     const r=await fetch('/api/jobs?limit=50');
     jobsCache=await r.json();
+    // Also fetch projects for grouping
+    try{
+      const pr=await fetch('/api/projects?limit=10');
+      projectsCache=await pr.json();
+    }catch(e){projectsCache=[]}
     renderJobList();
   }catch(e){/* silent */}
 }
 
 function renderJobList(){
-  if(!jobsCache.length){
+  // Build a set of job_ids that belong to a project group
+  const groupedJobIds=new Set();
+  if(projectsCache.length){
+    projectsCache.forEach(p=>{p.jobs.forEach(j=>groupedJobIds.add(j.job_id))});
+  }
+
+  // Identify standalone jobs (not in any project)
+  const standaloneJobs=jobsCache.filter(j=>!groupedJobIds.has(j.job_id));
+
+  if(!jobsCache.length && !projectsCache.length){
     jobList.innerHTML='<div class="sidebar-empty">暂无翻译记录</div>';
     return;
   }
+
   let h='';
-  jobsCache.forEach(j=>{
+
+  // Render project groups first
+  projectsCache.forEach(p=>{
+    const isOpen=expandedProjects[p.project_id]!==false; // default open
+    const allComplete=p.jobs.every(j=>j.status==='complete');
+    const anyFailed=p.jobs.some(j=>j.status==='failed');
+    const anyTranslating=p.jobs.some(j=>j.status==='translating'||j.status==='queued');
+    let groupIcon='&#128193;'; // folder
+    if(allComplete)groupIcon='&#128194;'; // green check style folder we approximate
+    if(anyFailed&&!anyTranslating)groupIcon='&#128193;';
+
+    const jobCount=p.jobs.length;
+    const langList=p.jobs.map(j=>{
+      const langLabel=j.target_lang==='en-US'?'EN':j.target_lang==='es-ES'?'ES':j.target_lang==='ar-SA'?'AR':j.target_lang;
+      const icon=j.status==='complete'?'&#9989;':j.status==='failed'?'&#10060;':j.status==='translating'?'&#9881;':'&#9203;';
+      return icon+' '+langLabel;
+    }).join(' ');
+
+    h+='<div class="project-group">';
+    h+='<div class="project-group-header" data-project-id="'+p.project_id+'">';
+    h+='<span class="project-group-toggle'+(isOpen?' open':'')+'">&#9654;</span>';
+    h+='<span class="project-group-name">'+esc(p.filename||'Project')+'</span>';
+    h+='<span class="project-group-badge">'+jobCount+' 语种</span>';
+    h+='</div>';
+    h+='<div class="project-group-body'+(isOpen?' open':'')+'" id="proj-body-'+p.project_id+'">';
+    p.jobs.forEach(j=>{
+      const isActive=selectedJobId===j.job_id;
+      const icon=j.status==='complete'?'&#9989;':j.status==='failed'?'&#10060;':j.status==='translating'?'&#9881;':'&#128196;';
+      const statusLabel={'queued':'排队中','translating':'翻译中','complete':'已完成','failed':'失败'}[j.status]||j.status;
+      let langLabel=j.target_lang;
+      if(j.target_lang==='en-US')langLabel='en-US';
+      else if(j.target_lang==='es-ES')langLabel='es-ES';
+      else if(j.target_lang==='ar-SA')langLabel='ar-SA';
+      let meta=formatDate(j.created_at);
+      if(j.status==='translating' && j.completed_chapters && j.total_chapters)
+        meta=j.completed_chapters+'/'+j.total_chapters+' 章';
+      if(j.status==='complete' && j.completed_chapters)
+        meta=j.completed_chapters+' 章';
+      h+='<div class="job-item child'+(isActive?' active':'')+'" data-job-id="'+j.job_id+'">';
+      h+='<span class="job-item-icon">'+icon+'</span>';
+      h+='<div class="job-item-info">';
+      h+='<div class="job-item-filename">'+esc(langLabel)+'</div>';
+      h+='<div class="job-item-meta">'+meta+'</div>';
+      h+='</div>';
+      h+='<span class="status-badge '+j.status+'">'+statusLabel+'</span>';
+      h+='</div>';
+    });
+    h+='</div></div>';
+  });
+
+  // Render standalone jobs (no project)
+  standaloneJobs.forEach(j=>{
     const isActive=selectedJobId===j.job_id;
     const icon=j.status==='complete'?'&#9989;':j.status==='failed'?'&#10060;':j.status==='translating'?'&#9881;':'&#128196;';
     const statusLabel={'queued':'排队中','translating':'翻译中','complete':'已完成','failed':'失败'}[j.status]||j.status;
@@ -581,11 +781,30 @@ function renderJobList(){
     h+='<span class="status-badge '+j.status+'">'+statusLabel+'</span>';
     h+='</div>';
   });
+
   jobList.innerHTML=h;
 
-  // Click handlers
-  $$('.job-item').forEach(el=>{
+  // Click handlers for project group headers (expand/collapse)
+  $$('.project-group-header').forEach(el=>{
     el.addEventListener('click',()=>{
+      const pid=el.dataset.projectId;
+      expandedProjects[pid]=!expandedProjects[pid];
+      const body=$('#proj-body-'+pid);
+      const toggle=el.querySelector('.project-group-toggle');
+      if(expandedProjects[pid]){
+        body.classList.add('open');
+        toggle.classList.add('open');
+      }else{
+        body.classList.remove('open');
+        toggle.classList.remove('open');
+      }
+    });
+  });
+
+  // Click handlers for job items
+  $$('.job-item').forEach(el=>{
+    el.addEventListener('click',(e)=>{
+      e.stopPropagation();
       const jid=el.dataset.jobId;
       openJobDetail(jid);
     });
@@ -803,15 +1022,6 @@ async function startJobDetailPolling(jobId){
   pollTimer=setTimeout(poll,1500);
 }
 
-// ── Show new translation view ──
-function showNewTranslationView(){
-  selectedJobId=null;
-  highlightSidebarItem(null);
-  showView('new');
-  resetConfigUI();
-  resetPreview();
-}
-
 // ── "New Translation" button ──
 $('#btn-new-translation').addEventListener('click',()=>{
   if(pollTimer)clearTimeout(pollTimer);
@@ -836,7 +1046,8 @@ function resetPreview(){
 }
 
 function resetConfigUI(){
-  startBtn.disabled=false;startBtn.textContent='开始翻译';
+  startBtn.disabled=false;
+  startBtn.textContent=isMultiLangs?'多语种并行翻译':'开始翻译';
   progressWrap.style.display='none';progressFill.style.width='0%';
   progressText.textContent='';
   chapterLog.style.display='none';chapterLog.innerHTML='';
@@ -891,12 +1102,47 @@ function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g
 function buildForm(){
   const form=new FormData();
   form.append('file',new Blob([selectedFile.text_],{type:'text/plain'}),selectedFile.name||'novel.txt');
-  form.append('target_lang',$('#target-lang').value);
+  if(isMultiLangs){
+    const langs=[];
+    $$('.lang-chip.on').forEach(c=>langs.push(c.dataset.lang));
+    form.append('target_langs',langs.join(','));
+  }else{
+    form.append('target_lang',$('#target-lang').value);
+  }
   form.append('translate_mode',document.querySelector('input[name="model"]:checked').value);
   form.append('qa_interval',rangeInput.value);
   form.append('genre',$('#genre').value);
   return form;
 }
+
+// ── Multi-language toggle ──
+function toggleMultiLangs(enable){
+  isMultiLangs=enable;
+  if(enable){
+    $('#field-target-lang').style.display='none';
+    $('#field-multi-langs').style.display='';
+    startBtn.textContent='多语种并行翻译';
+  }else{
+    $('#field-target-lang').style.display='';
+    $('#field-multi-langs').style.display='none';
+    startBtn.textContent='开始翻译';
+  }
+}
+
+function getSelectedLangs(){
+  const langs=[];
+  $$('.lang-chip.on').forEach(c=>langs.push(c.dataset.lang));
+  return langs;
+}
+
+// Multi-lang chip click
+$$('.lang-chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    chip.classList.toggle('on');
+    // At least one language must be selected
+    if(!$$('.lang-chip.on').length)chip.classList.add('on');
+  });
+});
 
 function updateChapterLog(){
   if(!chapterEntries.length){chapterLog.style.display='none';return}
@@ -945,15 +1191,66 @@ previewRetryBtn.addEventListener('click',retryTranslation);
 // ── Core: submit & poll ──
 async function doTranslate(form){
   cancelRequested=false;
-  const res=await fetch('/api/translate',{method:'POST',body:form});
+  const endpoint=isMultiLangs?'/api/translate/multi':'/api/translate';
+  const res=await fetch(endpoint,{method:'POST',body:form});
   if(!res.ok){
     showToast('提交失败: '+(await res.text()).slice(0,100));
     resetConfigUI();resetPreview();
     return;
   }
-  const job=await res.json();
-  const jobId=job.job_id;
-  const total=job.total_chapters;
+  const resp=await res.json();
+
+  if(isMultiLangs){
+    // Multi-language: resp is {project_id, jobs: [{lang, job_id, ...}]}
+    const projectId=resp.project_id;
+    const jobs=resp.jobs;
+    const total=resp.total_chapters;
+
+    progressText.innerHTML='<span class="spinner"></span>多语种翻译进行中 — '+jobs.length+' 个语种';
+    progressFill.style.width='10%';
+    progressActions.style.display='block';
+    setPreviewState('translating');
+    loadJobList();
+
+    // Poll each job's status periodically
+    let allDone=false;
+    const pollAll=async()=>{
+      if(cancelRequested||allDone)return;
+      try{
+        const pr=await fetch('/api/projects/'+projectId);
+        if(!pr.ok){pollTimer=setTimeout(pollAll,3000);return}
+        const proj=await pr.json();
+        const stats=proj.jobs.map(j=>j.target_lang+':'+j.status);
+        const done=proj.jobs.filter(j=>j.status==='complete').length;
+        const failed=proj.jobs.filter(j=>j.status==='failed').length;
+        const pct=Math.round((done+failed)/proj.jobs.length*100);
+        progressFill.style.width=pct+'%';
+        progressText.innerHTML='<span class="spinner"></span>多语种翻译 — '+done+'/'+proj.jobs.length+' 完成 ('+stats.join(', ')+')';
+
+        if(done+failed===proj.jobs.length){
+          allDone=true;
+          progressFill.style.width='100%';
+          progressText.textContent='多语种翻译完成 — '+done+'/'+proj.jobs.length+' 成功';
+          progressActions.style.display='none';errorActions.style.display='none';
+          setPreviewState('complete');
+          startBtn.disabled=false;startBtn.textContent='开始翻译';
+          activeJobId=null;activeForm=null;
+          loadJobList();
+        }else{
+          loadJobList();
+          pollTimer=setTimeout(pollAll,2000);
+        }
+      }catch(e){
+        pollTimer=setTimeout(pollAll,3000);
+      }
+    };
+    pollTimer=setTimeout(pollAll,2000);
+    return;
+  }
+
+  // Single-language path (existing)
+  const jobId=resp.job_id;
+  const total=resp.total_chapters;
   activeJobId=jobId;activeForm=form;
 
   // Refresh sidebar
@@ -1026,8 +1323,9 @@ async function doTranslate(form){
 // ── Start translation ──
 startBtn.addEventListener('click',async()=>{
   if(!selectedFile){showToast('请先选择 .txt 文件');return}
+  if(isMultiLangs && getSelectedLangs().length===0){showToast('请至少选择一种语言');return}
 
-  startBtn.disabled=true;startBtn.textContent='翻译中...';
+  startBtn.disabled=true;startBtn.textContent=isMultiLangs?'多语种翻译中...':'翻译中...';
   progressWrap.style.display='block';
   progressActions.style.display='block';
   chapterEntries=[];
@@ -1038,6 +1336,202 @@ startBtn.addEventListener('click',async()=>{
   const form=buildForm();
   doTranslate(form);
 });
+
+// ── Multi-language mode toggle button ──
+$('#btn-multi-translate').addEventListener('click',()=>{
+  toggleMultiLangs(!isMultiLangs);
+});
+
+// Scroll to form-left to see multi-lang UI when toggled
+function showNewTranslationView(){
+  selectedJobId=null;
+  highlightSidebarItem(null);
+  showView('new');
+  resetConfigUI();
+  resetPreview();
+  toggleMultiLangs(false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CMS Import modal
+// ═══════════════════════════════════════════════════════════════
+
+const cmsModalOverlay=$('#cms-modal-overlay');
+const cmsSourceId=$('#cms-source-id');
+const cmsSourceList=$('#cms-source-list');
+const cmsModalSubmit=$('#cms-modal-submit');
+
+function openCmsModal(){
+  cmsModalOverlay.classList.add('open');
+  cmsSourceId.value='';
+  cmsModalSubmit.disabled=true;
+  loadCmsSources();
+}
+
+function closeCmsModal(){
+  cmsModalOverlay.classList.remove('open');
+}
+
+$('#btn-cms-import').addEventListener('click',openCmsModal);
+$('#cms-modal-cancel').addEventListener('click',closeCmsModal);
+cmsModalOverlay.addEventListener('click',e=>{if(e.target===cmsModalOverlay)closeCmsModal()});
+
+cmsSourceId.addEventListener('input',()=>{
+  cmsModalSubmit.disabled=!cmsSourceId.value.trim();
+  // Deselect list items when typing
+  $$('.cms-source-item').forEach(x=>x.classList.remove('sel'));
+});
+
+async function loadCmsSources(){
+  try{
+    const r=await fetch('/api/cms/sources');
+    const d=await r.json();
+    if(!d.sources.length){
+      cmsSourceList.innerHTML='<div class="cms-loading-sources">暂无可用来源</div>';
+      return;
+    }
+    let h='';
+    d.sources.forEach(s=>{
+      h+='<div class="cms-source-item" data-source-id="'+esc(s)+'">'+esc(s)+'</div>';
+    });
+    cmsSourceList.innerHTML=h;
+
+    $$('.cms-source-item').forEach(el=>{
+      el.addEventListener('click',()=>{
+        $$('.cms-source-item').forEach(x=>x.classList.remove('sel'));
+        el.classList.add('sel');
+        cmsSourceId.value=el.dataset.sourceId;
+        cmsModalSubmit.disabled=false;
+      });
+    });
+  }catch(e){
+    cmsSourceList.innerHTML='<div class="cms-loading-sources">加载失败，请手动输入 source_id</div>';
+  }
+}
+
+cmsModalSubmit.addEventListener('click',async()=>{
+  const sourceId=cmsSourceId.value.trim();
+  if(!sourceId)return;
+
+  cmsModalSubmit.disabled=true;
+  cmsModalSubmit.textContent='导入中...';
+
+  try{
+    const form=new FormData();
+    form.append('source_type','file');
+    form.append('source_id',sourceId);
+    form.append('job_title',sourceId);
+
+    const r=await fetch('/api/cms/import',{method:'POST',body:form});
+    if(!r.ok){
+      const err=await r.json();
+      showToast('CMS 导入失败: '+(err.error||err.detail||'unknown'));
+      cmsModalSubmit.disabled=false;
+      cmsModalSubmit.textContent='导入并翻译';
+      return;
+    }
+
+    const data=await r.json();
+    closeCmsModal();
+
+    // Switch to the new translation view and start polling this job
+    cancelRequested=true;
+    if(pollTimer)clearTimeout(pollTimer);
+    showNewTranslationView();
+    resetConfigUI();
+
+    // Show progress for the CMS-imported job
+    activeJobId=data.job_id;
+    startBtn.disabled=true;startBtn.textContent='翻译中...';
+    progressWrap.style.display='block';
+    progressActions.style.display='block';
+    chapterEntries=[];
+    updateChapterLog();
+    setPreviewState('translating');
+
+    // Create a dummy form for retry (CMS jobs re-import on retry)
+    const dummyForm=new FormData();
+    dummyForm.append('source_type','file');
+    dummyForm.append('source_id',sourceId);
+    dummyForm.append('job_title',sourceId);
+    activeForm=dummyForm;
+
+    // Poll using the same mechanism
+    loadJobList();
+    doCmsPoll(data.job_id);
+  }catch(e){
+    showToast('CMS 导入失败: '+e.message);
+    cmsModalSubmit.disabled=false;
+    cmsModalSubmit.textContent='导入并翻译';
+  }finally{
+    cmsModalSubmit.disabled=false;
+    cmsModalSubmit.textContent='导入并翻译';
+  }
+});
+
+async function doCmsPoll(jobId){
+  const poll=async()=>{
+    if(cancelRequested)return;
+    if(!activeJobId || activeJobId!==jobId)return;
+
+    try{
+      const r=await fetch('/api/translate/'+jobId);
+      if(!r.ok){pollTimer=setTimeout(poll,2000);return}
+      const s=await r.json();
+
+      if(s.status==='translating'){
+        const pct=Math.round(s.current/s.total*100);
+        progressFill.style.width=pct+'%';
+        progressText.innerHTML='<span class="spinner"></span>第 '+s.current+'/'+s.total+' 章 &mdash; '+s.chapter_title;
+
+        if(s.current>chapterEntries.length){
+          for(let c=chapterEntries.length+1;c<=s.current;c++){
+            chapterEntries.push({num:c,title:c===s.current?s.chapter_title:'第'+c+'章',status:'done'});
+          }
+          updateChapterLog();
+        }
+        loadJobList();
+        pollTimer=setTimeout(poll,1500);
+      }else if(s.status==='complete'){
+        progressFill.style.width='100%';progressText.textContent='翻译完成 — 共 '+s.total+' 章';
+        chapterEntries=[];updateChapterLog();
+        progressActions.style.display='none';errorActions.style.display='none';
+        setPreviewState('complete');
+
+        const tr=await fetch('/api/translation/'+jobId);
+        const td=await tr.json();
+        $('#out-translation').innerHTML=marked.parse(td.text||'*无内容*');
+
+        const gr=await fetch('/api/glossary/'+jobId);
+        const gd=await gr.json();
+        if(!gd.error){
+          let g='<table class="glossary-table"><thead><tr><th>中文</th><th>英文</th></tr></thead><tbody>';
+          Object.entries(gd).sort().forEach(([cn,en])=>{g+='<tr><td>'+esc(cn)+'</td><td>'+esc(en)+'</td></tr>'});
+          g+='</tbody></table>';
+          $('#out-glossary').innerHTML=g;
+        }
+        $('#out-report').innerHTML=marked.parse('## 翻译完成\n\n| 指标 | 数值 |\n|------|------|\n| 章节数 | **'+s.total+'** |\n| 术语数 | **'+(Object.keys(gd).length||0)+'** |');
+
+        epubDlBtn.href='/api/epub/'+jobId;
+
+        $$('#preview-panel .preview-body').forEach(x=>x.classList.remove('show'));
+        $('#body-translation').classList.add('show');
+        $$('#preview-panel .preview-tab').forEach(x=>x.classList.remove('sel'));
+        $$('#preview-panel .preview-tab')[0].classList.add('sel');
+
+        startBtn.disabled=false;startBtn.textContent='开始翻译';
+        activeJobId=null;activeForm=null;
+        loadJobList();
+      }else if(s.status==='error'){
+        showErrorState(s.message||'翻译失败',jobId,null);
+        loadJobList();
+      }else{pollTimer=setTimeout(poll,2000)}
+    }catch(e){
+      showErrorState('网络请求失败，请检查连接后重试',jobId,null);
+    }
+  };
+  pollTimer=setTimeout(poll,1000);
+}
 
 // ── Init ──
 loadJobList();

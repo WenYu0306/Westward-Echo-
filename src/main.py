@@ -8,8 +8,10 @@ from fastapi import Request
 
 from .config import API_PORT, HOST
 from .web_ui import PAGE, REVIEW_PAGE
+from .editor_ui import EDITOR_PAGE
 from .api.routes import app as api_router
 from .api.review import app as review_api_router
+from .api.editor import app as editor_api_router
 from .api.auth import APIKeyMiddleware
 from .api.logging import logger
 from .health import HealthChecker
@@ -70,11 +72,21 @@ def create_app() -> FastAPI:
     async def review_page():
         return REVIEW_PAGE
 
+    # Editor page — human-in-the-loop paragraph editing
+    @app.get("/editor/{job_id}", response_class=HTMLResponse)
+    async def editor_page(job_id: str):
+        return EDITOR_PAGE.replace("{JOB_ID}", job_id)
+
+    # CMS API
+    from .api.cms import app as cms_api
+    app.mount("/api/cms", cms_api)
+
     # API routes
     app.mount("/api", api_router)
     app.mount("/api/review", review_api_router)
+    app.mount("/api/editor", editor_api_router)
 
-    logger.info("Westward Echo v0.2.0 (Celery + Redis + Auth + Logging + Health)")
+    logger.info("Westward Echo v0.2.0 (Celery + Redis + Auth + Logging + Health + CMS + Editor)")
 
     return app
 

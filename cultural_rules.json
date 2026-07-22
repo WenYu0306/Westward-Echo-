@@ -70,8 +70,154 @@
         "note": "Keep the number + contextualize as brutal work culture"
       }
     },
-    "es-ES": {},
-    "ar-SA": {}
+    "es-ES": {
+      "穿越": {
+        "target": "Transmigración",
+        "note": "Bien establecido en la ficción fantástica en español — los lectores de novela ligera lo reconocen sin explicación"
+      },
+      "穿书": {
+        "target": "Transmigrar a una novela",
+        "note": "Subgénero específico: el protagonista entra al mundo de un libro que leyó"
+      },
+      "系统": {
+        "target": "Sistema",
+        "note": "Siempre con mayúscula, como nombre propio — convención LitRPG establecida"
+      },
+      "打脸": {
+        "target": "humillación épica / bofetada moral",
+        "note": "No traducir literalmente como 'bofetada en la cara'. Transmite una derrota humillante y pública del antagonista"
+      },
+      "装逼": {
+        "target": "presumir / dárselas de",
+        "note": "Jerga coloquial china. Elegir según intensidad: 'presumir' para tono neutro, 'dárselas de' para tono burlón"
+      },
+      "龙傲天": {
+        "target": "el Héroe Todopoderoso",
+        "note": "Arquetipo del protagonista exageradamente fuerte y arrogante. Mantener el tono épico-irónico"
+      },
+      "白莲花": {
+        "target": "mosquita muerta",
+        "note": "Equivalente cultural español para la persona que se hace la inocente. Alternativa: 'santurrona' si el tono es más mordaz"
+      },
+      "玛丽苏": {
+        "target": "Mary Sue",
+        "note": "Mantener sin traducir — ya es un préstamo establecido en la crítica literaria en español"
+      },
+      "吃瓜群众": {
+        "target": "los mirones / público cotilla",
+        "note": "Espectadores que disfrutan el drama ajeno. 'Cotilla' capta el tono coloquial español"
+      },
+      "牛逼": {
+        "target": "brutal / bestial / la hostia",
+        "note": "Elogio coloquial muy intenso. 'Brutal' y 'bestial' son seguros para todas las regiones; 'la hostia' solo para España peninsular"
+      },
+      "卧槽": {
+        "target": "¡Joder! / ¡Hostia!",
+        "note": "Exclamación vulgar china. Usar '¡Joder!' como traducción por defecto; evitar en contextos muy formales"
+      },
+      "金手指": {
+        "target": "truco divino / ventaja injusta",
+        "note": "En LitRPG es la habilidad especial que hace al protagonista desproporcionadamente poderoso"
+      },
+      "备胎": {
+        "target": "segunda opción / plan B",
+        "note": "Literalmente 'rueda de repuesto'. En contexto amoroso: la persona que espera su oportunidad"
+      },
+      "社畜": {
+        "target": "esclavo corporativo",
+        "note": "Término que transmite la deshumanización del trabajo extremo. Alternativa más suave: 'currante explotado'"
+      },
+      "带球跑": {
+        "target": "huir embarazada / escapar con el bombo",
+        "note": "Modismo: la protagonista huye estando embarazada. 'Con el bombo' es muy coloquial (España)"
+      },
+      "暖男": {
+        "target": "chico dulce / buenazo",
+        "note": "Arquetipo masculino cálido, atento y emocionalmente disponible. No es el 'chico malo'"
+      },
+      "996": {
+        "target": "explotación 996 (trabajar de 9 a 9, 6 días por semana)",
+        "note": "Mantener el número 996 y añadir explicación entre paréntesis la primera vez"
+      }
+    },
+    "ar-SA": {
+      "穿越": {
+        "target": "انتقال",
+        "note": "Transmigration across worlds. Transliterate as 'intiqal' when explaining the genre the first time",
+        "cultural_note": "El concepto de transmigración entre mundos es aceptable en la ficción árabe contemporánea, aunque debe evitarse cualquier implicación de reencarnación religiosa"
+      },
+      "穿书": {
+        "target": "الانتقال إلى رواية",
+        "note": "Specific sub-genre: entering the world of a book. Explain on first occurrence"
+      },
+      "系统": {
+        "target": "النظام",
+        "note": "Capitalize as 'An-Nizam' in English contexts. Treat as a proper noun"
+      },
+      "打脸": {
+        "target": "صفعة مهينة",
+        "note": "A humiliating, public defeat of the antagonist. Not a literal slap — convey the social dimension of the humiliation",
+        "cultural_note": "En la cultura árabe, la humillación pública es un tema muy serio. Traducir con suficiente gravedad; evitar trivializar el conflicto"
+      },
+      "装逼": {
+        "target": "تباهٍ / استعراض",
+        "note": "Colloquial term for showing off. Choose based on context intensity"
+      },
+      "龙傲天": {
+        "target": "البطل الذي لا يُقهر",
+        "note": "The invincible hero archetype. Convey both the power and the arrogance"
+      },
+      "白莲花": {
+        "target": "المتظاهرة بالبراءة",
+        "note": "The one who fakes innocence. Culturally sensitive — convey the hypocrisy without vulgarity",
+        "cultural_note": "En la ficción árabe, la hipocresía es un rasgo de villano muy reconocible. El término debe reflejar duplicidad, no solo inocencia fingida"
+      },
+      "玛丽苏": {
+        "target": "ماري سو",
+        "note": "Transliteration of Mary Sue — explain as a perfect, idealized character on first occurrence"
+      },
+      "吃瓜群众": {
+        "target": "المتفرجون",
+        "note": "Onlookers who enjoy the drama from the sidelines"
+      },
+      "牛逼": {
+        "target": "عبقري / أسطوري",
+        "note": "Extremely impressive. Avoid vulgar expressions; use 'legendary' or 'brilliant' level praise",
+        "cultural_note": "Evitar expresiones vulgares o blasfemas. Usar elogios de intensidad alta pero culturalmente aceptables"
+      },
+      "卧槽": {
+        "target": "يا إلهي! / تباً!",
+        "note": "Chinese expletive. 'Ya Ilahi!' is milder and broadly acceptable; 'Tabban!' is stronger. Never use religious profanity",
+        "cultural_note": "Absolutamente prohibido usar blasfemias religiosas. 'Ya Ilahi' (Oh Dios mío) solo en contextos muy ligeros; evitar si hay riesgo de ofensa"
+      },
+      "金手指": {
+        "target": "قدرة خارقة / غش إلهي",
+        "note": "The protagonist's cheat-like special ability. 'Qudra Khariqa' (extraordinary ability) is safer than 'ghish ilahi' (divine cheat)",
+        "cultural_note": "Evitar 'غش إلهي' (divine cheat) ya que trivializa lo divino. Preferir 'قدرة خارقة' (extraordinary ability)"
+      },
+      "备胎": {
+        "target": "خيار احتياطي",
+        "note": "Literally 'spare tire' — the backup romantic option"
+      },
+      "社畜": {
+        "target": "عبد الشركة",
+        "note": "Corporate slave. Strong term — conveys dehumanization of extreme work culture",
+        "cultural_note": "El término 'عبد' (esclavo) es muy fuerte en árabe. Úsalo con moderación y solo cuando el tono de la obra lo justifique"
+      },
+      "带球跑": {
+        "target": "الهروب بالحمل",
+        "note": "Fleeing while pregnant. A romance genre trope — the heroine escapes while carrying the hero's child",
+        "cultural_note": "El embarazo fuera del matrimonio es un tema muy delicado. Si la obra lo trata con ligereza, considerar si la audiencia árabe lo aceptará. En traducción, mantener el hecho sin añadir juicio moral"
+      },
+      "暖男": {
+        "target": "شخص لطيف ودافئ",
+        "note": "A warm, caring, emotionally-available male character. Not the 'bad boy' archetype"
+      },
+      "996": {
+        "target": "استغلال 996 (العمل من 9 صباحاً إلى 9 مساءً، 6 أيام في الأسبوع)",
+        "note": "Keep the number 996 and explain in parentheses on first occurrence"
+      }
+    }
   },
   "genres": {
     "romance_ceo": {
@@ -83,6 +229,41 @@
         "八零年代": {
           "target": "80s rural America / small-town 80s",
           "note": "Convey the socio-economic vibe, not just the decade"
+        },
+        "父凭子贵": {
+          "target": "father by the grace of the son",
+          "note": "A man gains status/value because of his child — flip of the usual 'mother by son' trope"
+        }
+      },
+      "es-ES": {
+        "霸总": {
+          "target": "CEO Alfa",
+          "note": "Arquetipo del CEO dominante, posesivo y poderoso. Equivalente al 'alpha male' de la novela rosa anglosajona"
+        },
+        "八零年代": {
+          "target": "la España rural de los 80",
+          "note": "Adaptar al equivalente cultural local: transmitir la vibra socioeconómica de una época de transición y austeridad rural, no solo la década"
+        },
+        "父凭子贵": {
+          "target": "padre por obra y gracia del hijo",
+          "note": "Inversión del tropo 'madre por el hijo': un hombre obtiene estatus y valor gracias a su paternidad"
+        }
+      },
+      "ar-SA": {
+        "霸总": {
+          "target": "المدير ألفا",
+          "note": "The alpha CEO archetype. 'Al-Mudir Alfa' — the dominant, possessive, powerful CEO",
+          "cultural_note": "El concepto del CEO dominante puede chocar con valores culturales sobre el liderazgo. Traducir manteniendo el tono del género, pero suavizar comportamientos excesivamente controladores si es necesario"
+        },
+        "八零年代": {
+          "target": "الأرياف العربية في الثمانينات",
+          "note": "Adapt to local equivalent — rural Arab setting of the 1980s. Convey the socio-economic atmosphere of the era, not just the decade",
+          "cultural_note": "Adaptar el contexto rural a un entorno árabe culturalmente reconocible. La década de los 80 en el mundo árabe tiene connotaciones específicas de modernización y cambio social que pueden servir como telón de fondo"
+        },
+        "父凭子贵": {
+          "target": "أب بفضل ابنه",
+          "note": "A father who gains status through his son. This reverses the traditional 'mother honored through son' trope",
+          "cultural_note": "En la cultura árabe, el hijo varón ya confiere estatus al padre tradicionalmente. Este tropo invierte la dinámica de género habitual — manejar con sensibilidad cultural"
         }
       }
     },
@@ -131,6 +312,102 @@
         "社会摇": {
           "target": "street dance / hood shuffle",
           "note": "Colloquial Chinese internet phenomenon"
+        }
+      },
+      "es-ES": {
+        "修真": {
+          "target": "Cultivación",
+          "note": "Término establecido en la fantasía xianxia. Usar con mayúscula cuando se refiera al sistema de poder"
+        },
+        "修仙": {
+          "target": "Cultivación Inmortal",
+          "note": "Variante explícitamente enfocada en alcanzar la inmortalidad mediante la cultivación"
+        },
+        "飞升": {
+          "target": "Ascensión",
+          "note": "Con mayúscula — es un hito trascendental en el camino del cultivador"
+        },
+        "渡劫": {
+          "target": "Tribulación Celestial",
+          "note": "Prueba divina que el cultivador debe superar para avanzar de nivel. Es un evento clave del género"
+        },
+        "金丹": {
+          "target": "Núcleo Dorado",
+          "note": "Etapa de cultivación. Mantener el sabor de la fantasía china; no occidentalizar a 'núcleo mágico'"
+        },
+        "元婴": {
+          "target": "Alma Nasciente",
+          "note": "Etapa avanzada de cultivación donde se forma un alma espiritual dentro del cultivador"
+        },
+        "门派": {
+          "target": "Secta",
+          "note": "No usar 'escuela' ni 'facción' — 'secta' es la convención del género fantástico en español"
+        },
+        "丹田": {
+          "target": "Dantian",
+          "note": "Sin traducir. Explicar una vez en la primera aparición como 'el centro de energía espiritual'"
+        },
+        "师兄": {
+          "target": "hermano mayor de secta",
+          "note": "Mantener la jerarquía; usar el nombre propio cuando se conozca"
+        },
+        "师姐": {
+          "target": "hermana mayor de secta",
+          "note": "Mantener la jerarquía; usar el nombre propio cuando se conozca"
+        },
+        "社会摇": {
+          "target": "baile callejero chino",
+          "note": "Fenómeno viral chino de baile urbano. Mantener el contexto cultural chino con breve explicación"
+        }
+      },
+      "ar-SA": {
+        "修真": {
+          "target": "زراعة / Cultivation",
+          "note": "Use 'Zira'a' (cultivation) or keep the English 'Cultivation'. Explain the concept on first occurrence",
+          "cultural_note": "El concepto de cultivación espiritual tiene paralelos en el sufismo islámico (tazkiyat al-nafs), lo que puede facilitar su comprensión. Sin embargo, evitar mezclar explícitamente con conceptos religiosos"
+        },
+        "修仙": {
+          "target": "الزراعة الخالدة",
+          "note": "Immortal cultivation — 'Az-Zira'a Al-Khalida'. The pursuit of immortality through spiritual practice",
+          "cultural_note": "La búsqueda de la inmortalidad física puede ser teológicamente problemática. Enmarcarlo claramente como un elemento de un mundo de ficción fantástica alternativa, no como una aspiración real"
+        },
+        "飞升": {
+          "target": "الصعود",
+          "note": "Ascension — 'As-Su'ud'. The transcendence to a higher realm. Convey the awe and gravity of the moment"
+        },
+        "渡劫": {
+          "target": "المحنة السماوية",
+          "note": "Heavenly Tribulation — 'Al-Mihna As-Samawiyya'. A divine test the cultivator must survive",
+          "cultural_note": "El concepto de prueba divina es familiar en la tradición islámica (ibtila'). Traducir de manera que evoque el peso espiritual de la prueba sin trivializarla"
+        },
+        "金丹": {
+          "target": "النواة الذهبية",
+          "note": "Golden Core — 'An-Nawat Adh-Dhahabiyya'. A cultivation stage. Describe visually as a golden spiritual core forming within"
+        },
+        "元婴": {
+          "target": "الروح الناشئة",
+          "note": "Nascent Soul — 'Ar-Ruh An-Nashi'a'. Advanced cultivation stage. 'Ruh' (soul/spirit) is a loaded term — use with care",
+          "cultural_note": "El término 'Ruh' (alma/espíritu) tiene un significado teológico profundo en el Islam. Usarlo aquí es aceptable en un contexto de fantasía claramente ficticia, pero mantener la distinción con el concepto religioso real"
+        },
+        "门派": {
+          "target": "طائفة",
+          "note": "Sect — 'Ta'ifa'. A cultivation clan or school. Not 'faction' or 'school'"
+        },
+        "丹田": {
+          "target": "دانتيان / Dantian",
+          "note": "Keep untranslated. Explain once: 'the spiritual energy center within the body'"
+        },
+        "师兄": {
+          "target": "الأخ الأكبر في الطائفة",
+          "note": "Senior brother within the sect. Maintain hierarchy and respect connotations"
+        },
+        "师姐": {
+          "target": "الأخت الكبرى في الطائفة",
+          "note": "Senior sister within the sect. Maintain hierarchy and respect connotations"
+        },
+        "社会摇": {
+          "target": "رقص الشارع الصيني",
+          "note": "Chinese street dance viral phenomenon. Explain briefly on first occurrence"
         }
       }
     },
