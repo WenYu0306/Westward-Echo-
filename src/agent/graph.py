@@ -1,10 +1,14 @@
 """LangGraph graph assembly — Multi-Agent pipeline.
 
-Builds a state graph with 5 nodes and conditional routing:
-  START → fetch_glossary → translate → update_glossary → quality_check
-                                                              ↓
-          (score < 3.5) → polish_node(editor) → update_glossary → quality_check
-          (score ≥ 3.5) → END
+Builds a state graph with 6 nodes and conditional routing:
+  START → fetch_glossary → translate → update_glossary
+                                          ↓
+                     (has conflicts?) → arbitrate_terms
+                                          ↓
+                       quality_check ←───┘
+                              ↓
+         (score < 3.5) → polish_node(editor) → update_glossary → quality_check
+         (score ≥ 3.5) → END
 
 The polish node is a different agent with a different prompt and mindset
 (editor, not translator) — it fixes specific QA issues instead of blindly
@@ -19,6 +23,7 @@ from .nodes.translate import translate_node
 from .nodes.polish import polish_node
 from .nodes.update_glossary import update_glossary_node
 from .nodes.quality_check import quality_check_node
+from .nodes.arbitrate_terms import arbitrate_terms_node
 from ..glossary.exact_store import ExactGlossary
 from ..glossary.semantic_store import SemanticGlossary
 from ..config import MAX_RETRANSLATION_ATTEMPTS
@@ -39,22 +44,40 @@ def _should_repair(state: TranslatorState) -> str:
     return END
 
 
+def _has_term_conflicts(state: TranslatorState) -> str:
+    """Route to arbitration if term conflicts were detected during glossary update.
+
+    When two chapters translate the same Chinese term differently, the
+    arbitration node resolves which translation wins. If no conflicts
+    were found, skip straight to quality check.
+    """
+    conflicts = state.get("term_conflicts", [])
+    if conflicts:
+        return "arbitrate_terms"
+    return "quality_check"
+
+
 def build_graph(
     exact_store: ExactGlossary,
     semantic_store: SemanticGlossary,
+    get_prefetched=None,  # callable() -> (dict|None, list|None) | (None, None)
 ) -> StateGraph:
     builder = StateGraph(TranslatorState)
 
     # ── Nodes ──
     builder.add_node(
         "fetch_glossary",
-        lambda s: fetch_glossary_node(s, exact_store, semantic_store),
+        lambda s: fetch_glossary_node(s, exact_store, semantic_store, get_prefetched),
     )
     builder.add_node("translate_node", translate_node)
-    builder.add_node("polish_node", polish_node)  # ← Multi-Agent upgrade
+    builder.add_node("polish_node", polish_node)
     builder.add_node(
         "update_glossary",
         lambda s: update_glossary_node(s, exact_store, semantic_store),
+    )
+    builder.add_node(
+        "arbitrate_terms",
+        lambda s: arbitrate_terms_node(s, exact_store, semantic_store),
     )
     builder.add_node("quality_check", quality_check_node)
 
@@ -62,7 +85,17 @@ def build_graph(
     builder.set_entry_point("fetch_glossary")
     builder.add_edge("fetch_glossary", "translate_node")
     builder.add_edge("translate_node", "update_glossary")
-    builder.add_edge("update_glossary", "quality_check")
+
+    # ── Conditional: term conflicts → arbitration, otherwise → QA ──
+    builder.add_conditional_edges(
+        "update_glossary",
+        _has_term_conflicts,
+        {
+            "arbitrate_terms": "arbitrate_terms",
+            "quality_check": "quality_check",
+        },
+    )
+    builder.add_edge("arbitrate_terms", "quality_check")
 
     # ── Conditional: QA failure → polish editor (NOT blind retranslate) ──
     builder.add_conditional_edges(
@@ -86,7 +119,13 @@ class TranslationAgent:
     def __init__(self):
         self.exact_store = ExactGlossary()
         self.semantic_store = SemanticGlossary()
-        self.graph = build_graph(self.exact_store, self.semantic_store)
+        self.graph = build_graph(self.exact_store, self.semantic_store,
+                                 get_prefetched=self.get_and_clear_prefetched)
+        # Prefetch slots — set by the orchestration loop when a background
+        # prefetch completes before this chapter's turn.  Cleared by
+        # fetch_glossary_node after consumption.
+        self._prefetched_exact: dict | None = None
+        self._prefetched_semantic: list | None = None
 
     def load_glossary(self, target_lang: str = "en-US"):
         self.exact_store.load_from_db(target_lang)
@@ -94,6 +133,24 @@ class TranslationAgent:
     def load_glossary_snapshot(self, snapshot_json: str):
         if snapshot_json and snapshot_json != "{}":
             self.exact_store.restore_snapshot(snapshot_json)
+
+    def set_prefetched_glossary(self, exact_matches: dict, semantic_matches: list):
+        """Pre-load glossary results so fetch_glossary can skip the lookup.
+
+        Called by the orchestration loop when the background prefetch for the
+        next chapter completed ahead of time.  The fetch_glossary node clears
+        these slots after consumption.
+        """
+        self._prefetched_exact = exact_matches
+        self._prefetched_semantic = semantic_matches
+
+    def get_and_clear_prefetched(self):
+        """Consume the prefetched glossary data (one-shot)."""
+        exact = self._prefetched_exact
+        semantic = self._prefetched_semantic
+        self._prefetched_exact = None
+        self._prefetched_semantic = None
+        return exact, semantic
 
     def translate_chapter(
         self,
@@ -123,6 +180,8 @@ class TranslationAgent:
             "quality_issues": [],
             "retranslation_count": 0,
             "glossary_snapshot_json": "",
+            "term_conflicts": [],
+            "resolved_conflicts": [],
         }
 
         return self.graph.invoke(initial_state)

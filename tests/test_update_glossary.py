@@ -182,6 +182,8 @@ class TestUpdateGlossaryNode:
         """When new_terms_found is empty, only a glossary snapshot is returned."""
         result = update_glossary_node(base_state, exact_store, semantic_store)
         assert "glossary_snapshot_json" in result
+        assert "term_conflicts" in result
+        assert result["term_conflicts"] == []
         # No terms should have been added
         assert len(exact_store) == 0
 

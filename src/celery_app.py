@@ -23,6 +23,7 @@ from .config import (
 )
 from .chapter_splitter import split_chapters, merge_chapters, ParagraphTag
 from .agent.graph import TranslationAgent
+from .prefetch import ChapterPrefetcher
 
 
 if _celery_ok:
@@ -54,7 +55,17 @@ if _celery_ok:
             prev_summary = ""
             output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
 
+            # ── Chapter prefetch: submit chapter 1's glossary fetch before the loop ──
+            prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
+            if len(translatable) > 1:
+                prefetcher.submit_next(translatable[1].content, target_lang)
+
             for i, chapter in enumerate(translatable):
+                # Check if prefetch already completed for this chapter
+                cached = prefetcher.get_if_ready(chapter.content)
+                if cached:
+                    agent.set_prefetched_glossary(cached[0], cached[1])
+
                 progress.update(i + 1, total, chapter.title)
                 result = agent.translate_chapter(
                     chapter_title=chapter.title, chapter_content=chapter.content,
@@ -65,8 +76,14 @@ if _celery_ok:
                 prev_summary = result.get("chapter_summary", "")
                 _save_checkpoint(job_id, chapter.index, result["translated_text"],
                                  result.get("glossary_snapshot_json", "{}"), prev_summary)
+
+                # Start prefetching NEXT chapter's glossary while current chapter sleeps
+                if i + 1 < len(translatable):
+                    prefetcher.submit_next(translatable[i + 1].content, target_lang)
+
                 time.sleep(CHAPTER_COOLDOWN_SECONDS)
 
+            prefetcher.shutdown()
             full_text = merge_chapters(all_translations)
             Path(output_path).write_text(full_text, encoding="utf-8")
             glossary = agent.exact_store.to_dict()
@@ -118,10 +135,23 @@ if _celery_ok:
 
             output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
 
+            # Build the list of chapters still needing translation (chapters >= start_chapter)
+            remaining = [c for c in translatable if c.index >= start_chapter]
+            # ── Chapter prefetch ──
+            prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
+            if len(remaining) > 1:
+                prefetcher.submit_next(remaining[1].content, target_lang)
+
             for i, chapter in enumerate(translatable):
                 if chapter.index < start_chapter:
                     continue  # Skip already-translated chapters
                 progress.update(i + 1, total, chapter.title)
+
+                # Check if prefetch already completed for this chapter
+                cached = prefetcher.get_if_ready(chapter.content)
+                if cached:
+                    agent.set_prefetched_glossary(cached[0], cached[1])
+
                 result = agent.translate_chapter(
                     chapter_title=chapter.title, chapter_content=chapter.content,
                     chapter_number=chapter.index, previous_summary=prev_summary,
@@ -131,8 +161,17 @@ if _celery_ok:
                 prev_summary = result.get("chapter_summary", "")
                 _save_checkpoint(job_id, chapter.index, result["translated_text"],
                                  result.get("glossary_snapshot_json", "{}"), prev_summary)
+
+                # Start prefetching NEXT chapter's glossary
+                # Find the next chapter in remaining list
+                for j, rch in enumerate(remaining):
+                    if rch.index == chapter.index and j + 1 < len(remaining):
+                        prefetcher.submit_next(remaining[j + 1].content, target_lang)
+                        break
+
                 time.sleep(CHAPTER_COOLDOWN_SECONDS)
 
+            prefetcher.shutdown()
             full_text = merge_chapters(all_translations)
             Path(output_path).write_text(full_text, encoding="utf-8")
             glossary = agent.exact_store.to_dict()

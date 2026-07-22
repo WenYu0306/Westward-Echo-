@@ -21,6 +21,7 @@ from ...config import (
     MODEL_MAP,
 )
 from ...cultural_rules import load_rules, format_rules_for_prompt
+from ...job_store import job_store
 
 
 def _get_llm(chapter_number: int, is_retranslation: bool = False) -> ChatOpenAI:
@@ -81,6 +82,26 @@ def translate_node(state: TranslatorState) -> dict:
         chapter_title=state["chapter_title"],
         chapter_content=state["chapter_content"],
     )
+
+    # ── Inject confirmed terms (locked by human reviewer) ──────
+    confirmed = job_store.get_confirmed_terms(target_lang)
+    if confirmed:
+        confirmed_text = "\n".join(
+            f"- '{term_cn}' MUST be translated as '{term_en}'. "
+            f"Human-confirmed — do NOT change."
+            for term_cn, term_en in confirmed.items()
+        )
+        user_prompt += f"\n\n## CONFIRMED TRANSLATIONS (LOCKED)\n{confirmed_text}"
+
+    # ── Inject rejected terms (blocked by human reviewer) ──────
+    rejected = job_store.get_rejected_terms(target_lang)
+    if rejected:
+        rejected_text = "\n".join(
+            f"- DO NOT use '{r['rejected_en']}' for '{r['term_cn']}'. "
+            f"It was rejected by a human reviewer."
+            for r in rejected
+        )
+        user_prompt += f"\n\n## REJECTED TRANSLATIONS (DO NOT USE)\n{rejected_text}"
 
     messages = [
         SystemMessage(content=system_prompt),

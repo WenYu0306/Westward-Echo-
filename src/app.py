@@ -5,6 +5,7 @@ import gradio as gr
 
 from .chapter_splitter import split_chapters, merge_chapters, ParagraphTag
 from .agent.graph import TranslationAgent
+from .prefetch import ChapterPrefetcher
 from .config import GRADIO_PORT, QUALITY_CHECK_INTERVAL, CHAPTER_COOLDOWN_SECONDS
 
 # ═══════════════════════════════════════════════════════════════
@@ -679,9 +680,19 @@ def translate_novel(
     translated_chapters: list[str] = []
     previous_summary = ""
 
+    # ── Chapter prefetch ──
+    prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
+    if len(translatable) > 1:
+        prefetcher.submit_next(translatable[1].content, target_lang)
+
     for i, chapter in enumerate(translatable):
         pct = (i + 1) / total
         progress(pct, desc=f"正在翻译 第 {chapter.index} 章「{chapter.title[:24]}」…")
+
+        # Check if prefetch already completed for this chapter
+        cached = prefetcher.get_if_ready(chapter.content)
+        if cached:
+            agent.set_prefetched_glossary(cached[0], cached[1])
 
         result = agent.translate_chapter(
             chapter_title=chapter.title,
@@ -693,7 +704,14 @@ def translate_novel(
 
         translated_chapters.append(result["translated_text"])
         previous_summary = result.get("chapter_summary", "")
+
+        # Start prefetching NEXT chapter's glossary
+        if i + 1 < len(translatable):
+            prefetcher.submit_next(translatable[i + 1].content, target_lang)
+
         time.sleep(CHAPTER_COOLDOWN_SECONDS)
+
+    prefetcher.shutdown()
 
     # Assemble outputs
     full_text = merge_chapters(translated_chapters)

@@ -46,6 +46,14 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at        TEXT
 );
+
+CREATE TABLE IF NOT EXISTS rejected_terms (
+    term_cn     TEXT NOT NULL,
+    rejected_en TEXT NOT NULL,
+    target_lang TEXT NOT NULL DEFAULT 'en-US',
+    rejected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (term_cn, rejected_en, target_lang)
+);
 """
 
 
@@ -169,6 +177,59 @@ class JobStore:
             "SELECT * FROM jobs WHERE status = 'translating' ORDER BY created_at DESC"
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
+
+
+    # ── rejected terms ──────────────────────────────────────
+
+    def reject_term_with_feedback(self, term_cn: str, rejected_en: str,
+                                  target_lang: str = "en-US"):
+        """Record a rejected translation so the Agent can avoid it.
+
+        Called by the /review reject endpoint when a human reviewer
+        rejects a glossary term.  The Agent reads this table before
+        each translation so it never re-proposes the same bad term.
+        """
+        conn = _get_conn()
+        conn.execute(
+            """INSERT OR REPLACE INTO rejected_terms
+               (term_cn, rejected_en, target_lang, rejected_at)
+               VALUES (?, ?, ?, ?)""",
+            (term_cn, rejected_en, target_lang, self._now()),
+        )
+        conn.commit()
+
+    def get_rejected_terms(self, target_lang: str = "en-US") -> list[dict]:
+        """Return all rejected translations for injection into prompts."""
+        conn = _get_conn()
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """SELECT term_cn, rejected_en, rejected_at, target_lang
+               FROM rejected_terms
+               WHERE target_lang = ?
+               ORDER BY rejected_at DESC""",
+            (target_lang,),
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
+    def get_confirmed_terms(self, target_lang: str = "en-US") -> dict:
+        """Return only confirmed terms (higher authority than auto-extracted).
+
+        These are terms a human reviewer has explicitly approved.
+        They should NEVER be overwritten by the Agent and MUST be
+        used as-is in translations.
+        """
+        from .config import CHECKPOINT_DB_PATH
+        conn = sqlite3.connect(CHECKPOINT_DB_PATH)
+        try:
+            rows = conn.execute(
+                """SELECT term_cn, term_en
+                   FROM exact_glossary
+                   WHERE status = 'confirmed' AND target_lang = ?""",
+                (target_lang,),
+            ).fetchall()
+            return {row[0]: row[1] for row in rows}
+        finally:
+            conn.close()
 
 
 # Module-level singleton

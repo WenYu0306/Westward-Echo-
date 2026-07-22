@@ -61,6 +61,7 @@ MODEL_MAP = {
     "term_extraction":        DEEPSEEK_PRO_MODEL,    # Initial extraction needs precision
     "term_extraction_incremental": DEEPSEEK_FLASH_MODEL,
     "term_validation":        DEEPSEEK_FLASH_MODEL,  # Dedup is rule-based
+    "term_arbitration":       DEEPSEEK_FLASH_MODEL,  # Simple comparison, low cost
     "quality_score":          DEEPSEEK_PRO_MODEL,    # Aesthetic judgment needs depth
     "back_translate":         DEEPSEEK_FLASH_MODEL,  # EN→CN is a native direction
 }

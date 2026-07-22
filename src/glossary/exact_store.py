@@ -114,6 +114,49 @@ class ExactGlossary:
     def get(self, term_cn: str) -> typing.Optional[str]:
         return self._dict.get(term_cn)
 
+    def get_term_info(self, term_cn: str, target_lang: str = "en-US") -> typing.Optional[dict]:
+        """Return full metadata for a term (category, context, chapter, status, etc.)."""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """SELECT term_cn, term_en, category, context, chapter_first_seen,
+                          note, status, target_lang
+                   FROM exact_glossary
+                   WHERE term_cn = ? AND target_lang = ?""",
+                (term_cn, target_lang),
+            ).fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def get_status(self, term_cn: str, target_lang: str = "en-US") -> typing.Optional[str]:
+        """Return the status of a term ('confirmed', 'pending_review', or None if absent)."""
+        with sqlite3.connect(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT status FROM exact_glossary WHERE term_cn = ? AND target_lang = ?",
+                (term_cn, target_lang),
+            ).fetchone()
+        if row is None:
+            return None
+        return row[0]
+
+    def find_chapters_with_term(self, term_cn: str, target_lang: str = "en-US") -> list[int]:
+        """
+        Return the list of chapter numbers where this term appears.
+        This is a simplified version — in production this would query a
+        chapter-term mapping table. For now it returns the chapter_first_seen.
+
+        Returns a list so the caller can format it for display.
+        """
+        with sqlite3.connect(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT chapter_first_seen FROM exact_glossary WHERE term_cn = ? AND target_lang = ?",
+                (term_cn, target_lang),
+            ).fetchone()
+        if row is None:
+            return []
+        return [row[0]] if row[0] else []
+
     def to_dict(self) -> dict[str, str]:
         return dict(self._dict)
 
