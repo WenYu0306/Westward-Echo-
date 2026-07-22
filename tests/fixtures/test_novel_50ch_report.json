@@ -1,0 +1,41 @@
+{
+  "grade": "C",
+  "passed": [
+    "章节数量: 50 (预期 ≥ 50)",
+    "空译文检测: 0 章",
+    "JSON 残留检测: 0 章",
+    "平均质量评分: 4.9/5.0 (最低: 3.9, 最高: 5.0)",
+    "术语一致性: 12/15 一致 (80%)",
+    "中英字数比: 3.4x (预期 2.0-4.0x)",
+    "术语积累: 前10章70条, 最后10章新增46条"
+  ],
+  "issues": [
+    "❌ '云端大厦' 不一致: 预期'Cloud Tower', 出现['Cloud Tower', '[NOT FOUND]']",
+    "❌ '老宅子' 不一致: 预期'old family mansion', 出现['old family mansion', '[NOT FOUND]']",
+    "❌ '周总' 不一致: 预期'Mr. Zhou', 出现['[NOT FOUND]', 'Mr. Zhou']",
+    "⚠️ 术语持续大量新增，可能未收敛: 最后10章+46条"
+  ],
+  "summary": {
+    "chapters": 50,
+    "avg_quality_score": 4.9,
+    "term_consistency_rate": 80.0,
+    "glossary_size": 27,
+    "json_residue_chapters": 0,
+    "zh_en_ratio": 3.4
+  },
+  "term_details": {
+    "consistent_count": 12,
+    "inconsistent_count": 3,
+    "inconsistent_terms": [
+      "云端大厦",
+      "老宅子",
+      "周总"
+    ]
+  },
+  "score_distribution": {
+    "5.0": 47,
+    "4.0-4.9": 2,
+    "3.0-3.9": 1,
+    "<3.0": 0
+  }
+}

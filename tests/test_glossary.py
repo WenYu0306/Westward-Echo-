@@ -1,0 +1,116 @@
+"""Tests for the double-layer glossary."""
+
+import pytest
+import tempfile
+import os
+from src.glossary.exact_store import ExactGlossary
+from src.glossary.semantic_store import SemanticGlossary
+from src.glossary.models import GlossaryTerm, TermCategory, TermStatus
+
+
+class TestExactGlossary:
+
+    @pytest.fixture
+    def store(self):
+        """Create an ExactGlossary with a temp SQLite database."""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            path = f.name
+        store = ExactGlossary(db_path=path)
+        yield store
+        os.unlink(path)
+
+    def test_add_and_match(self, store):
+        store.add("林小满", "Lin Xiaoman", category="character")
+        store.add("八零年代", "80s rural America", category="era")
+
+        text = "林小满走到窗前，窗外是八零年代的景象。"
+        matches = store.match_in_text(text)
+
+        assert matches["林小满"] == "Lin Xiaoman"
+        assert matches["八零年代"] == "80s rural America"
+
+    def test_no_false_match(self, store):
+        store.add("裴衍舟", "Pei Yanzhou", category="character")
+
+        text = "楚淮开着车来到了公司。"
+        matches = store.match_in_text(text)
+
+        assert "裴衍舟" not in matches  # Different character
+
+    def test_snapshot_and_restore(self, store):
+        store.add("苏念", "Su Nian", category="character")
+        store.add("裴氏集团", "Pei Group", category="location")
+
+        snapshot = store.snapshot()
+        assert "苏念" in snapshot
+        assert "裴氏集团" in snapshot
+
+        # Create a fresh store and restore
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            path2 = f.name
+        store2 = ExactGlossary(db_path=path2)
+        store2.restore_snapshot(snapshot)
+
+        assert store2.get("苏念") == "Su Nian"
+        assert store2.get("裴氏集团") == "Pei Group"
+        assert len(store2) == 2
+
+        os.unlink(path2)
+
+    def test_persistence_across_instances(self, store):
+        """Terms should survive store re-creation (SQLite persistence)."""
+        store.add("青云山", "Mount Qingyun", category="location")
+
+        # Re-create store from the same DB file
+        store2 = ExactGlossary(db_path=store._db_path)
+        store2.load_from_db()
+
+        assert store2.get("青云山") == "Mount Qingyun"
+
+    def test_add_batch(self, store):
+        terms = [
+            {"term_cn": "金丹期", "term_en": "Golden Core stage", "category": "technique"},
+            {"term_cn": "元婴期", "term_en": "Nascent Soul stage", "category": "technique"},
+        ]
+        store.add_batch(terms, chapter=5)
+        assert len(store) == 2
+        assert store.get("金丹期") == "Golden Core stage"
+
+    def test_exact_match_not_fuzzy(self, store):
+        """Exact layer must NOT do fuzzy matching — only exact string containment."""
+        store.add("林小满", "Lin Xiaoman", category="character")
+
+        # "林晓曼" is similar to "林小满" but should NOT match
+        text = "林晓曼走进了房间。"
+        matches = store.match_in_text(text)
+        assert "林小满" not in matches
+
+
+class TestGlossaryTerm:
+
+    def test_to_dict(self):
+        term = GlossaryTerm(
+            term_cn="霸总",
+            term_en="Alpha CEO",
+            category=TermCategory.CULTURE,
+            context="她是霸总文的女主角",
+            chapter_first_seen=1,
+        )
+        d = term.to_dict()
+        assert d["term_cn"] == "霸总"
+        assert d["term_en"] == "Alpha CEO"
+        assert d["category"] == "culture"
+
+    def test_from_dict(self):
+        d = {
+            "term_cn": "穿越",
+            "term_en": "Transmigration",
+            "category": "culture",
+            "context": "我一睁眼就穿越了",
+            "chapter_first_seen": 1,
+            "status": "pending_review",
+        }
+        term = GlossaryTerm.from_dict(d)
+        assert term.term_cn == "穿越"
+        assert term.category == TermCategory.CULTURE
+        assert term.status == TermStatus.PENDING_REVIEW

@@ -1,0 +1,146 @@
+"""Node 2: Translation + Cultural Adaptation (core).
+
+The single most important LLM call in the system. Executes the Two-Pass
+Method: literal comprehension (in the model's internal processing) followed
+by cultural rewriting (the output).
+
+Uses DeepSeek V4 Flash for bulk chapters, Pro for critical chapters
+(first chapter, climax chapters flagged by the user, or chapters being
+re-translated after QA failure).
+"""
+
+import json
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+
+from ..state import TranslatorState
+from ..prompts.translation import TRANSLATION_SYSTEM, TRANSLATION_USER
+from ...config import (
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_BASE_URL,
+    MODEL_MAP,
+)
+
+
+def _get_llm(chapter_number: int, is_retranslation: bool = False) -> ChatOpenAI:
+    """Select the model tier for this chapter.
+
+    - Chapter 1 → Pro (sets the quality baseline for the whole book)
+    - Retranslation → Pro (Flash already failed once)
+    - Everything else → Flash (bulk, cost-optimized)
+    """
+    if chapter_number == 1 or is_retranslation:
+        model = MODEL_MAP["translate_critical"]
+    else:
+        model = MODEL_MAP["translate"]
+
+    return ChatOpenAI(
+        model=model,
+        api_key=DEEPSEEK_API_KEY,
+        base_url=DEEPSEEK_BASE_URL,
+        temperature=0.2,
+        max_tokens=8192,
+    )
+
+
+def translate_node(state: TranslatorState) -> dict:
+    """
+    Translate a single chapter with cultural adaptation.
+
+    The LLM is given:
+    - The previous chapter summary (for narrative continuity)
+    - Exact glossary matches (mandatory translations)
+    - Semantic glossary matches (advisory cultural context)
+    - The source chapter text
+
+    It outputs:
+    - translated_text: The English chapter
+    - new_terms_found: Terms to add to the glossary
+    - adaptation_notes: Cultural adaptation decisions
+    - chapter_summary: Summary for the next chapter's context
+    """
+    llm = _get_llm(
+        chapter_number=state["chapter_number"],
+        is_retranslation=state.get("retranslation_count", 0) > 0,
+    )
+
+    user_prompt = TRANSLATION_USER.format(
+        previous_summary=state.get("previous_chapter_summary", "(This is the first chapter — no previous summary.)"),
+        exact_matches=state.get("exact_matches_text", "(No glossary terms matched.)"),
+        semantic_matches=state.get("semantic_matches_text", "(No semantic matches.)"),
+        chapter_number=state["chapter_number"],
+        chapter_title=state["chapter_title"],
+        chapter_content=state["chapter_content"],
+    )
+
+    messages = [
+        SystemMessage(content=TRANSLATION_SYSTEM),
+        HumanMessage(content=user_prompt),
+    ]
+
+    response = llm.invoke(messages)
+    result = _parse_llm_response(response.content)
+
+    return {
+        "translated_text": result.get("translated_text", ""),
+        "new_terms_found": result.get("new_terms_found", []),
+        "adaptation_notes": result.get("cultural_adaptation_notes", []),
+        "chapter_summary": result.get("chapter_summary", ""),
+    }
+
+
+def _parse_llm_response(content: str) -> dict:
+    """Parse the LLM's JSON output, with multi-layer fallback.
+
+    Tries: strict JSON → regex extraction → field-by-field extraction → raw text.
+    """
+    import re
+    text = content.strip()
+
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+        text = text.strip()
+
+    # Layer 1: Strict JSON
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Layer 2: Find JSON object with regex (handles embedded unescaped chars)
+    m = re.search(r'\{[^{}]*"translated_text"[\s\S]*\}', text)
+    if m:
+        try:
+            return json.loads(m.group())
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Layer 3: Extract translated_text field directly via regex
+    m = re.search(r'"translated_text"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+    if m:
+        tt = m.group(1).replace('\\"', '"').replace('\\n', '\n')
+        return {
+            "translated_text": tt,
+            "new_terms_found": [],
+            "cultural_adaptation_notes": [],
+            "chapter_summary": "",
+        }
+
+    # Layer 4: If the response starts with markdown (likely already a translation), return as-is
+    if re.match(r'^(#+\s|>|\*\*|[A-Z][a-z])', text):
+        return {
+            "translated_text": text,
+            "new_terms_found": [],
+            "cultural_adaptation_notes": [],
+            "chapter_summary": "",
+        }
+
+    # Layer 5: Last resort — return the raw content
+    return {
+        "translated_text": content.lstrip("```json").lstrip("```").strip(),
+        "new_terms_found": [],
+        "cultural_adaptation_notes": [],
+        "chapter_summary": "",
+    }
