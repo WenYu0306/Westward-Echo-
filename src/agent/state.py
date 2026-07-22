@@ -40,3 +40,6 @@ class TranslatorState(TypedDict):
     # [{term_cn, existing_en, proposed_en, chapter_existing, chapter_proposed}]
     resolved_conflicts: Annotated[list[dict], operator.add]
     # [{term_cn, correct_en, wrong_en, reason}]
+
+    # === Dialect adaptation ===
+    dialect_context: str             # Detected dialect hints for this chapter

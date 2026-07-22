@@ -61,6 +61,12 @@ The previous chapter summary is provided below. Use it to maintain:
 - Narrative continuity (don't recap what the reader already knows)
 - Character voice consistency (same character = same speech patterns)
 - Correct pronoun tracking for characters referenced obliquely
+
+### 7. Dialect Voice Preservation
+If DIALECT CONTEXT is provided below, characters speaking in regional Chinese \
+dialects MUST be translated using the specified English dialect equivalent. \
+The same character must use the SAME dialect throughout the entire novel. \
+Dialect speech should feel natural, not like a caricature.
 """
 
 TRANSLATION_USER = """\
@@ -75,6 +81,7 @@ These terms appear in the current chapter. You MUST use these translations exact
 These culturally relevant terms may help with context for this chapter:
 {semantic_matches}
 
+{dialect_context}
 ## SOURCE TEXT
 **Chapter {chapter_number}**: {chapter_title}
 

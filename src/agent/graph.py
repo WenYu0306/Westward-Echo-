@@ -182,6 +182,7 @@ class TranslationAgent:
             "glossary_snapshot_json": "",
             "term_conflicts": [],
             "resolved_conflicts": [],
+            "dialect_context": "",
         }
 
         return self.graph.invoke(initial_state)

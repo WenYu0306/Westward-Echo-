@@ -74,12 +74,17 @@ def translate_node(state: TranslatorState) -> dict:
     rules = load_rules(target_lang=target_lang, genre=genre)
     cultural_rules_table = format_rules_for_prompt(rules)
 
+    # Detect dialect markers and build dialect context
+    from ...dialect import build_dialect_context
+    dialect_context = build_dialect_context(state["chapter_content"])
+
     system_prompt = TRANSLATION_SYSTEM.format(cultural_rules_table=cultural_rules_table)
 
     user_prompt = TRANSLATION_USER.format(
         previous_summary=state.get("previous_chapter_summary", "(This is the first chapter — no previous summary.)"),
         exact_matches=state.get("exact_matches_text", "(No glossary terms matched.)"),
         semantic_matches=state.get("semantic_matches_text", "(No semantic matches.)"),
+        dialect_context=dialect_context,
         chapter_number=state["chapter_number"],
         chapter_title=state["chapter_title"],
         chapter_content=state["chapter_content"],
