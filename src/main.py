@@ -7,8 +7,9 @@ from fastapi.responses import HTMLResponse
 from fastapi import Request
 
 from .config import API_PORT, HOST
-from .web_ui import PAGE
+from .web_ui import PAGE, REVIEW_PAGE
 from .api.routes import app as api_router
+from .api.review import app as review_api_router
 from .api.auth import APIKeyMiddleware
 from .api.logging import logger
 
@@ -42,8 +43,14 @@ def create_app() -> FastAPI:
     async def index():
         return PAGE
 
+    # Glossary review page at /review
+    @app.get("/review", response_class=HTMLResponse)
+    async def review_page():
+        return REVIEW_PAGE
+
     # API routes
     app.mount("/api", api_router)
+    app.mount("/api/review", review_api_router)
 
     logger.info("Westward Echo v0.2.0 (Celery + Redis + Auth + Logging)")
 

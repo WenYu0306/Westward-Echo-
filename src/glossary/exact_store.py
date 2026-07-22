@@ -140,6 +140,54 @@ class ExactGlossary:
         """Restore from a JSON snapshot string."""
         self._dict = json.loads(snapshot)
 
+    # ------------------------------------------------------------------
+    # Review API — human-in-the-loop glossary curation
+    # ------------------------------------------------------------------
+
+    def get_all_terms(self, status_filter: typing.Optional[str] = None,
+                      target_lang: str = "en-US") -> list[dict]:
+        """List all terms, optionally filtered by status."""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if status_filter:
+                rows = conn.execute(
+                    """SELECT term_cn, term_en, category, context, chapter_first_seen,
+                              note, status, target_lang
+                       FROM exact_glossary
+                       WHERE status = ? AND target_lang = ?
+                       ORDER BY term_cn""",
+                    (status_filter, target_lang),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT term_cn, term_en, category, context, chapter_first_seen,
+                              note, status, target_lang
+                       FROM exact_glossary
+                       WHERE target_lang = ?
+                       ORDER BY status, term_cn""",
+                    (target_lang,),
+                ).fetchall()
+        return [dict(row) for row in rows]
+
+    def confirm_term(self, term_cn: str, target_lang: str = "en-US"):
+        """Set a term's status to 'confirmed'."""
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "UPDATE exact_glossary SET status = 'confirmed' WHERE term_cn = ? AND target_lang = ?",
+                (term_cn, target_lang),
+            )
+            conn.commit()
+
+    def reject_term(self, term_cn: str, target_lang: str = "en-US"):
+        """Delete a term from the exact_store entirely."""
+        self._dict.pop(term_cn, None)
+        with sqlite3.connect(self._db_path) as conn:
+            conn.execute(
+                "DELETE FROM exact_glossary WHERE term_cn = ? AND target_lang = ?",
+                (term_cn, target_lang),
+            )
+            conn.commit()
+
     def stats(self) -> dict:
         return {"total_terms": len(self._dict)}
 

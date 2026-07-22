@@ -270,6 +270,14 @@ body{
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #d2d2d7;border-top-color:#0071e3;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px;position:relative;top:-1px}
 
+/* EPUB download button (in tab bar) */
+.epub-dl-btn{
+  display:inline-block;padding:8px 16px;font-family:Inter,sans-serif;font-size:12px;font-weight:600;
+  color:#0071e3;background:rgba(0,113,227,.08);border-radius:8px;text-decoration:none;
+  transition:all .15s;line-height:1;white-space:nowrap;
+}
+.epub-dl-btn:hover{background:rgba(0,113,227,.16);color:#0077ed}
+
 /* ═══════════════════════════════════════════════════════════════
    FOOTER
    ═══════════════════════════════════════════════════════════════ */
@@ -388,6 +396,8 @@ body{
           <button class="preview-tab sel" data-tab="translation">译文</button>
           <button class="preview-tab" data-tab="glossary">术语表</button>
           <button class="preview-tab" data-tab="report">质量报告</button>
+          <span style="flex:1"></span>
+          <a class="epub-dl-btn" id="epub-dl-btn" href="#" title="下载 EPUB 电子书">下载 EPUB</a>
         </div>
 
         <div class="preview-body" id="body-translation"><div id="out-translation"></div></div>
@@ -412,6 +422,7 @@ const chapterLog=$('#chapter-log'),progressActions=$('#progress-actions'),errorA
 const cancelBtn=$('#cancel-btn'),retryBtn=$('#retry-btn');
 const previewIdle=$('#preview-idle'),previewTranslating=$('#preview-translating'),previewError=$('#preview-error'),previewTabs=$('#preview-tabs');
 const previewErrorMsg=$('#preview-error-msg'),previewRetryBtn=$('#preview-retry-btn');
+	const epubDlBtn=$('#epub-dl-btn');
 const rangeInput=$('#qa-interval'),rangeLabel=$('#range-label');
 const toast=$('#toast');
 
@@ -446,6 +457,7 @@ function resetConfigUI(){
   cancelRequested=false;
   activeJobId=null;activeForm=null;
   retryCount=0;
+  epubDlBtn.href='#';
 }
 
 // ── file handling ──
@@ -606,6 +618,9 @@ async function doTranslate(form){
 
         $('#out-report').innerHTML=marked.parse('## 翻译完成\n\n| 指标 | 数值 |\n|------|------|\n| 章节数 | **'+total+'** |\n| 术语数 | **'+(Object.keys(gd).length||0)+'** |');
 
+        // Wire up EPUB download
+        epubDlBtn.href='/api/epub/'+jobId;
+
         // Show results
         $$('.preview-body').forEach(x=>x.classList.remove('show'));
         $('#body-translation').classList.add('show');
@@ -644,6 +659,257 @@ startBtn.addEventListener('click',async()=>{
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</body>
+</html>"""
+
+
+# ═══════════════════════════════════════════════════════════════
+# REVIEW PAGE — glossary curation tool
+# ═══════════════════════════════════════════════════════════════
+
+REVIEW_PAGE = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>术语审核 / Glossary Review — Westward Echo</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;line-height:1.6;color:#1c1c1e;background:#f5f5f7;
+}
+::selection{background:rgba(0,102,204,.18)}
+
+.app{max-width:720px;margin:0 auto;padding:0 24px}
+
+/* Nav */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0;margin-bottom:8px;border-bottom:1px solid #e5e5ea;
+}
+.nav-brand{font-size:14px;font-weight:600;color:#1c1c1e}
+.nav-back{font-size:12px;color:#0071e3;text-decoration:none}
+.nav-back:hover{text-decoration:underline}
+
+/* Header */
+.header{text-align:center;padding:32px 0 28px}
+.header h1{font-size:24px;font-weight:700;color:#1c1c1e;margin-bottom:4px}
+.header p{font-size:13px;color:#8e8e93}
+.header .stats{font-size:12px;color:#aeaeb2;margin-top:6px}
+
+/* Filter bar */
+.filter-bar{display:flex;gap:4px;margin-bottom:24px}
+.filter-btn{
+  flex:1;padding:9px 0;font-size:13px;font-weight:500;color:#6e6e73;
+  background:#fff;border:1px solid #e5e5ea;border-radius:8px;cursor:pointer;
+  transition:all .15s;text-align:center;
+}
+.filter-btn:hover{background:#f5f5f7}
+.filter-btn.active{background:#0071e3;color:#fff;border-color:#0071e3;font-weight:600}
+
+/* Term cards */
+.term-list{display:flex;flex-direction:column;gap:10px;margin-bottom:40px}
+.term-card{
+  background:#fff;border-radius:12px;padding:18px 20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);transition:all .3s;
+}
+.term-card.fading{opacity:0;transform:translateX(40px)}
+
+.term-row{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.term-cn{font-size:16px;font-weight:700;color:#1c1c1e}
+.term-arrow{color:#c7c7cc;font-size:14px}
+.term-en{font-size:15px;color:#0071e3;font-weight:500}
+
+.term-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.badge{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;
+  text-transform:uppercase;letter-spacing:.3px;
+}
+.badge-character{background:rgba(255,59,48,.1);color:#ff3b30}
+.badge-location{background:rgba(52,199,89,.1);color:#34c759}
+.badge-technique{background:rgba(175,82,222,.1);color:#af52de}
+.badge-culture{background:rgba(0,122,255,.1);color:#007aff}
+.badge-item{background:rgba(255,149,0,.1);color:#ff9500}
+.badge-era{background:rgba(142,142,147,.15);color:#8e8e93}
+.badge-status-pending{background:rgba(255,149,0,.12);color:#ff9500;font-weight:600}
+.badge-status-confirmed{background:rgba(52,199,89,.12);color:#34c759;font-weight:600}
+
+.term-context{font-size:12px;color:#8e8e93;line-height:1.5;margin-bottom:4px;font-style:italic}
+.term-chapter{font-size:11px;color:#aeaeb2}
+
+.term-actions{margin-top:10px;display:flex;gap:8px}
+.btn-confirm,.btn-reject{
+  padding:6px 18px;font-size:12px;font-weight:600;border:none;border-radius:8px;
+  cursor:pointer;transition:all .15s;
+}
+.btn-confirm{background:#34c759;color:#fff}
+.btn-confirm:hover{background:#30b350;transform:translateY(-1px);box-shadow:0 3px 8px rgba(52,199,89,.3)}
+.btn-confirm:active{transform:scale(.97)}
+.btn-reject{background:#ff3b30;color:#fff}
+.btn-reject:hover{background:#e6352b;transform:translateY(-1px);box-shadow:0 3px 8px rgba(255,59,48,.3)}
+.btn-reject:active{transform:scale(.97)}
+
+/* Empty state */
+.empty-state{text-align:center;padding:60px 20px;color:#aeaeb2}
+.empty-icon{font-size:40px;margin-bottom:10px;opacity:.5}
+.empty-text{font-size:14px}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:#8e8e93}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid #e5e5ea;border-top-color:#0071e3;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast */
+.toast{
+  position:fixed;top:24px;left:50%;transform:translateX(-50%);
+  padding:10px 22px;border-radius:10px;font-size:13px;font-weight:500;
+  color:#fff;background:#1c1c1e;box-shadow:0 8px 24px rgba(0,0,0,.15);
+  z-index:999;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.toast.show{opacity:1}
+
+/* Footer */
+.ft{text-align:center;padding:40px 0;font-size:12px;color:#aeaeb2}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="app">
+  <nav class="nav">
+    <div class="nav-brand">西渡 / Westward Echo</div>
+    <a class="nav-back" href="/">&larr; 返回翻译</a>
+  </nav>
+
+  <div class="header">
+    <h1>术语审核 / Glossary Review</h1>
+    <p>确认或拒绝机器提取的术语译文，确保全本术语统一</p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="pending_review">待审核</button>
+    <button class="filter-btn" data-filter="confirmed">已确认</button>
+  </div>
+
+  <div class="loading" id="loading"><div class="spinner"></div></div>
+
+  <div class="term-list" id="term-list"></div>
+  <div class="empty-state" id="empty" style="display:none">
+    <div class="empty-icon">&#128076;</div>
+    <div class="empty-text">暂无术语数据</div>
+  </div>
+
+  <footer class="ft">Westward Echo &middot; 术语审核</footer>
+</div>
+
+<script>
+const termList=document.getElementById('term-list');
+const loading=document.getElementById('loading');
+const empty=document.getElementById('empty');
+const stats=document.getElementById('stats');
+const toast=document.getElementById('toast');
+
+let allTerms=[];
+let currentFilter='all';
+
+// Category labels
+const catLabels={'character':'角色','location':'地点','technique':'功法','culture':'文化','item':'物品','era':'年代'};
+
+function showToast(msg){
+  toast.textContent=msg;toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'),2000);
+}
+
+async function fetchTerms(){
+  loading.style.display='block';
+  termList.innerHTML='';empty.style.display='none';
+  try{
+    const url=currentFilter==='all'?'/api/review/terms':'/api/review/terms?status='+currentFilter;
+    const r=await fetch(url);
+    const d=await r.json();
+    allTerms=d.terms;
+    stats.textContent=d.count+' 个术语';
+    renderTerms();
+  }catch(e){
+    showToast('加载失败: '+e.message);
+  }
+  loading.style.display='none';
+}
+
+function renderTerms(){
+  if(!allTerms.length){empty.style.display='block';termList.innerHTML='';return}
+  empty.style.display='none';
+  let h='';
+  allTerms.forEach(t=>{
+    const catLabel=catLabels[t.category]||t.category;
+    const isPending=t.status==='pending_review';
+    const statusLabel=isPending?'待审核':'已确认';
+    const statusClass=isPending?'badge-status-pending':'badge-status-confirmed';
+    h+='<div class="term-card" id="card-'+encodeURIComponent(t.term_cn)+'">';
+    h+='<div class="term-row">';
+    h+='<span class="term-cn">'+esc(t.term_cn)+'</span>';
+    h+='<span class="term-arrow">&rarr;</span>';
+    h+='<span class="term-en">'+esc(t.term_en)+'</span>';
+    h+='</div>';
+    h+='<div class="term-meta">';
+    h+='<span class="badge badge-'+t.category+'">'+catLabel+'</span>';
+    h+='<span class="badge '+statusClass+'">'+statusLabel+'</span>';
+    if(t.chapter_first_seen)h+='<span class="term-chapter">第'+t.chapter_first_seen+'章</span>';
+    h+='</div>';
+    if(t.context)h+='<div class="term-context">&ldquo;'+esc(t.context)+'&rdquo;</div>';
+    if(isPending){
+      h+='<div class="term-actions">';
+      h+='<button class="btn-confirm" onclick="confirmTerm(\''+escAttr(t.term_cn)+'\')">&#9989; 确认</button>';
+      h+='<button class="btn-reject" onclick="rejectTerm(\''+escAttr(t.term_cn)+'\')">&#10060; 拒绝</button>';
+      h+='</div>';
+    }
+    h+='</div>';
+  });
+  termList.innerHTML=h;
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function escAttr(s){return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/>/g,'&gt;')}
+
+async function confirmTerm(cn){
+  try{
+    const r=await fetch('/api/review/terms/'+encodeURIComponent(cn)+'/confirm',{method:'POST'});
+    if(!r.ok)throw new Error(await r.text());
+    showToast('已确认: '+cn);
+    const card=document.getElementById('card-'+encodeURIComponent(cn));
+    if(card){card.classList.add('fading');setTimeout(()=>card.remove(),350)}
+  }catch(e){showToast('操作失败: '+e.message)}
+}
+
+async function rejectTerm(cn){
+  if(!confirm('确定要删除术语 "'+cn+'" 吗？此操作不可撤销。'))return;
+  try{
+    const r=await fetch('/api/review/terms/'+encodeURIComponent(cn)+'/reject',{method:'POST'});
+    if(!r.ok)throw new Error(await r.text());
+    showToast('已删除: '+cn);
+    const card=document.getElementById('card-'+encodeURIComponent(cn));
+    if(card){card.classList.add('fading');setTimeout(()=>card.remove(),350)}
+  }catch(e){showToast('操作失败: '+e.message)}
+}
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter=btn.dataset.filter;
+    fetchTerms();
+  });
+});
+
+// Load on start
+fetchTerms();
+</script>
 </body>
 </html>"""
 
