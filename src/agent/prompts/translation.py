@@ -11,6 +11,45 @@ LANGUAGE_NAMES = {
     "ar-SA": "Arabic (Middle Eastern audience)",
 }
 
+# Regional style constraints — injected into system prompt per target language
+# to prevent region-inappropriate slang, literal idiom translation, etc.
+LANGUAGE_STYLE_NOTES = {
+    "es-ES": (
+        "## Regional Style (Spanish)\n"
+        "- Use NEUTRAL Spanish comprehensible across Latin America AND Spain. "
+        "Avoid Peninsular-specific vulgarity (coño, joder, hostia) and "
+        "Peninsular-only idioms (tener miga, estar al loro). "
+        "Prefer vocabulary shared across the Spanish-speaking world.\n"
+        "- NEVER leave untranslated Chinese pinyin or characters in the output — "
+        "all cultural concepts must have Spanish equivalents or brief explanations.\n"
+        "- Adapt Chinese idioms to NATURAL Spanish equivalents, not literal translations.\n"
+    ),
+    "ar-SA": (
+        "## Regional Style (Arabic)\n"
+        "- Use Modern Standard Arabic (fusha) with vocabulary familiar to Gulf "
+        "and Levant readers. Avoid Egyptian-colloquial-specific expressions.\n"
+        "- NEVER translate Chinese idioms literally into Arabic. "
+        "Metaphors like '像小猪一样' must use Arabic-cultural equivalents "
+        "(e.g., 'like helpless children', NOT literal 'like little pigs' which "
+        "is culturally confusing).\n"
+        "- Watch grammatical gender agreement — especially for adjectives "
+        "modifying masculine nouns.\n"
+        "- NEVER leave untranslated Chinese characters or pinyin in the output.\n"
+        "- Respect Islamic cultural norms: avoid normalizing alcohol, pork, or "
+        "casual physical intimacy unless contextually justified by the source.\n"
+    ),
+    "en-US": (
+        "## Regional Style (English)\n"
+        "- Use American English for a US audience. Avoid British-isms unless "
+        "the character explicitly has a British voice.\n"
+        "- NEVER leave untranslated Chinese characters or pinyin in the output. "
+        "This includes place names, organization names, and cultural terms — "
+        "ALL must have English equivalents or brief inline explanations.\n"
+        "- Chinese idioms must become NATURAL English equivalents, not literal "
+        "translations. '画蛇添足' → 'gilding the lily', not 'draw legs on a snake'.\n"
+    ),
+}
+
 TRANSLATION_SYSTEM = """\
 You are a professional Chinese web novel translator. You translate Chinese web \
 novels (网文) into {target_language}, producing natural, engaging prose that \

@@ -16,7 +16,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
 from ..state import TranslatorState
-from ..prompts.translation import TRANSLATION_SYSTEM, TRANSLATION_USER, LANGUAGE_NAMES
+from ..prompts.translation import (
+    TRANSLATION_SYSTEM, TRANSLATION_USER, LANGUAGE_NAMES, LANGUAGE_STYLE_NOTES
+)
 from ...config import (
     DEEPSEEK_API_KEY,
     DEEPSEEK_BASE_URL,
@@ -185,13 +187,16 @@ def translate_node(state: TranslatorState) -> dict:
     from ...idioms import build_idiom_context
     idiom_hint = build_idiom_context(state["chapter_content"])
 
-    # Dynamic target language name for prompts
+    # Dynamic target language name + regional style notes
     target_language_name = LANGUAGE_NAMES.get(target_lang, f"the {target_lang} market")
+    regional_style = LANGUAGE_STYLE_NOTES.get(target_lang, "")
 
     system_prompt = TRANSLATION_SYSTEM.format(
         cultural_rules_table=cultural_rules_table,
         target_language=target_language_name,
     )
+    if regional_style:
+        system_prompt += "\n\n" + regional_style
 
     user_prompt = TRANSLATION_USER.format(
         target_language=target_language_name,
@@ -321,16 +326,27 @@ def translate_node(state: TranslatorState) -> dict:
     translated_text = result.get("translated_text", "")
 
     # ── Output quality guard ──────────────────────────────────
-    from ...output_guard import check_and_record, check_translation_output, sanitize_translation, MIN_TRANSLATION_CHARS
+    from ...output_guard import (
+        check_and_record, check_translation_output, sanitize_translation,
+        MIN_TRANSLATION_CHARS, has_untranslated_chinese, find_untranslated_chinese,
+    )
 
     # Guard warns at MIN_TRANSLATION_CHARS (50), but retry only fires below
     # RETRY_THRESHOLD (10) — short mock translations shouldn't trigger retries.
     RETRY_THRESHOLD = 10
 
-    EMPTY_KEYWORDS = ["EMPTY:", "too short"]
+    EMPTY_KEYWORDS = ["EMPTY:", "too short", "UNTRANSLATED"]
 
     def _is_empty_or_garbage(text: str) -> bool:
-        return (not text or len(text.strip()) < RETRY_THRESHOLD)
+        empty = not text or len(text.strip()) < RETRY_THRESHOLD
+        if empty:
+            return True
+        # Chinese residue in non-Chinese target language is critical garbage
+        if target_lang != "zh-CN" and has_untranslated_chinese(text):
+            cn_chars = find_untranslated_chinese(text)
+            logger.warning("Output guard: ch%d UNTRANSLATED: %s", state["chapter_number"], ", ".join(cn_chars[:5]))
+            return True
+        return False
 
     def _try_salvage(raw_response, fallback_text: str) -> str:
         """Try to extract usable translation from a failing LLM response."""

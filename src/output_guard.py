@@ -10,6 +10,11 @@ CHATTER_PATTERNS = [
     (r"(?im)^(Note|Please note|Important):\s", "LLM chatter: editorial note"),
 ]
 
+# Chinese character detection — any Chinese character in the translated output
+# means something wasn't translated. This catches 治安 left in English text,
+# jianghu left in Spanish, etc.
+CHINESE_CHAR_PATTERN = re.compile(r'[一-鿿]')
+
 # Translations that are suspiciously short or empty
 MIN_TRANSLATION_CHARS = 50
 
@@ -29,6 +34,16 @@ def check_translation_output(text: str) -> list[str]:
     return warnings
 
 
+def has_untranslated_chinese(text: str) -> bool:
+    """Check if Chinese characters remain in the translated output."""
+    return bool(CHINESE_CHAR_PATTERN.search(text))
+
+
+def find_untranslated_chinese(text: str) -> list[str]:
+    """Return list of Chinese words found in the translated output."""
+    return list(set(CHINESE_CHAR_PATTERN.findall(text)))
+
+
 def check_and_record(
     text: str,
     job_id=None,
@@ -42,6 +57,12 @@ def check_and_record(
     """
     warnings = check_translation_output(text)
 
+    # ── Chinese character residue check ──
+    if has_untranslated_chinese(text):
+        chars = find_untranslated_chinese(text)
+        cn_warning = f"UNTRANSLATED: {len(chars)} Chinese characters found in output: {', '.join(chars[:5])}"
+        warnings.append(cn_warning)
+
     if warnings:
         from .error_tracker import record_event
         for w in warnings:
@@ -50,6 +71,8 @@ def check_and_record(
                 event_type = "empty_output"
             elif "chatter" in w.lower():
                 event_type = "chatter_detected"
+            elif "UNTRANSLATED" in w:
+                event_type = "untranslated_chinese"
             record_event(job_id, chapter_num, event_type, w, target_lang)
 
     return warnings

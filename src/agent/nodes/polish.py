@@ -16,6 +16,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import TranslatorState
 from ..prompts.polish import POLISH_SYSTEM, POLISH_USER
+from ..prompts.translation import LANGUAGE_STYLE_NOTES
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
 
 
@@ -51,8 +52,16 @@ def polish_node(state: TranslatorState) -> dict:
         qa_issues=issues_text,
     )
 
+    # Inject regional style constraints so the polish editor knows
+    # what "correct" looks like for this target language.
+    target_lang = state.get("target_lang", "en-US")
+    system_text = POLISH_SYSTEM
+    regional_style = LANGUAGE_STYLE_NOTES.get(target_lang, "")
+    if regional_style:
+        system_text += "\n\n" + regional_style
+
     response = llm.invoke([
-        SystemMessage(content=POLISH_SYSTEM),
+        SystemMessage(content=system_text),
         HumanMessage(content=user_prompt),
     ])
 
