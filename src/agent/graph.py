@@ -15,6 +15,8 @@ The polish node is a different agent with a different prompt and mindset
 re-translating the same text with the same prompt.
 """
 
+import logging
+
 from langgraph.graph import StateGraph, END
 
 from .state import TranslatorState
@@ -27,6 +29,9 @@ from .nodes.arbitrate_terms import arbitrate_terms_node
 from ..glossary.exact_store import ExactGlossary
 from ..glossary.semantic_store import SemanticGlossary
 from ..config import MAX_RETRANSLATION_ATTEMPTS
+from ..chapter_slicer import should_split, split_chapter, build_segment_title
+
+logger = logging.getLogger(__name__)
 
 
 def _should_repair(state: TranslatorState) -> str:
@@ -161,11 +166,24 @@ class TranslationAgent:
         target_lang: str = "en-US",
         genre: str = "romance_ceo",
     ) -> dict:
-        initial_state: TranslatorState = {
-            "chapter_title": chapter_title,
-            "chapter_content": chapter_content,
-            "chapter_number": chapter_number,
-            "target_lang": target_lang,
+        # ── Auto-split for long chapters ──────────────────────────
+        if should_split(chapter_content):
+            return self._translate_split(
+                chapter_title, chapter_content, chapter_number,
+                previous_summary, target_lang, genre,
+            )
+
+        return self._translate_once(
+            chapter_title, chapter_content, chapter_number,
+            previous_summary, target_lang, genre,
+        )
+
+    def _make_state(self, title, content, number, prev_summary, lang, genre) -> TranslatorState:
+        return {
+            "chapter_title": title,
+            "chapter_content": content,
+            "chapter_number": number,
+            "target_lang": lang,
             "genre": genre,
             "exact_glossary": self.exact_store.to_dict(),
             "semantic_terms": [],
@@ -175,7 +193,7 @@ class TranslationAgent:
             "new_terms_found": [],
             "adaptation_notes": [],
             "chapter_summary": "",
-            "previous_chapter_summary": previous_summary,
+            "previous_chapter_summary": prev_summary,
             "quality_score": 5.0,
             "quality_issues": [],
             "retranslation_count": 0,
@@ -185,4 +203,56 @@ class TranslationAgent:
             "dialect_context": "",
         }
 
-        return self.graph.invoke(initial_state)
+    def _translate_once(self, title, content, number, prev_summary, lang, genre) -> dict:
+        return self.graph.invoke(self._make_state(title, content, number, prev_summary, lang, genre))
+
+    def _translate_split(self, title, content, number, prev_summary, lang, genre) -> dict:
+        """Translate a long chapter by splitting into segments at paragraph boundaries.
+
+        Each segment runs through the full 6-node pipeline independently.
+        Segments 2+ inherit the glossary accumulated from earlier segments.
+        The last 2 paragraphs of segment N become bridging context for segment N+1.
+        """
+        segments = split_chapter(content)
+        logger.info(
+            "Auto-split ch%d (%d chars) into %d segments",
+            number, len(content.replace('\n','').replace(' ','')), len(segments),
+        )
+
+        all_text = []
+        all_new_terms = []
+        segment_summary = prev_summary
+        final_result = {}
+
+        for seg in segments:
+            seg_title = build_segment_title(title, seg)
+
+            result = self.graph.invoke(self._make_state(
+                seg_title, seg["content"], number, segment_summary, lang, genre,
+            ))
+
+            tt = result.get("translated_text", "")
+            all_text.append(tt)
+            all_new_terms.extend(result.get("new_terms_found", []))
+            final_result = result
+
+            # Build bridging context from this segment's last 2 paragraphs
+            # for the NEXT segment's continuity.
+            if not seg["is_last"]:
+                paras = [p for p in tt.split("\n\n") if len(p.strip()) > 50]
+                bridge = "\n\n".join(paras[-2:]) if len(paras) >= 2 else (paras[-1] if paras else "")
+                if bridge:
+                    segment_summary = (
+                        f"[Continuing from previous segment of the same chapter.]\n"
+                        f"Previous segment ended with:\n{bridge}"
+                    )
+
+        return {
+            "translated_text": "\n\n".join(all_text),
+            "new_terms_found": all_new_terms,
+            "adaptation_notes": final_result.get("adaptation_notes", []),
+            "chapter_summary": final_result.get("chapter_summary", ""),
+            "quality_score": final_result.get("quality_score", 5.0),
+            "quality_issues": final_result.get("quality_issues", []),
+            "glossary_snapshot_json": final_result.get("glossary_snapshot_json", "{}"),
+        }
