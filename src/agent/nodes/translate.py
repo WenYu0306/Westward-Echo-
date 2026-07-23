@@ -286,14 +286,24 @@ def translate_node(state: TranslatorState) -> dict:
 
         _capture_response_tokens(response)
 
-    result = _parse_llm_response(response.content)
+    result = _parse_llm_response(
+        response.content,
+        job_id=state.get("job_id"),
+        chapter_num=state["chapter_number"],
+        target_lang=state.get("target_lang", "en-US"),
+    )
 
     translated_text = result.get("translated_text", "")
 
     # ── Output quality guard ──────────────────────────────────
-    from ...output_guard import check_translation_output, sanitize_translation, MIN_TRANSLATION_CHARS
+    from ...output_guard import check_and_record, check_translation_output, sanitize_translation, MIN_TRANSLATION_CHARS
 
-    warnings = check_translation_output(translated_text)
+    warnings = check_and_record(
+        translated_text,
+        job_id=state.get("job_id"),
+        chapter_num=state["chapter_number"],
+        target_lang=state.get("target_lang", "en-US"),
+    )
     if warnings:
         for w in warnings:
             logger.warning("Output guard: ch%d %s", state["chapter_number"], w)
@@ -332,12 +342,21 @@ def _capture_response_tokens(response) -> None:
         pass  # Token tracking is best-effort; never break translation for it
 
 
-def _parse_llm_response(content: str) -> dict:
+def _parse_llm_response(
+    content: str,
+    job_id=None,
+    chapter_num=None,
+    target_lang: str = "en-US",
+) -> dict:
     """Parse the LLM's JSON output, with multi-layer fallback.
 
     Tries: strict JSON → regex extraction → field-by-field extraction → raw text.
+
+    When falling back to layers 2-5, records a ``parse_fallback`` event for analytics.
     """
     import re
+    from ...error_tracker import record_event
+
     text = content.strip()
 
     # Strip markdown code fences if present
@@ -356,7 +375,10 @@ def _parse_llm_response(content: str) -> dict:
     m = re.search(r'\{[^{}]*"translated_text"[\s\S]*\}', text)
     if m:
         try:
-            return json.loads(m.group())
+            result = json.loads(m.group())
+            record_event(job_id, chapter_num, "parse_fallback",
+                         "Layer 2: regex-extracted JSON object", target_lang)
+            return result
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -364,6 +386,8 @@ def _parse_llm_response(content: str) -> dict:
     m = re.search(r'"translated_text"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
     if m:
         tt = m.group(1).replace('\\"', '"').replace('\\n', '\n')
+        record_event(job_id, chapter_num, "parse_fallback",
+                     "Layer 3: regex field extraction", target_lang)
         return {
             "translated_text": tt,
             "new_terms_found": [],
@@ -373,6 +397,8 @@ def _parse_llm_response(content: str) -> dict:
 
     # Layer 4: If the response starts with markdown (likely already a translation), return as-is
     if re.match(r'^(#+\s|>|\*\*|[A-Z][a-z])', text):
+        record_event(job_id, chapter_num, "parse_fallback",
+                     "Layer 4: markdown-as-translation", target_lang)
         return {
             "translated_text": text,
             "new_terms_found": [],
@@ -381,6 +407,8 @@ def _parse_llm_response(content: str) -> dict:
         }
 
     # Layer 5: Last resort — return the raw content
+    record_event(job_id, chapter_num, "parse_fallback",
+                 "Layer 5: raw content fallback", target_lang)
     return {
         "translated_text": content.lstrip("```json").lstrip("```").strip(),
         "new_terms_found": [],

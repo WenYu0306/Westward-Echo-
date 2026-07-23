@@ -129,6 +129,17 @@ class CircuitBreaker:
                 self._opened_at = now
                 self._open_transitions += 1
 
+                # Record trip event for analytics
+                try:
+                    from .error_tracker import record_event
+                    record_event(
+                        None, None, "circuit_breaker",
+                        f"{self.name} breaker OPEN after {self._failure_count} consecutive failures",
+                        self.name,
+                    )
+                except Exception:
+                    pass  # Event recording must never block circuit breaker logic
+
     def is_open(self) -> bool:
         """Return True if the circuit is currently OPEN (fast-fail mode)."""
         with self._lock:

@@ -29,6 +29,32 @@ def check_translation_output(text: str) -> list[str]:
     return warnings
 
 
+def check_and_record(
+    text: str,
+    job_id=None,
+    chapter_num=None,
+    target_lang: str = "en-US",
+) -> list:
+    """Run quality checks and record warnings to the event store.
+
+    This is the recommended entry-point — it mirrors ``check_translation_output``
+    but additionally persists each warning for analytics.
+    """
+    warnings = check_translation_output(text)
+
+    if warnings:
+        from .error_tracker import record_event
+        for w in warnings:
+            event_type = "guard_warning"
+            if w.startswith("EMPTY:"):
+                event_type = "empty_output"
+            elif "chatter" in w.lower():
+                event_type = "chatter_detected"
+            record_event(job_id, chapter_num, event_type, w, target_lang)
+
+    return warnings
+
+
 def sanitize_translation(text: str) -> str:
     """Remove known bad patterns from translation output."""
     for pattern, _ in CHATTER_PATTERNS:

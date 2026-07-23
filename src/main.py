@@ -16,6 +16,7 @@ from .api.auth import APIKeyMiddleware
 from .api.logging import logger
 from .health import HealthChecker
 from .dashboard import DASHBOARD_PAGE, get_dashboard_data
+from .usage_ui import USAGE_PAGE, get_usage_data
 
 
 def create_app() -> FastAPI:
@@ -87,6 +88,16 @@ def create_app() -> FastAPI:
     async def dashboard_metrics():
         """JSON endpoint powering the dashboard's auto-refresh."""
         return get_dashboard_data()
+
+    # Usage analytics page — error tracking & editor behavior
+    @app.get("/usage", response_class=HTMLResponse)
+    async def usage_page():
+        return USAGE_PAGE
+
+    @app.get("/api/usage/events")
+    async def usage_events_api():
+        """JSON endpoint powering the usage page's auto-refresh."""
+        return get_usage_data()
 
     # CMS API
     from .api.cms import app as cms_api

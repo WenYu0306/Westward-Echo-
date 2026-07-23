@@ -127,6 +127,20 @@ def quality_check_node(state: TranslatorState) -> dict:
 
     avg_score = sum(all_scores) / len(all_scores) if all_scores else 5.0
 
+    # Record low-QA-score events for analytics
+    if avg_score < 3.0:
+        try:
+            from ...error_tracker import record_event
+            record_event(
+                state.get("job_id"),
+                chapter_num,
+                "qa_low_score",
+                f"QA score {avg_score:.1f} below threshold 3.0 — issues: {len(all_issues)}",
+                state.get("target_lang", "en-US"),
+            )
+        except Exception:
+            pass  # Best-effort; never break the QA node
+
     return {
         "quality_score": round(avg_score, 1),
         "quality_issues": all_issues,
