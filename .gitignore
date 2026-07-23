@@ -58,3 +58,4 @@ tests/fixtures/*.json
 !tests/fixtures/test_novel_50ch_en.md
 !tests/fixtures/test_novel_50ch_glossary.json
 tests/fixtures/jianke_ch1_*_*.md
+tests/fixtures/eval_*
