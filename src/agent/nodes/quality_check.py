@@ -57,17 +57,21 @@ def quality_check_node(state: TranslatorState) -> dict:
     """
     Sample the translation, back-translate, and score.
 
-    Only runs on chapters where chapter_number % QUALITY_CHECK_INTERVAL == 0.
-    For other chapters, returns a pass-through (quality_score = 5.0).
+    Runs on chapters where chapter_number is a multiple of QUALITY_CHECK_INTERVAL,
+    chapter 1 (baseline), AND any chapter where the translation is suspiciously
+    short (might be a silent failure that the QA skip would miss).
     """
     chapter_num = state["chapter_number"]
+    translated_text = state.get("translated_text", "")
 
-    # Only run QA on sampled chapters
-    if chapter_num % QUALITY_CHECK_INTERVAL != 0 and chapter_num != 1:
+    # Force QA on suspiciously short output (skip logic would miss silent failures)
+    is_short = len(translated_text.strip()) < 100 if translated_text else True
+
+    if chapter_num % QUALITY_CHECK_INTERVAL != 0 and chapter_num != 1 and not is_short:
         return {"quality_score": 5.0, "quality_issues": []}
 
     samples = _extract_sample_passages(
-        translated_text=state.get("translated_text", ""),
+        translated_text=translated_text,
         original_text=state.get("chapter_content", ""),
     )
 

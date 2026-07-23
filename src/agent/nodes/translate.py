@@ -11,6 +11,7 @@ re-translated after QA failure).
 
 import json
 import logging
+import re
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
@@ -359,22 +360,36 @@ def translate_node(state: TranslatorState) -> dict:
         if has_empty and _is_empty_or_garbage(translated_text):
             translated_text = _try_salvage(response.content, translated_text)
 
-            # ── Auto-retry: call the LLM one more time ──────────
+            # ── Auto-retry with trimmed prompt ──────────
             if _is_empty_or_garbage(translated_text):
+                # Log prompt size for diagnosis
+                estimated_tokens = (len(system_prompt) + len(user_prompt)) // 3
                 logger.warning(
-                    "Output guard: ch%d retrying LLM (1 attempt) after empty output",
-                    state["chapter_number"],
+                    "Output guard: ch%d empty output (prompt ~%d tokens). Retrying with trimmed context.",
+                    state["chapter_number"], estimated_tokens,
                 )
                 try:
+                    # Trim least-critical signals from the user prompt to reduce
+                    # token pressure — these are "nice to have" but never required.
+                    trimmed_user = re.sub(
+                        r'## (MEASUREMENT LOCALIZATION|ONOMATOPOEIA CONTEXT).*?(?=\n## |\Z)',
+                        '', user_prompt, flags=re.DOTALL
+                    )
+                    trimmed_user = re.sub(r'\n{3,}', '\n\n', trimmed_user)
+
+                    trimmed_messages = [
+                        SystemMessage(content=system_prompt),
+                        HumanMessage(content=trimmed_user + "\n\nIMPORTANT: Your previous response was empty. Output the translation JSON NOW. Do NOT output commentary."),
+                    ]
                     TranslationStats.record_api_call(target_lang)
-                    retry_response = breaker.call(llm.invoke, messages)
+                    retry_response = breaker.call(llm.invoke, trimmed_messages)
                     TranslationStats.record_api_success(target_lang)
                     _capture_response_tokens(retry_response)
                     retry_parsed = _parse_llm_response(retry_response.content)
                     retry_text = retry_parsed.get("translated_text", "")
                     translated_text = _try_salvage(retry_response.content, retry_text)
                     if not _is_empty_or_garbage(translated_text):
-                        logger.info("Output guard: ch%d retry successful", state["chapter_number"])
+                        logger.info("Output guard: ch%d retry successful (trimmed prompt)", state["chapter_number"])
                 except Exception as retry_exc:
                     logger.error("Output guard: ch%d retry failed: %s", state["chapter_number"], retry_exc)
 
