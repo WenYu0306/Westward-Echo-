@@ -105,41 +105,48 @@ def translate_node(state: TranslatorState) -> dict:
     cultural_rules_table = format_rules_for_prompt(rules)
 
     if discovery_mode:
-        # Build a discovery-mode context telling the LLM this is uncharted territory
-        existing_terms = list(state.get("exact_glossary", {}).keys())
-        term_hint = ""
-        if existing_terms:
-            sample = existing_terms[:20]
-            term_hint = (
-                f"So far this novel has introduced these terms: {', '.join(sample)}. "
-                "Use them consistently. Extract and record ALL new proper nouns, "
-                "genre-specific terms, and recurring concepts as new_terms_found. "
-                "This novel genre has no predefined cultural rules — you are the "
-                "first pass. Establish consistent translations now."
-            )
-
-        discovery_note = (
-            "## DISCOVERY MODE\n"
-            "This novel's genre has no predefined cultural adaptation rules. "
-            "You must establish consistent translations for all proper nouns, "
-            "genre-specific terminology, and recurring concepts ON YOUR OWN. "
-            "Your choices WILL become the canonical translations for the entire book.\n"
-            f"{term_hint}\n"
-        )
-
-        # Build few-shot examples from what the LLM itself established in earlier chapters
         discovered_terms = state.get("exact_glossary", {})
+
+        # Build the self-discovered rules table — mimic the standard cultural_rules
+        # format so the LLM treats these with the SAME authority level.
+        self_rules_lines = []
         if discovered_terms:
-            few_shot_lines = [
-                "\n## SELF-DISCOVERED RULES (established in earlier chapters)\n",
-                "| 中文 | English (LOCKED — use exactly) |",
-                "|------|------|",
+            self_rules_lines = [
+                "| 中文 | Adapted (USE THIS) | Note |",
+                "|------|--------------------|------|",
             ]
             for cn, en in list(discovered_terms.items())[:30]:
-                few_shot_lines.append(f"| {cn} | {en} |")
-            discovery_note += "\n".join(few_shot_lines) + "\n"
+                self_rules_lines.append(f"| {cn} | {en} | Established by you in earlier chapters — LOCKED |")
+            self_rules_table = "\n".join(self_rules_lines)
+        else:
+            self_rules_table = ""
 
-        cultural_rules_table = discovery_note + "\n" + cultural_rules_table
+        if discovered_terms:
+            # Chapter 2+: enforce past decisions as HARD RULES
+            discovery_note = (
+                "## DISCOVERY MODE — SELF-ESTABLISHED RULES\n"
+                "This novel's genre has no predefined cultural adaptation rules. "
+                "YOU have already established translations in earlier chapters. "
+                "The table below IS the canonical glossary for this book. "
+                "USE EVERY TERM EXACTLY AS LISTED. No variation, no creativity, "
+                "no \"better\" translation. Consistency is the ONLY rule.\n\n"
+                f"{self_rules_table}\n\n"
+                "Add ALL new proper nouns and genre-specific terms as new_terms_found."
+            )
+        else:
+            # Chapter 1: no rules yet, but tell the LLM it IS the pioneer
+            discovery_note = (
+                "## DISCOVERY MODE — FIRST CHAPTER\n"
+                "This novel's genre has no predefined cultural adaptation rules. "
+                "You are the FIRST translator to touch this book. Your decisions "
+                "WILL become the canonical translations for ALL subsequent chapters. "
+                "Be decisive. Be consistent with your own choices. "
+                "Record ALL proper nouns, genre terms, and recurring concepts "
+                "as new_terms_found — they will be locked in for every chapter after this.\n"
+            )
+
+        # Standard rules go AFTER self-discovered rules (lower priority)
+        cultural_rules_table = discovery_note + "\n" + ("" if self_rules_table else "") + cultural_rules_table
 
     # Detect dialect markers and build dialect context
     from ...dialect import build_dialect_context, has_system_text
