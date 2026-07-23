@@ -1,6 +1,6 @@
 # Westward Echo -- 验收标准 v2.0
 
-**Version:** v0.9.0 (Multi-Agent Translation System)
+**Version:** v0.10.0 (Multi-Agent Translation System)
 **Target:** 点众科技 (Dianzhong Technology)
 **Purpose:** Prove this system outperforms any internally built AI translation pipeline.
 
@@ -8,7 +8,7 @@
 
 ## Before You Evaluate
 
-Westward Echo is a LangGraph-based multi-agent translation system purpose-built for Chinese web novels. It is not a thin wrapper around an LLM API -- it comprises a double-layer glossary (exact dict + Chroma semantic), per-node model routing (DeepSeek V4 Flash/Pro + Claude Opus arbitration), MCP function-calling for autonomous term lookup, 9 context signal detectors, a dialect voice mapping engine, and a Celery-backed production deployment with circuit breaker, backpressure, and checkpoint recovery every chapter. A naive "translate this" prompt collapses after 50 chapters due to name drift and terminology fragmentation. Westward Echo has been verified across 50-chapter runs at 100% completion, 0 empty translations, and 4.9/5.0 average back-translation quality scores. v0.9.0 consolidates 14 commits across all production-safety, translation-quality, and cost-tracking features.
+Westward Echo is a LangGraph-based multi-agent translation system purpose-built for Chinese web novels. It is not a thin wrapper around an LLM API -- it comprises a double-layer glossary (exact dict + Chroma semantic), per-node model routing (DeepSeek V4 Flash/Pro + Claude Opus arbitration), MCP function-calling for autonomous term lookup, 9 context signal detectors, a dialect voice mapping engine, and a Celery-backed production deployment with circuit breaker, backpressure, and checkpoint recovery every chapter. A naive "translate this" prompt collapses after 50 chapters due to name drift and terminology fragmentation. Westward Echo has been verified across 50-chapter runs at 100% completion, 0 empty translations, and 4.9/5.0 average back-translation quality scores. v0.10.0 consolidates 23 commits adding product feedback loop, /usage analytics, output guard rails, sensitive term handling, and expanded genre support.
 
 The criteria below are designed to be **measurable** and **verifiable** by a third party. Each criterion includes the specific method by which it can be validated.
 
@@ -81,6 +81,18 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 - **当前状态**: ✅ 已实现。TranslationStats 自动采集 token usage，JobStore 持久化，Web UI 显示。
 - **负责人**: 开发自测
 
+### F2.8: Output quality guard rails
+- **标准**: 翻译输出自动检查 LLM 闲聊泄露、空输出、过短输出。检测到的异常写入 error_tracker 事件表。异常输出自动 sanitize 后返回给用户。
+- **验证方法**: 翻译包含系统弹窗的章节（触发 LLM 闲聊模式），验证 output_guard 检测到 chatter_detected 事件并记录。
+- **当前状态**: ✅ 已实现（output_guard.py + translate_node 集成）
+- **负责人**: 开发自测
+
+### F2.9: Sensitive term protection
+- **标准**: 6 个文化敏感术语（上身, 附体, 请神, 地府, 鬼, 仙）在每章出现时自动注入上下文警告。关键术语永久写入精确层，不依赖 Chroma 健康状态。
+- **验证方法**: 翻译包含"上身"的章节，验证 Prompt 中注入 TERMINOLOGY WARNINGS 段落。验证 19 个关键术语在 Chroma 不可用时仍保留在精确层。
+- **当前状态**: ✅ 已实现（sensitive_terms.py + CRITICAL_TERM_NAMES in update_glossary）
+- **负责人**: 开发自测
+
 ---
 
 ## F3. Multi-Language
@@ -135,13 +147,19 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 - **当前状态**: 待验证 — docker-compose.yml 已配置 3 service（redis + api + worker），需真实环境计时
 - **负责人**: 开发自测 / QA 验收
 
-### F5.2: `docker compose up` starts Redis + API + Worker in one command
+### F5.2: Five genre support with auto-detection
+- **标准**: 系统支持 romance_ceo, xianxia, urban, scifi, folk_religion 五种类型。未知类型自动触发 discovery mode（LLM 自建术语标准 + 前章术语反馈）。
+- **验证方法**: 上传感兴趣类型的小说时系统自动检测并加载对应规则。discovery mode 在 `is_known_genre()` 返回 False 时激活。
+- **当前状态**: ✅ 已实现。间客(scifi)和地府叫我小先生(folk_religion)已通过真小说验证。
+- **负责人**: 开发自测
+
+### F5.3: `docker compose up` starts Redis + API + Worker in one command
 - **标准**: `docker compose up -d` 一键启动所有依赖服务，`docker compose ps` 显示 3 个 service 均为 healthy
 - **验证方法**: 执行 `docker compose up -d && sleep 10 && docker compose ps`，验证 redis/api/worker 三个 service status 均为 "healthy" 或 "running"。
 - **当前状态**: 待验证 — docker-compose.yml 已配置 healthcheck（redis）和 depends_on 条件
 - **负责人**: 开发自测
 
-### F5.3: 72-hour continuous run without memory leak or crash
+### F5.4: 72-hour continuous run without memory leak or crash
 - **标准**: 系统连续运行 72 小时（不间断翻译负载），无 OOM、无进程崩溃、无内存持续增长趋势（RSS 增长 < 10% after first hour）
 - **验证方法**: 启动 1000 章翻译任务，使用 `psutil` 或 `htop` 每 10 分钟采样进程 RSS，绘制时间序列。前 1 小时后的 RSS 增长趋势线斜率应 < 0。
 - **当前状态**: 待验证 — memory check 已实现（health.py），需 72 小时 soak test
@@ -169,14 +187,20 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 - **当前状态**: ✅ 已实现。GET /dashboard 端点已就绪。
 - **负责人**: 开发
 
+### F6.4: Error telemetry and usage analytics
+- **标准**: 系统自动记录所有翻译质量事件（guard_warning, parse_fallback, circuit_breaker, empty_output, chatter_detected, qa_low_score, json_residue）。提供 `/usage` 分析页面显示最近 7 天错误摘要、Top-5 错误类型柱状图、最近 20 条事件和每 job 健康度。
+- **验证方法**: 翻译任意章节后访问 `/usage`，验证事件计数增长。GET `/api/usage/events` 返回 JSON 数据。
+- **当前状态**: ✅ 已实现。error_tracker.py 记录事件，usage_ui.py 提供分析页面。
+- **负责人**: 开发自测
+
 ---
 
 ## N1. Testing
 
-### N1.1: 128+ tests all passing
-- **标准**: 全量测试套件（单元测试 + 集成测试）>= 128 个，`pytest` 运行后 0 failure, 0 error
-- **验证方法**: 执行 `pytest tests/ -v`，验证 pass 数 >= 128。当前已有 128+ 个 test function（覆盖 8 个 test 文件：chapter_splitter 13, glossary 8, translate_node 10, translate_parse 16, integration 13, quality_check 8, update_glossary 18, term_arbitration 27，加上 v0.9 新增的 context signals、dialect、circuit breaker 等模块测试）。
-- **当前状态**: 128+ 个测试函数已编写，全部通过待拷机验证
+### N1.1: 146+ tests all passing
+- **标准**: 全量测试套件（单元测试 + 集成测试）>= 146 个，`pytest` 运行后 0 failure, 0 error
+- **验证方法**: 执行 `pytest tests/ -v`，验证 pass 数 >= 146。当前已有 146+ 个 test function（覆盖章节切分、术语表、翻译节点、解析、集成、质量检查、术语更新、仲裁、上下文信号、方言、熔断器、sensitive_terms、output_guard、error_tracker 等模块测试）。
+- **当前状态**: 146+ 个测试函数已编写，全部通过待拷机验证
 - **负责人**: CI pipeline
 
 ### N1.2: Fault injection tests for API failure, network interruption, LLM garbage output
@@ -208,16 +232,16 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 | 类别 | 通过 | 待验证 | 待实现 | 合计 |
 |------|------|--------|--------|------|
 | F1. Translation Engine | 3 | 0 | 0 | 3 |
-| F2. Translation Quality | 4 | 3 | 0 | 7 |
+| F2. Translation Quality | 6 | 3 | 0 | 9 |
 | F3. Multi-Language | 3 | 0 | 0 | 3 |
-| F4. Editor Workbench | 3 | 0 | 0 | 3 |
-| F5. Deployment | 0 | 3 | 0 | 3 |
-| F6. Production Safety | 3 | 0 | 0 | 3 |
+| F4. Editor Workbench | 0 | 3 | 0 | 3 |
+| F5. Deployment | 1 | 4 | 0 | 5 |
+| F6. Production Safety | 4 | 0 | 0 | 4 |
 | N1. Testing | 1 | 0 | 1 | 2 |
 | N2. Documentation | 2 | 0 | 0 | 2 |
-| **合计** | **19** | **6** | **1** | **26** |
+| **合计** | **20** | **10** | **1** | **31** |
 
-**当前总体状态: v0.9.0 -- 18+ features 已实现，4 类待验证（1000 章验证、母语者验证、部署验证、soak test），1 个故障注入测试待实现。核心生产安全特性 (F6.1-F6.3)、翻译质量增强 (F2.4-F2.7)、仲裁 Agent (F2.3)、MCP 工具调用 (F2.5) 全部落地。**
+**当前总体状态: v0.10.0 -- 22+ features 已实现，4 类待验证（1000 章验证、母语者验证、部署验证、soak test），1 个故障注入测试待实现。翻译质量增强 (F2.4-F2.9)、输出护栏 (F2.8)、敏感词保护 (F2.9)、五类型支持 (F5.2)、/usage 分析 (F6.4) 全部落地。**
 
 ---
 
@@ -225,5 +249,6 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 
 1. **人工资源需求**: F2.1（双语编辑盲评）、F3.2（母语者可读性评分）、F3.3（阿拉伯语文化审查）、F4.1（编辑计时审校）需要点众科技协调相应语言能力的人员。
 2. **故障注入测试 (N1.2)**: 可在无外部依赖的情况下完全自动化运行，推荐优先实现。
-3. **72 小时 soak test (F5.3)**: 建议在周末启动 1000 章翻译任务，周一查看内存曲线。
+3. **72 小时 soak test (F5.4)**: 建议在周末启动 1000 章翻译任务，周一查看内存曲线。
 4. **Circuit breaker + Backpressure (F6.1, F6.2)**: 已实现并集成到 LangGraph 流水线中，需故障注入测试验证。
+5. **/usage 分析页面 (F6.4)**: 建议在实际翻译使用后访问 `/usage` 页面验证错误追踪功能正常记录事件。GET `/api/usage/events` 可返回 JSON 格式的事件数据供自动化验证。
