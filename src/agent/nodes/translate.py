@@ -54,7 +54,7 @@ def _get_llm(
         api_key=DEEPSEEK_API_KEY,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.2,
-        max_tokens=8192,
+        max_tokens=16384,
     )
 
     # Optionally bind glossary-lookup tool for supported models.
