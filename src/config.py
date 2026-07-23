@@ -40,7 +40,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = os.getenv("LOG_FILE", str(DATA_DIR / "app.log"))
 HOST = os.getenv("HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
-GRADIO_PORT = int(os.getenv("GRADIO_PORT", "7860"))
 
 # --- Rate limiting ---
 RATE_LIMIT_RPM = int(os.getenv("RATE_LIMIT_RPM", "30"))

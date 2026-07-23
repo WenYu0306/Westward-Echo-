@@ -39,8 +39,12 @@ def split_chapter(chapter_content: str, max_segment_chars: int = MAX_CHARS_PER_S
     When a single paragraph exceeds the limit, it is split at sentence boundaries.
     When a single sentence exceeds the limit, it is split at the character limit.
 
-    Returns a list of dicts: [{index, total, content, is_first, is_last}]
+    Returns a list of dicts: [{index, total, content, is_first, is_last}].
+    Returns a single segment for empty/whitespace content.
     """
+    if not chapter_content or not chapter_content.strip():
+        return [{"index": 1, "total": 1, "content": chapter_content or "", "is_first": True, "is_last": True}]
+
     blocks = [b.strip() for b in chapter_content.split("\n\n") if b.strip()]
     segments = []
     current_blocks = []  # Full paragraphs accumulated so far

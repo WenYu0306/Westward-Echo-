@@ -21,6 +21,9 @@ MIN_TRANSLATION_CHARS = 50
 
 def check_translation_output(text: str) -> list[str]:
     """Run all quality checks. Returns list of warning messages (empty = clean)."""
+    if text is None:
+        return ["EMPTY: translation is None"]
+
     warnings = []
 
     if not text or len(text.strip()) < MIN_TRANSLATION_CHARS:
