@@ -521,6 +521,70 @@
     },
     "urban": {
       "en-US": {}
+    },
+    "scifi": {
+      "en-US": {
+        "机甲": {
+          "target": "Mecha / Battle Armor",
+          "note": "Must use 'Mecha' not 'mech' or 'robot'. Capitalized as genre convention."
+        },
+        "联邦": {
+          "target": "the Federation",
+          "note": "Must use 'Federation'. Common sci-fi trope. Capitalized."
+        },
+        "帝国": {
+          "target": "the Empire",
+          "note": "Must use 'Empire'. Common sci-fi antagonist trope. Capitalized."
+        },
+        "战舰": {
+          "target": "warship / battleship",
+          "note": "Choose by context. 战列舰 = battleship, 巡洋舰 = cruiser"
+        },
+        "星舰": {
+          "target": "starship",
+          "note": "Interstellar-capable ship. NOT 'spaceship' (that's 飞船)."
+        },
+        "机甲师": {
+          "target": "Mecha Pilot",
+          "note": "Must use 'Mecha Pilot', never 'mecha master' or 'robot driver'."
+        },
+        "基因改造": {
+          "target": "genetic modification / gene-modding",
+          "note": "Use 'gene-modded' for casual, 'genetically modified' for formal."
+        },
+        "跃迁": {
+          "target": "warp jump / hyperspace transition",
+          "note": "Sci-fi FTL travel. NOT 'transition' or 'leap'."
+        },
+        "太空港": {
+          "target": "spaceport",
+          "note": "Must use 'spaceport', never 'space harbor' or 'space dock'."
+        },
+        "殖民星": {
+          "target": "colony planet / colonial world",
+          "note": "Use 'colony world' for inhabited, 'colony planet' for the physical body."
+        },
+        "能量罩": {
+          "target": "energy shield",
+          "note": "NOT 'energy cover' or 'power shield'. Standard sci-fi term."
+        },
+        "粒子炮": {
+          "target": "particle cannon",
+          "note": "NOT 'particle gun'. Capitalized if named (e.g. 'Type-7 Particle Cannon')."
+        },
+        "联邦军": {
+          "target": "Federal Army / Federal Forces",
+          "note": "Must use 'Federal Forces' for combined arms, 'Federal Army' for ground forces only."
+        },
+        "帝国军": {
+          "target": "Imperial Army / Imperial Forces",
+          "note": "Must use 'Imperial Forces' for combined arms, 'Imperial Army' for ground forces only."
+        },
+        "首都星": {
+          "target": "capital planet / the Capital World",
+          "note": "Capitalized 'the Capital World' when referring to the Federation capital."
+        }
+      }
     }
   }
 }

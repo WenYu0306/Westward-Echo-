@@ -232,14 +232,32 @@ def translate_node(state: TranslatorState) -> dict:
 
         _capture_response_tokens(response)
 
-    result = _parse_llm_response(response.content)
+    result = _parse_llm_response(_strip_llm_chatter(response.content))
+
+    translated_text = result.get("translated_text", "")
+    # Also clean chatter from inside the translated text (LLM sometimes
+    # includes its thinking process within the translation body).
+    translated_text = _strip_llm_chatter(translated_text)
 
     return {
-        "translated_text": result.get("translated_text", ""),
+        "translated_text": translated_text,
         "new_terms_found": result.get("new_terms_found", []),
         "adaptation_notes": result.get("cultural_adaptation_notes", []),
         "chapter_summary": result.get("chapter_summary", ""),
     }
+
+
+def _strip_llm_chatter(text: str) -> str:
+    """Remove LLM meta-commentary that sometimes leaks into translated text."""
+    import re
+    chatter = [
+        '(?im)^(Now let me|Let me|I will|I\'ll).*?(compile|translate|provide|generate|write|try).*$\\n?',
+        '(?im)^Here (is|are)\\s+(the|my)\\s+(translation|output|result).*$\\n?',
+        '(?im)^(Sure|OK|Alright|Okay|Great),?\\s+(here|let me|I will).*$\\n?',
+    ]
+    for p in chatter:
+        text = re.sub(p, '', text)
+    return text.strip()
 
 
 def _capture_response_tokens(response) -> None:
