@@ -20,7 +20,19 @@ try:
 except Exception:
     _has_celery = False
 
-app = FastAPI(title="Westward Echo API", version="0.2.0")
+app = FastAPI(title="Westward Echo API", version="0.11.0")
+
+# ── Security ───────────────────────────────────────────────────
+_VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
+_KNOWN_LANGS = frozenset({"en-US", "es-ES", "ar-SA"})
+_KNOWN_GENRES = frozenset({"romance_ceo", "xianxia", "urban", "scifi", "folk_religion"})
+
+def _safe_job_id(job_id: str) -> str:
+    """Reject job IDs containing path traversal or illegal characters."""
+    if not _VALID_JOB_ID.match(job_id):
+        from fastapi import HTTPException as _HTTPE, status as _S
+        raise _HTTPE(status_code=_S.HTTP_400_BAD_REQUEST, detail="Invalid job_id")
+    return job_id
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -279,6 +291,7 @@ def get_translation_status(job_id: str):
 @app.get("/glossary/{job_id}")
 def get_glossary(job_id: str):
     """Download glossary JSON for a completed job."""
+    job_id = _safe_job_id(job_id)
     glossary_path = OUTPUT_DIR / f"{job_id}_glossary.json"
     if glossary_path.exists():
         return json.loads(glossary_path.read_text(encoding="utf-8"))

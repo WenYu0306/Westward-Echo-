@@ -10,24 +10,26 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     """Validate X-API-Key header on protected routes.
 
     If API_KEY is empty in config, auth is disabled (dev mode).
-    Protected routes are anything under /api/translate/* and /api/glossary/*.
-    GET / and /health are always open.
+    Only the root page, /health, /api/health, /docs, and /openapi.json
+    are always open. Everything else requires authentication when
+    API_KEY is set.
     """
 
-    OPEN_PREFIXES = ("/docs", "/openapi.json", "/ws", "/api/health")
+    # Only these exact paths are open in production
+    OPEN_PATHS = frozenset({"/", "/health", "/api/health", "/docs", "/openapi.json"})
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
-        # Skip auth for root page and open routes
-        if path == "/" or any(path.startswith(p) for p in self.OPEN_PREFIXES):
+        # Open paths — no auth needed
+        if path in self.OPEN_PATHS:
             return await call_next(request)
 
         # Skip auth if not configured (dev mode)
         if not API_KEY:
             return await call_next(request)
 
-        # Check API key
+        # Everything else requires API key
         client_key = request.headers.get("X-API-Key", "")
         if client_key != API_KEY:
             raise HTTPException(
