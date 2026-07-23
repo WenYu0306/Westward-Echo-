@@ -96,8 +96,18 @@ def translate_node(state: TranslatorState) -> dict:
     discovery_mode = not is_known_genre(genre)
 
     if discovery_mode:
-        # Auto-detect: scan the chapter for genre signals
+        # Auto-detect: scan the chapter for genre signals.
+        # Two-pass: first try the current chapter text (may have more signals
+        # than the novel's opening), then fall back to accumulated glossary
+        # terms as proxy signals (e.g. "剑气" in glossary → likely xianxia).
         detected, confidence = detect_genre(state["chapter_content"])
+        if not detected:
+            # Second pass: use glossary as proxy — genre-specific terms
+            # found in earlier chapters ARE the detection signal.
+            glossary_terms = list(state.get("exact_glossary", {}).keys())
+            if glossary_terms:
+                proxy_text = " ".join(glossary_terms)
+                detected, confidence = detect_genre(proxy_text)
         if detected and confidence > 0:
             genre = detected
 
@@ -305,6 +315,28 @@ def translate_node(state: TranslatorState) -> dict:
     # ── Output quality guard ──────────────────────────────────
     from ...output_guard import check_and_record, check_translation_output, sanitize_translation, MIN_TRANSLATION_CHARS
 
+    # Guard warns at MIN_TRANSLATION_CHARS (50), but retry only fires below
+    # RETRY_THRESHOLD (10) — short mock translations shouldn't trigger retries.
+    RETRY_THRESHOLD = 10
+
+    EMPTY_KEYWORDS = ["EMPTY:", "too short"]
+
+    def _is_empty_or_garbage(text: str) -> bool:
+        return (not text or len(text.strip()) < RETRY_THRESHOLD)
+
+    def _try_salvage(raw_response, fallback_text: str) -> str:
+        """Try to extract usable translation from a failing LLM response."""
+        # Layer 1: sanitize chatter from the parsed result
+        cleaned = sanitize_translation(fallback_text)
+        if cleaned and not _is_empty_or_garbage(cleaned):
+            return cleaned
+        # Layer 2: re-parse raw response (sometimes translation is inside JSON wrapper)
+        raw_parsed = _parse_llm_response(raw_response)
+        raw_fallback = raw_parsed.get("translated_text", "")
+        if raw_fallback and len(raw_fallback.strip()) >= MIN_TRANSLATION_CHARS:
+            return sanitize_translation(raw_fallback)
+        return ""
+
     warnings = check_and_record(
         translated_text,
         job_id=state.get("job_id"),
@@ -314,17 +346,30 @@ def translate_node(state: TranslatorState) -> dict:
     if warnings:
         for w in warnings:
             logger.warning("Output guard: ch%d %s", state["chapter_number"], w)
-        # Try sanitizing chatter patterns from the translation
-        has_short = any(w.startswith("EMPTY:") for w in warnings)
+
+        has_empty = any(kw in w for w in warnings for kw in EMPTY_KEYWORDS)
         translated_text = sanitize_translation(translated_text)
-        if has_short and (not translated_text or len(translated_text) < MIN_TRANSLATION_CHARS):
-            # The translated text is genuinely too short after stripping chatter.
-            # Try the LLM's raw response as a last resort — parse it through the
-            # same parser in case it contains the translation inside JSON.
-            raw_parsed = _parse_llm_response(response.content)
-            raw_fallback = raw_parsed.get("translated_text", "")
-            if raw_fallback and len(raw_fallback) >= MIN_TRANSLATION_CHARS:
-                translated_text = sanitize_translation(raw_fallback)
+        if has_empty and _is_empty_or_garbage(translated_text):
+            translated_text = _try_salvage(response.content, translated_text)
+
+            # ── Auto-retry: call the LLM one more time ──────────
+            if _is_empty_or_garbage(translated_text):
+                logger.warning(
+                    "Output guard: ch%d retrying LLM (1 attempt) after empty output",
+                    state["chapter_number"],
+                )
+                try:
+                    TranslationStats.record_api_call(target_lang)
+                    retry_response = breaker.call(llm.invoke, messages)
+                    TranslationStats.record_api_success(target_lang)
+                    _capture_response_tokens(retry_response)
+                    retry_parsed = _parse_llm_response(retry_response.content)
+                    retry_text = retry_parsed.get("translated_text", "")
+                    translated_text = _try_salvage(retry_response.content, retry_text)
+                    if not _is_empty_or_garbage(translated_text):
+                        logger.info("Output guard: ch%d retry successful", state["chapter_number"])
+                except Exception as retry_exc:
+                    logger.error("Output guard: ch%d retry failed: %s", state["chapter_number"], retry_exc)
 
     return {
         "translated_text": translated_text,
