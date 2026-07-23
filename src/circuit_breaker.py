@@ -160,9 +160,14 @@ class CircuitBreaker:
     def snapshot(self) -> dict:
         """Return a lightweight metrics snapshot for the dashboard."""
         with self._lock:
+            # Access _state directly — self.state acquires _lock which
+            # would deadlock since we already hold it.
+            st = self._state
+            if st == self.OPEN and self._should_attempt_recovery():
+                st = self.HALF_OPEN
             return {
                 "name": self.name,
-                "state": self.state,
+                "state": st,
                 "failure_count": self._failure_count,
                 "total_successes": self._total_successes,
                 "total_failures": self._total_failures,

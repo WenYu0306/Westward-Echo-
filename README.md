@@ -2,13 +2,13 @@
 
 **A Multi-Agent LLM translation engine for Chinese web novels — with cultural adaptation, dialect preservation, and self-healing quality control.**
 
-16 commits · 156 tests · v0.9.0
+39 commits · 190 tests · v0.12.0
 
 ---
 
 ## Problem
 
-点众科技 holds 350K web novel copyrights. Human translation costs $30-60/chapter. Pure LLM translation collapses after chapter 50: names drift, terms fragment, cultural references turn to nonsense.
+Chinese web novels are a massive, fast-growing content category with a huge global readership — but human translation costs $30-60 per chapter, and naive LLM translation collapses after chapter 50: names drift, terms fragment, cultural references turn to nonsense.
 
 Westward Echo solves all three with a 6-node Multi-Agent LangGraph pipeline — at under $0.02/chapter.
 
@@ -138,7 +138,7 @@ westward-echo/
 │   ├── cms.py                    # CMS integration (file + webhook connectors)
 │   ├── epub_builder.py           # EPUB 3 generator (stdlib only)
 │   └── health.py                 # Startup pre-flight checks
-├── tests/                        # 156 tests (unit + integration)
+├── tests/                        # 190 tests (unit + integration + fault injection)
 ├── start.sh                      # One-command launch with pre-flight
 ├── docker-compose.yml            # Redis + API + Worker
 ├── Dockerfile

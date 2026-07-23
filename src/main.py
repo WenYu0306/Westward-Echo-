@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Westward Echo",
         description="AI-powered web novel translation with cultural adaptation",
-        version="0.2.0",
+        version="0.12.0",
     )
 
     # ── Startup health checks ──
@@ -108,7 +108,7 @@ def create_app() -> FastAPI:
     app.mount("/api/review", review_api_router)
     app.mount("/api/editor", editor_api_router)
 
-    logger.info("Westward Echo v0.2.0 (Celery + Redis + Auth + Logging + Health + CMS + Editor)")
+    logger.info("Westward Echo v0.12.0 (Celery + Redis + Auth + Logging + Health + CMS + Editor)")
 
     return app
 
