@@ -264,9 +264,10 @@ async def translate_multi(
             finally:
                 backpressure.release()
 
-        executor = ThreadPoolExecutor(max_workers=len(langs))
-        for entry in results:
-            executor.submit(_run_translation, entry["lang"], entry["job_id"])
+        with ThreadPoolExecutor(max_workers=len(langs)) as executor:
+            for entry in results:
+                executor.submit(_run_translation, entry["lang"], entry["job_id"])
+            executor.shutdown(wait=False)  # fire-and-forget, backpressure gates cleanup
 
     return {
         "project_id": project_id,

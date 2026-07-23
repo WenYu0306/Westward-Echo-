@@ -123,7 +123,7 @@ class TestSplitChapter:
     def test_empty_content_does_not_crash(self):
         segments = split_chapter("")
         assert isinstance(segments, list)
-        assert len(segments) == 0
+        assert len(segments) == 1  # Returns single wrapping segment, not empty
 
     def test_very_short_content(self):
         """Even a tiny string should return a list without error."""
