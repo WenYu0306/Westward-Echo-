@@ -87,11 +87,46 @@ def translate_node(state: TranslatorState) -> dict:
         is_retranslation=state.get("retranslation_count", 0) > 0,
     )
 
-    # Load cultural rules for the target language and genre
+    # Load cultural rules for the target language and genre.
+    # If the genre is unknown (no dedicated rules), switch to discovery mode.
     target_lang = state.get("target_lang", "en-US")
     genre = state.get("genre", "romance_ceo")
+
+    from ...cultural_rules import is_known_genre, detect_genre
+    discovery_mode = not is_known_genre(genre)
+
+    if discovery_mode:
+        # Auto-detect: scan the chapter for genre signals
+        detected, confidence = detect_genre(state["chapter_content"])
+        if detected and confidence > 0:
+            genre = detected
+
     rules = load_rules(target_lang=target_lang, genre=genre)
     cultural_rules_table = format_rules_for_prompt(rules)
+
+    if discovery_mode:
+        # Build a discovery-mode context telling the LLM this is uncharted territory
+        existing_terms = list(state.get("exact_glossary", {}).keys())
+        term_hint = ""
+        if existing_terms:
+            sample = existing_terms[:20]
+            term_hint = (
+                f"So far this novel has introduced these terms: {', '.join(sample)}. "
+                "Use them consistently. Extract and record ALL new proper nouns, "
+                "genre-specific terms, and recurring concepts as new_terms_found. "
+                "This novel genre has no predefined cultural rules — you are the "
+                "first pass. Establish consistent translations now."
+            )
+
+        discovery_note = (
+            "## DISCOVERY MODE\n"
+            "This novel's genre has no predefined cultural adaptation rules. "
+            "You must establish consistent translations for all proper nouns, "
+            "genre-specific terminology, and recurring concepts ON YOUR OWN. "
+            "Your choices WILL become the canonical translations for the entire book.\n"
+            f"{term_hint}\n"
+        )
+        cultural_rules_table = discovery_note + "\n" + cultural_rules_table
 
     # Detect dialect markers and build dialect context
     from ...dialect import build_dialect_context, has_system_text

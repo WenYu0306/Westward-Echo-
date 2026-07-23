@@ -26,6 +26,7 @@ entries when the same source term appears in both.
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +36,85 @@ def _default_rules_path() -> Path:
     if env:
         return Path(env)
     return Path(__file__).resolve().parent.parent / "cultural_rules.json"
+
+
+def _load_raw_data(path: Optional[str] = None) -> dict:
+    file_path = Path(path) if path else _default_rules_path()
+    with open(file_path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def list_known_genres(path: Optional[str] = None) -> list[str]:
+    """Return all genre keys defined in cultural_rules.json."""
+    data = _load_raw_data(path)
+    return list(data.get("genres", {}).keys())
+
+
+def is_known_genre(genre: str, path: Optional[str] = None) -> bool:
+    """Check whether a genre has dedicated rules in cultural_rules.json."""
+    return genre in list_known_genres(path)
+
+
+# ── Genre auto-detection ──────────────────────────────────────
+
+_GENRE_SIGNALS: dict[str, list[str]] = {
+    "scifi": [
+        "机甲", "联邦", "帝国", "战舰", "星舰", "太空港", "跃迁", "基因改造",
+        "殖民星", "能量罩", "粒子炮", "首都星", "太空站", "星际", "宇宙",
+        "机甲师", "联邦军", "帝国军", "外骨骼", "拟态", "虫洞", "曲速", "量子",
+    ],
+    "xianxia": [
+        "修真", "修仙", "金丹", "元婴", "飞升", "渡劫", "法器", "灵石",
+        "宗门", "长老", "弟子", "功法", "炼丹", "御剑", "灵兽", "天劫",
+        "道侣", "灵脉", "洞府", "阵法", "仙府", "仙尊", "魔尊",
+    ],
+    "romance_ceo": [
+        "霸总", "总裁", "隐婚", "宠妻", "豪门", "白月光", "虐恋",
+        "带球跑", "替身", "联姻", "契约结婚", "先婚后爱",
+    ],
+}
+
+# Minimum total signal count across all genres to consider it a match
+_MIN_GENRE_SIGNALS = 5
+# Minimum unique terms (any genre) before we report a best guess
+_MIN_UNIQUE_TERMS = 3
+
+
+def detect_genre(text: str) -> tuple[str, int]:
+    """Auto-detect the most likely novel genre from keyword frequency.
+
+    Parameters
+    ----------
+    text : str
+        Novel text sample (first few chapters, ~10K-20K chars).
+
+    Returns
+    -------
+    tuple[str, int]
+        ``(genre_key, confidence_score)``.  Returns ``("", 0)`` when no
+        genre has enough signal to be confident.  Confidence is the ratio
+        of the winner's signal count to the runner-up's.
+    """
+    scored = {}
+    for genre_name, keywords in _GENRE_SIGNALS.items():
+        score = sum(text.count(kw) for kw in keywords)
+        if score >= _MIN_GENRE_SIGNALS:
+            scored[genre_name] = score
+
+    if not scored:
+        return ("", 0)
+
+    # Sort by score descending
+    ranked = sorted(scored.items(), key=lambda x: x[1], reverse=True)
+    winner_name, winner_score = ranked[0]
+    runner_up_score = ranked[1][1] if len(ranked) > 1 else 0
+
+    # Confidence: how much more signal the winner has than runner-up
+    if runner_up_score > 0 and winner_score / runner_up_score < 2.0:
+        # Signals are ambiguous — don't auto-detect
+        return ("", 0)
+
+    return (winner_name, winner_score)
 
 
 def load_rules(target_lang: str = "en-US", genre: str = "romance_ceo",
@@ -57,10 +137,7 @@ def load_rules(target_lang: str = "en-US", genre: str = "romance_ceo",
         Merged mapping of ``{source_term: {target: str, note: str}}``.
         Common rules come first; genre-specific rules override matching keys.
     """
-    file_path = Path(path) if path else _default_rules_path()
-
-    with open(file_path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
+    data = _load_raw_data(path)
 
     # Start with common (applies to all genres)
     merged: dict = {}
