@@ -5,7 +5,6 @@ langchain-anthropic>=0.2.0
 chromadb>=0.5.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
-gradio>=4.0.0
 websockets>=10.0
 pydantic>=2.0
 python-dotenv>=1.0
