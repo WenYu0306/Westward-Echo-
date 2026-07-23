@@ -522,6 +522,142 @@
     "urban": {
       "en-US": {}
     },
+    "folk_religion": {
+      "en-US": {
+        "出马": {
+          "target": "Spirit Medium / Chuma",
+          "note": "Must use 'Chuma' for 出马 (first occurrence: 'Chuma — the tradition of spirit mediumship'). 出马仙 = Chuma Shaman. NEVER 'witch doctor' or 'sorcerer'."
+        },
+        "仙家": {
+          "target": "the Immortal Masters / Spirit Guardians",
+          "note": "NOT 'immortal' (修真 context). These are animal spirits who cultivate to immortality by helping humans. Use 'Spirit Guardian' or 'Immortal Master' depending on formality."
+        },
+        "弟马": {
+          "target": "Spirit Medium / Di Ma",
+          "note": "The human vessel through whom the 仙家 works. Use 'Spirit Medium' or introduce 'Di Ma' on first use."
+        },
+        "堂口": {
+          "target": "Spirit Hall / spirit court",
+          "note": "The spiritual headquarters where a Chuma's 仙家 reside. NOT a physical hall."
+        },
+        "请神": {
+          "target": "invoke the spirits / call upon the Immortal Masters",
+          "note": "The ritual of inviting spirit possession. POSITIVE connotation. NEVER 'summon demon' or 'conjure'."
+        },
+        "上身": {
+          "target": "spirit descent / the Master takes form",
+          "note": "⚠️ CRITICAL: This is POSITIVE spirit possession — a 仙家 voluntarily takes the 弟马's body to help people. NEVER translate as 'possession' (negative, Christian demon context). Use 'the Master descends', 'spirit takes form', or 'the Master rides'."
+        },
+        "香主": {
+          "target": "Incense Master / Censer Keeper",
+          "note": "The person who tends the incense at a 堂口. NOT 'priest' or 'monk'."
+        },
+        "老仙": {
+          "target": "Elder Master / the Old Immortal",
+          "note": "Respectful address for a senior 仙家. Use 'Elder' for the respect hierarchy."
+        },
+        "胡仙": {
+          "target": "Fox Master / Hu Xian",
+          "note": "The fox spirit — wisest of the five animal spirit families. Capitalized."
+        },
+        "黄仙": {
+          "target": "Weasel Master / Huang Xian",
+          "note": "The weasel spirit. Mischievous but powerful."
+        },
+        "柳仙": {
+          "target": "Snake Master / Liu Xian",
+          "note": "The snake spirit. Cold-blooded but fiercely loyal."
+        },
+        "灰仙": {
+          "target": "Rat Master / Hui Xian",
+          "note": "The rat spirit. Cunning and resourceful."
+        },
+        "白仙": {
+          "target": "Hedgehog Master / Bai Xian",
+          "note": "The hedgehog spirit. Gentle but perceptive."
+        },
+        "地府": {
+          "target": "the Underworld / the Netherworld Court",
+          "note": "The Chinese afterlife bureaucracy. Use 'Underworld' (capitalized) or 'Netherworld Court'. NEVER 'Hell' (Christian context, eternal punishment). NEVER 'Hades' (Greek). The 地府 is a BUREAUCRACY with judges, courts, and appeals."
+        },
+        "鬼差": {
+          "target": "spirit constable / Underworld bailiff",
+          "note": "The officials who escort souls to the Underworld. NOT 'demon' or 'reaper'. They are bureaucrats, not monsters."
+        },
+        "阎王": {
+          "target": "King Yan / Lord of the Underworld",
+          "note": "The judge of the dead. Use 'King Yan' (most readers know this from Journey to the West)."
+        },
+        "判官": {
+          "target": "Underworld Magistrate / Soul Judge",
+          "note": "Official who judges the dead. NOT 'infernal judge' (Hell connotation)."
+        },
+        "城隍": {
+          "target": "City God / Cheng Huang",
+          "note": "The local guardian deity. Municipal-level divine administrator."
+        },
+        "孟婆": {
+          "target": "Granny Meng",
+          "note": "Keeper of the Tea of Forgetfulness. Standard translation in Chinese mythology."
+        },
+        "奈何桥": {
+          "target": "the Bridge of Oblivion / Naihe Bridge",
+          "note": "Standard translation. The bridge souls cross before reincarnation."
+        },
+        "拘魂": {
+          "target": "soul-binding / spirit capture",
+          "note": "Ritual to capture or restrain a spirit. NOT 'exorcism' (that's driving out evil)."
+        },
+        "送祟": {
+          "target": "send off the affliction / dispel the haunting",
+          "note": "Ritual to remove a spirit-caused illness or misfortune."
+        },
+        "过阴": {
+          "target": "cross into the Underworld / spirit journey",
+          "note": "The Chuma's spirit travels to the 地府. NOT 'near-death experience'."
+        },
+        "打表": {
+          "target": "submit a memorial to the spirit court",
+          "note": "Formal ritual document to the 地府. Bureaucratic, not magical."
+        },
+        "孟婆汤": {
+          "target": "Granny Meng's Tea of Forgetfulness",
+          "note": "The brew that erases memories before reincarnation."
+        },
+        "捆仙绳": {
+          "target": "Spirit-Binding Rope / Immortal-Binding Cord",
+          "note": "A tool used by Spirit Mediums to restrain hostile spirits or undead. Capitalized as a named artifact."
+        },
+        "百鬼": {
+          "target": "the hundred ghosts / the horde",
+          "note": "Refers to a mass of restless spirits. NOT 'demons'."
+        },
+        "活尸": {
+          "target": "Living Corpse / walking dead",
+          "note": "A person who is physically dead but still moving. NOT 'zombie' (Western pop culture)."
+        },
+        "凶胎": {
+          "target": "fierce womb / cursed pregnancy",
+          "note": "A pregnancy haunted or possessed by spirits."
+        },
+        "鬼节": {
+          "target": "Ghost Festival / Hungry Ghost Festival",
+          "note": "Standard translation. The 7th month when the gates of the Underworld open."
+        },
+        "阴气": {
+          "target": "yin energy / death-chill",
+          "note": "The cold, dark energy of death and spirits."
+        },
+        "阴阳": {
+          "target": "Yin and Yang",
+          "note": "Standard. Keep as 'Yin and Yang' — universally understood."
+        },
+        "大印": {
+          "target": "the Great Seal",
+          "note": "The official seal of a Spirit Medium's rank. Capitalized."
+        }
+      }
+    },
     "scifi": {
       "en-US": {
         "机甲": {

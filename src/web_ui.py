@@ -578,6 +578,7 @@ body{
                   <option value="xianxia">仙侠 / 修真 (xianxia)</option>
                   <option value="urban">都市 / 现实 (urban)</option>
                   <option value="scifi">科幻 / 机甲 (sci-fi)</option>
+                  <option value="folk_religion">民间信仰 / 出马 (folk)</option>
                 </select>
               </div>
 

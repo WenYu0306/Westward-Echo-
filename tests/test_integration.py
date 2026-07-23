@@ -531,13 +531,15 @@ class TestUpdateGlossaryRouting:
             "Location '裴氏集团' should be in exact layer"
         )
 
-        # Technique + culture ==> NOT in exact layer
-        assert exact_store.get("霸总攻略系统") is None, (
-            "Technique term should NOT be in exact layer (semantic only)"
-        )
-        assert exact_store.get("社畜") is None, (
-            "Culture term should NOT be in exact layer (semantic only)"
-        )
+        # Technique + culture: semantic-only when Chroma is healthy.
+        # When Chroma is degraded, the safety-net fallback also persists them.
+        if semantic_store.is_healthy():
+            assert exact_store.get("霸总攻略系统") is None, (
+                "Technique term should NOT be in exact layer (semantic only)"
+            )
+            assert exact_store.get("社畜") is None, (
+                "Culture term should NOT be in exact layer (semantic only)"
+            )
 
 
 # ------------------------------------------------------------------
@@ -763,7 +765,8 @@ class TestThreeChapterPipeline:
         # Ch3: 白莲花 (culture) → NOT in exact layer
         assert exact_store.get("裴家") == "Pei Family", "Ch1 term should be in exact layer"
         assert exact_store.get("裴衍舟") == "Pei Yanzhou", "Ch2 term should be in exact layer"
-        assert exact_store.get("白莲花") is None, "Culture term should not be in exact layer"
+        if semantic_store.is_healthy():
+            assert exact_store.get("白莲花") is None, "Culture term should not be in exact layer"
 
         # Exact store should have grown (at least 2 terms from character/location categories)
         assert len(exact_store) >= 2, (

@@ -158,6 +158,14 @@ def update_glossary_node(
     if exact_terms:
         exact_store.add_batch(exact_terms, chapter=chapter_number, target_lang=target_lang)
 
+    # ── Fallback: when Chroma is unhealthy, also persist culture terms ──
+    # to the exact layer so they survive. Without this, culture-classified
+    # terms (出马, 仙家, 上身, 地府, etc.) are silently lost.
+    if not semantic_store.is_healthy() and all_terms:
+        fallback_terms = [t for t in all_terms if t["term_cn"] not in exact_store]
+        if fallback_terms:
+            exact_store.add_batch(fallback_terms, chapter=chapter_number, target_lang=target_lang)
+
     # Write semantic layer
     if all_terms:
         semantic_store.add_batch(all_terms, target_lang=target_lang)
