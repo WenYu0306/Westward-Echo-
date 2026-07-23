@@ -46,13 +46,9 @@ logs/
 dist/
 build/
 *.egg-info/
-tests/fixtures/《间客》*
-tests/fixtures/jianke*
-tests/fixtures/《地府》*
-tests/fixtures/difu*
-tests/fixtures/《间客》*
-tests/fixtures/jianke*
-tests/fixtures/《地府》*
-tests/fixtures/《间客》*
+
+# Copyrighted test novels (local only)
+tests/fixtures/*地府*
+tests/fixtures/*间客*
 tests/fixtures/difu*
 tests/fixtures/jianke*
