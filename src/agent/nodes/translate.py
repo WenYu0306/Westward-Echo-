@@ -224,7 +224,7 @@ def translate_node(state: TranslatorState) -> dict:
 
     # ── Inject sensitive term warnings ──────
     from ...sensitive_terms import build_sensitive_term_context
-    sensitive_ctx = build_sensitive_term_context(state["chapter_content"])
+    sensitive_ctx = build_sensitive_term_context(state["chapter_content"], target_lang)
     if sensitive_ctx:
         user_prompt = sensitive_ctx + "\n\n" + user_prompt
 
