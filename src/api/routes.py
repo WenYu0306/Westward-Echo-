@@ -4,6 +4,9 @@ import json
 import re
 import sqlite3
 import asyncio
+import threading
+import time as _time
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
@@ -125,12 +128,54 @@ async def translate_novel(
             glossary_preset_glossary=preset_glossary_json,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
-    # Celery not available — release backpressure (no work was accepted)
-    backpressure.release()
-    return JSONResponse(
-        status_code=503,
-        content={"error": "Celery worker not available", "job_id": job_id, "total_chapters": total},
-    )
+
+    # Celery not available — run synchronously in background
+    from ..agent.graph import TranslationAgent
+    from ..prefetch import ChapterPrefetcher
+    from ..circuit_breaker import CircuitBreakerOpenError
+
+    def _run_sync():
+        try:
+            chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
+            agent = TranslationAgent()
+            if preset_glossary_json:
+                try:
+                    preset_terms = json.loads(preset_glossary_json)
+                    for cn, en in preset_terms.items():
+                        agent.exact_store.add(cn, en, category="culture", target_lang=target_lang)
+                except Exception:
+                    pass
+            all_translations = []
+            prev_summary = ""
+            for i, ch in enumerate(chapters_list):
+                try:
+                    result = agent.translate_chapter(
+                        chapter_title=ch.title, chapter_content=ch.content,
+                        chapter_number=ch.index, previous_summary=prev_summary,
+                        target_lang=target_lang, genre=genre,
+                    )
+                    all_translations.append(result["translated_text"])
+                    prev_summary = result.get("chapter_summary", "")
+                    job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
+                except CircuitBreakerOpenError:
+                    break
+                except Exception:
+                    continue
+            import time as _t
+            output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
+            Path(output_path).write_text("\n\n".join(all_translations), encoding="utf-8")
+            glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
+            glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
+            Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
+            job_store.complete_job(job_id, output_path, len(agent.exact_store))
+        except Exception as e:
+            job_store.fail_job(job_id, str(e))
+        finally:
+            backpressure.release()
+
+    threading.Thread(target=_run_sync, daemon=True).start()
+    job_store.update_progress(job_id, 0, total, "Starting...")
+    return {"job_id": job_id, "total_chapters": total, "status": "translating"}
 
 
 @app.post("/translate/multi")
