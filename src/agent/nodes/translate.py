@@ -15,7 +15,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
 from ..state import TranslatorState
-from ..prompts.translation import TRANSLATION_SYSTEM, TRANSLATION_USER
+from ..prompts.translation import TRANSLATION_SYSTEM, TRANSLATION_USER, LANGUAGE_NAMES
 from ...config import (
     DEEPSEEK_API_KEY,
     DEEPSEEK_BASE_URL,
@@ -184,9 +184,16 @@ def translate_node(state: TranslatorState) -> dict:
     from ...idioms import build_idiom_context
     idiom_hint = build_idiom_context(state["chapter_content"])
 
-    system_prompt = TRANSLATION_SYSTEM.format(cultural_rules_table=cultural_rules_table)
+    # Dynamic target language name for prompts
+    target_language_name = LANGUAGE_NAMES.get(target_lang, f"the {target_lang} market")
+
+    system_prompt = TRANSLATION_SYSTEM.format(
+        cultural_rules_table=cultural_rules_table,
+        target_language=target_language_name,
+    )
 
     user_prompt = TRANSLATION_USER.format(
+        target_language=target_language_name,
         previous_summary=state.get("previous_chapter_summary", "(This is the first chapter — no previous summary.)"),
         exact_matches=state.get("exact_matches_text", "(No glossary terms matched.)"),
         semantic_matches=state.get("semantic_matches_text", "(No semantic matches.)"),

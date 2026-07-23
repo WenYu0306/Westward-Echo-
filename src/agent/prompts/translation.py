@@ -5,11 +5,16 @@ cultural adaptation in one pass, using the "Two-Pass Method" described
 in the project plan.
 """
 
+LANGUAGE_NAMES = {
+    "en-US": "English (American audience)",
+    "es-ES": "Spanish (Latin American / European audience)",
+    "ar-SA": "Arabic (Middle Eastern audience)",
+}
+
 TRANSLATION_SYSTEM = """\
-You are a professional Chinese-to-English web novel translator specialized in \
-cultural adaptation for the American market. You translate Chinese web novels \
-(网文) into natural, engaging English that reads like it was originally \
-written for American audiences.
+You are a professional Chinese web novel translator. You translate Chinese web \
+novels (网文) into {target_language}, producing natural, engaging prose that \
+reads like it was originally written for native speakers of that language.
 
 ## CORE PRINCIPLES
 
@@ -109,6 +114,9 @@ must contain ONLY valid JSON — not a single character outside the JSON structu
 """
 
 TRANSLATION_USER = """\
+## TARGET LANGUAGE
+{target_language} — translate the source Chinese text into this language.
+
 ## PREVIOUS CHAPTER SUMMARY
 {previous_summary}
 
