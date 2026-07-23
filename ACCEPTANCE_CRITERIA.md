@@ -1,6 +1,6 @@
 # Westward Echo -- 验收标准 v2.0
 
-**Version:** v0.10.0 (Multi-Agent Translation System)
+**Version:** v0.11.0 (Adversarial Testing + Auto-split Chapters)
 **Target:** 点众科技 (Dianzhong Technology)
 **Purpose:** Prove this system outperforms any internally built AI translation pipeline.
 
@@ -8,7 +8,7 @@
 
 ## Before You Evaluate
 
-Westward Echo is a LangGraph-based multi-agent translation system purpose-built for Chinese web novels. It is not a thin wrapper around an LLM API -- it comprises a double-layer glossary (exact dict + Chroma semantic), per-node model routing (DeepSeek V4 Flash/Pro + Claude Opus arbitration), MCP function-calling for autonomous term lookup, 9 context signal detectors, a dialect voice mapping engine, and a Celery-backed production deployment with circuit breaker, backpressure, and checkpoint recovery every chapter. A naive "translate this" prompt collapses after 50 chapters due to name drift and terminology fragmentation. Westward Echo has been verified across 50-chapter runs at 100% completion, 0 empty translations, and 4.9/5.0 average back-translation quality scores. v0.10.0 consolidates 23 commits adding product feedback loop, /usage analytics, output guard rails, sensitive term handling, and expanded genre support.
+Westward Echo is a LangGraph-based multi-agent translation system purpose-built for Chinese web novels. It is not a thin wrapper around an LLM API -- it comprises a double-layer glossary (exact dict + Chroma semantic), per-node model routing (DeepSeek V4 Flash/Pro + Claude Opus arbitration), MCP function-calling for autonomous term lookup, 9 context signal detectors, a dialect voice mapping engine, and a Celery-backed production deployment with circuit breaker, backpressure, and checkpoint recovery every chapter. A naive "translate this" prompt collapses after 50 chapters due to name drift and terminology fragmentation. Westward Echo has been verified across 50-chapter runs at 100% completion, 0 empty translations, and 4.9/5.0 average back-translation quality scores. v0.11.0 consolidates ~35 commits adding product feedback loop, /usage analytics, output guard rails, sensitive term handling, expanded genre support, adversarial testing harness, auto-split for long chapters, and an Arabic blasphemy scanner.
 
 The criteria below are designed to be **measurable** and **verifiable** by a third party. Each criterion includes the specific method by which it can be validated.
 
@@ -33,6 +33,12 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 - **验证方法**: 分别测量单语种 50 章总耗时与三语种并发 50 章各 job 耗时，计算降幅比。Celery worker concurrency 配置为 2，三语种共 3 个 task 不应显著排队。
 - **当前状态**: 待验证 — Celery 多 worker 架构已就绪，需三语种并发测试
 - **负责人**: QA 验收
+
+### F1.4: Auto-split long chapters at paragraph boundaries
+- **标准**: 超过 4500 中文字的章节自动按段落边界拆分为 ≤3000 字的片段，每片段独立翻译后合并。短章节不受影响。
+- **验证方法**: 对抗测试 10 级渐进压力测试确认 10/10 章全部翻译成功（0 空译）。批量测试中吞噬星空 ch2 和覆汉 ch2（均为 4000+ 字）在修复前空译，修复后正常。
+- **当前状态**: ✅ 已实现（src/chapter_slicer.py + TranslationAgent._translate_split）
+- **负责人**: 开发自测
 
 ---
 
@@ -193,6 +199,12 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 - **当前状态**: ✅ 已实现。error_tracker.py 记录事件，usage_ui.py 提供分析页面。
 - **负责人**: 开发自测
 
+### F6.5: Adversarial testing harness
+- **标准**: 系统通过 4 层对抗测试：交叉评估一致性（2 个 evaluator 差 <1.5 分）、渐进压力测试（10 级章节至 5000 字全通过）、编辑 API 完整性（5 端点 0 500 错误）、敏感词边界扫描（6 个边界用例全通过）
+- **验证方法**: `python3 scripts/adversarial_test.py` 输出 4/4 PASS
+- **当前状态**: ✅ 已实现。本地 2 项 + API 2 项，全部通过。
+- **负责人**: 开发自测
+
 ---
 
 ## N1. Testing
@@ -231,17 +243,17 @@ The criteria below are designed to be **measurable** and **verifiable** by a thi
 
 | 类别 | 通过 | 待验证 | 待实现 | 合计 |
 |------|------|--------|--------|------|
-| F1. Translation Engine | 3 | 0 | 0 | 3 |
+| F1. Translation Engine | 4 | 0 | 0 | 4 |
 | F2. Translation Quality | 6 | 3 | 0 | 9 |
 | F3. Multi-Language | 3 | 0 | 0 | 3 |
 | F4. Editor Workbench | 0 | 3 | 0 | 3 |
 | F5. Deployment | 1 | 4 | 0 | 5 |
-| F6. Production Safety | 4 | 0 | 0 | 4 |
+| F6. Production Safety | 5 | 0 | 0 | 5 |
 | N1. Testing | 1 | 0 | 1 | 2 |
 | N2. Documentation | 2 | 0 | 0 | 2 |
-| **合计** | **20** | **10** | **1** | **31** |
+| **合计** | **22** | **10** | **1** | **33** |
 
-**当前总体状态: v0.10.0 -- 22+ features 已实现，4 类待验证（1000 章验证、母语者验证、部署验证、soak test），1 个故障注入测试待实现。翻译质量增强 (F2.4-F2.9)、输出护栏 (F2.8)、敏感词保护 (F2.9)、五类型支持 (F5.2)、/usage 分析 (F6.4) 全部落地。**
+**当前总体状态: v0.11.0 -- ~24 features 已实现（含 F1.4 长章自动分段、F6.5 对抗测试套件），~35 commits。4 类待验证（1000 章验证、母语者验证、部署验证、soak test），1 个故障注入测试待实现。翻译质量增强 (F2.4-F2.9)、输出护栏 (F2.8)、敏感词保护 (F2.9)、五类型支持 (F5.2)、/usage 分析 (F6.4) 全部落地。**
 
 ---
 
