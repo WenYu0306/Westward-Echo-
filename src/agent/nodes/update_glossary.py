@@ -27,6 +27,13 @@ EXACT_CATEGORIES = {"character", "location"}
 # Categories that skip validation (rules-based, not LLM)
 SKIP_VALIDATION_CATEGORIES = {"culture", "item", "era"}
 
+# Terms that are so critical they MUST go to exact_store even if Chroma is healthy
+CRITICAL_TERM_NAMES = {
+    "出马", "上身", "附体", "请神", "地府", "阎王", "仙家", "弟马", "堂口",
+    "机甲", "联邦", "帝国", "星际", "星舰",  # scifi critical
+    "穿越", "系统", "修真", "修仙",  # cross-genre critical
+}
+
 
 def _validate_terms(new_terms: list[dict], existing_glossary: str) -> dict:
     """Run LLM validation on new terms to catch duplicates and misclassifications."""
@@ -165,6 +172,14 @@ def update_glossary_node(
         fallback_terms = [t for t in all_terms if t["term_cn"] not in exact_store]
         if fallback_terms:
             exact_store.add_batch(fallback_terms, chapter=chapter_number, target_lang=target_lang)
+
+    # ── Critical terms: always persist to exact_store ──
+    # Terms like 出马, 上身, 地府, 机甲 etc. are so central to genre
+    # comprehension that they must survive even when Chroma is healthy.
+    critical_terms = [t for t in all_terms if t["term_cn"] in CRITICAL_TERM_NAMES]
+    existing_critical = [t for t in critical_terms if t["term_cn"] not in exact_store]
+    if existing_critical:
+        exact_store.add_batch(existing_critical, chapter=chapter_number, target_lang=target_lang)
 
     # Write semantic layer
     if all_terms:

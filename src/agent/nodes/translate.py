@@ -126,6 +126,19 @@ def translate_node(state: TranslatorState) -> dict:
             "Your choices WILL become the canonical translations for the entire book.\n"
             f"{term_hint}\n"
         )
+
+        # Build few-shot examples from what the LLM itself established in earlier chapters
+        discovered_terms = state.get("exact_glossary", {})
+        if discovered_terms:
+            few_shot_lines = [
+                "\n## SELF-DISCOVERED RULES (established in earlier chapters)\n",
+                "| 中文 | English (LOCKED — use exactly) |",
+                "|------|------|",
+            ]
+            for cn, en in list(discovered_terms.items())[:30]:
+                few_shot_lines.append(f"| {cn} | {en} |")
+            discovery_note += "\n".join(few_shot_lines) + "\n"
+
         cultural_rules_table = discovery_note + "\n" + cultural_rules_table
 
     # Detect dialect markers and build dialect context
@@ -178,6 +191,12 @@ def translate_node(state: TranslatorState) -> dict:
     # ── Inject idiom context hints ──────
     if idiom_hint:
         user_prompt = idiom_hint + "\n\n" + user_prompt
+
+    # ── Inject sensitive term warnings ──────
+    from ...sensitive_terms import build_sensitive_term_context
+    sensitive_ctx = build_sensitive_term_context(state["chapter_content"])
+    if sensitive_ctx:
+        user_prompt = sensitive_ctx + "\n\n" + user_prompt
 
     # ── Inject confirmed terms (locked by human reviewer) ──────
     confirmed = job_store.get_confirmed_terms(target_lang)
@@ -267,12 +286,28 @@ def translate_node(state: TranslatorState) -> dict:
 
         _capture_response_tokens(response)
 
-    result = _parse_llm_response(_strip_llm_chatter(response.content))
+    result = _parse_llm_response(response.content)
 
     translated_text = result.get("translated_text", "")
-    # Also clean chatter from inside the translated text (LLM sometimes
-    # includes its thinking process within the translation body).
-    translated_text = _strip_llm_chatter(translated_text)
+
+    # ── Output quality guard ──────────────────────────────────
+    from ...output_guard import check_translation_output, sanitize_translation, MIN_TRANSLATION_CHARS
+
+    warnings = check_translation_output(translated_text)
+    if warnings:
+        for w in warnings:
+            logger.warning("Output guard: ch%d %s", state["chapter_number"], w)
+        # Try sanitizing chatter patterns from the translation
+        has_short = any(w.startswith("EMPTY:") for w in warnings)
+        translated_text = sanitize_translation(translated_text)
+        if has_short and (not translated_text or len(translated_text) < MIN_TRANSLATION_CHARS):
+            # The translated text is genuinely too short after stripping chatter.
+            # Try the LLM's raw response as a last resort — parse it through the
+            # same parser in case it contains the translation inside JSON.
+            raw_parsed = _parse_llm_response(response.content)
+            raw_fallback = raw_parsed.get("translated_text", "")
+            if raw_fallback and len(raw_fallback) >= MIN_TRANSLATION_CHARS:
+                translated_text = sanitize_translation(raw_fallback)
 
     return {
         "translated_text": translated_text,
@@ -282,17 +317,6 @@ def translate_node(state: TranslatorState) -> dict:
     }
 
 
-def _strip_llm_chatter(text: str) -> str:
-    """Remove LLM meta-commentary that sometimes leaks into translated text."""
-    import re
-    chatter = [
-        '(?im)^(Now let me|Let me|I will|I\'ll).*?(compile|translate|provide|generate|write|try).*$\\n?',
-        '(?im)^Here (is|are)\\s+(the|my)\\s+(translation|output|result).*$\\n?',
-        '(?im)^(Sure|OK|Alright|Okay|Great),?\\s+(here|let me|I will).*$\\n?',
-    ]
-    for p in chatter:
-        text = re.sub(p, '', text)
-    return text.strip()
 
 
 def _capture_response_tokens(response) -> None:
