@@ -175,6 +175,47 @@ class ExactGlossary:
             lines.append(f"| {cn} | {en} |")
         return "\n".join(lines)
 
+    def to_formatted_text_with_notes(
+        self, matched_terms: typing.Optional[dict[str, str]] = None,
+        target_lang: str = "en-US",
+    ) -> str:
+        """Format glossary as a contextualized list with cultural notes.
+
+        Each entry includes the translation AND the accumulated cultural
+        understanding from the chapter where it was first established.
+        This gives future WRITE agents not just the WHAT but the WHY.
+
+        If matched_terms is provided, only those terms are listed.
+        """
+        terms = matched_terms or self._dict
+        if not terms:
+            return "(No glossary terms matched for this chapter.)"
+
+        # Fetch notes from the DB for each matched term
+        notes_map: dict[str, str] = {}
+        with sqlite3.connect(self._db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            for cn in terms:
+                row = conn.execute(
+                    "SELECT note FROM exact_glossary "
+                    "WHERE term_cn = ? AND target_lang = ?",
+                    (cn, target_lang),
+                ).fetchone()
+                if row and row["note"]:
+                    notes_map[cn] = row["note"]
+
+        lines = [
+            "| Chinese | English | Context |",
+            "|----------|---------|---------|",
+        ]
+        for cn, en in sorted(terms.items(), key=lambda x: len(x[0]), reverse=True):
+            note = notes_map.get(cn, "")
+            if note:
+                lines.append(f"| {cn} | {en} | {note} |")
+            else:
+                lines.append(f"| {cn} | {en} | (see prior chapters) |")
+        return "\n".join(lines)
+
     def snapshot(self) -> str:
         """JSON snapshot for checkpoint persistence."""
         return json.dumps(self._dict, ensure_ascii=False)

@@ -43,3 +43,12 @@ class TranslatorState(TypedDict):
 
     # === Dialect adaptation ===
     dialect_context: str             # Detected dialect hints for this chapter
+
+    # === v0.13: Reader-centric agent outputs ===
+    read_analysis: dict              # READ agent's structured reading analysis
+    readback_feedback: dict          # READBACK cold reader's honest reaction
+    context_signals: str             # Aggregated output from 9 signal detectors
+    image_gaps: list[dict]           # Sensory image gaps: what CN reader sees vs EN reader misses
+    style_memo: str                  # Accumulated translation lessons from prior chapters
+    skip_readback: bool              # When True, skip READBACK+FIX (fast mode for non-sample chapters)
+    use_flash_writer: bool           # When True, WRITE uses Flash instead of Pro

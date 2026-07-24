@@ -20,6 +20,8 @@ from ..stats import TranslationStats
 try:
     from ..celery_app import translate_novel_task, resume_translate_task
     _has_celery = True
+    if translate_novel_task is None:
+        _has_celery = False
 except Exception:
     _has_celery = False
 

@@ -65,12 +65,9 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # Each node picks a model tier. The model string is resolved at runtime
 # from the DEEPSEEK_*_MODEL env vars, so you can update models without touching code.
 MODEL_MAP = {
-    "translate":              DEEPSEEK_FLASH_MODEL,  # Bulk chapters via Flash
-    "translate_critical":     DEEPSEEK_PRO_MODEL,    # First/last/climax chapters via Pro
-    "term_extraction":        DEEPSEEK_PRO_MODEL,    # Initial extraction needs precision
-    "term_extraction_incremental": DEEPSEEK_FLASH_MODEL,
-    "term_validation":        DEEPSEEK_FLASH_MODEL,  # Dedup is rule-based
-    "term_arbitration":       DEEPSEEK_FLASH_MODEL,  # Simple comparison, low cost
-    "quality_score":          DEEPSEEK_PRO_MODEL,    # Aesthetic judgment needs depth
-    "back_translate":         DEEPSEEK_FLASH_MODEL,  # EN→CN is a native direction
+    "translate":              DEEPSEEK_PRO_MODEL,  # WRITE agent — literary quality needs Pro
+    "translate_critical":     DEEPSEEK_PRO_MODEL,  # First/last chapters (same tier, reserved key)
+    "read":                   DEEPSEEK_PRO_MODEL,  # READ agent — cultural analysis needs Pro
+    "readback":               DEEPSEEK_PRO_MODEL,  # Cold reader — empathy + judgment
+    "fix":                    DEEPSEEK_PRO_MODEL,  # Precision editing after cold read fails
 }
