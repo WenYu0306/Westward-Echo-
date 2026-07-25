@@ -41,7 +41,7 @@ def write_node(state: TranslatorState) -> dict:
         api_key=DEEPSEEK_API_KEY,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
-        max_tokens=16384,
+        max_tokens=8192,
         request_timeout=120,
     )
 
