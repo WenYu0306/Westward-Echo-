@@ -30,7 +30,6 @@ class TranslationStats:
     _chapters_failed: int = 0
     _api_calls_total: int = 0
     _api_calls_failed: int = 0
-    _tool_calls_total: int = 0
 
     # Per-language counters: lang -> count
     _api_calls_per_lang: Dict[str, int] = defaultdict(int)
@@ -107,12 +106,6 @@ class TranslationStats:
         cls.record_failure(lang)
 
     @classmethod
-    def record_tool_call(cls):
-        """Record that the LLM invoked a tool (e.g. glossary lookup)."""
-        with cls._lock:
-            cls._tool_calls_total += 1
-
-    @classmethod
     def record_tokens(cls, input_tokens: int, output_tokens: int):
         """Accumulate token usage from an LLM API response."""
         with cls._lock:
@@ -180,7 +173,6 @@ class TranslationStats:
                 "chapters_failed": cls._chapters_failed,
                 "api_calls_total": cls._api_calls_total,
                 "api_calls_failed": cls._api_calls_failed,
-                "tool_calls_total": cls._tool_calls_total,
                 "throughput_chapters_per_minute": round(throughput, 2),
                 "error_rates_per_language": per_lang_error,
                 "chapters_per_language": dict(cls._chapters_per_lang),

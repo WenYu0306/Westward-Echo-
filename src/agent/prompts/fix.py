@@ -1,7 +1,6 @@
 """Prompt for the FIX agent — an editor who repairs based on cold reader feedback.
 
-Unlike the old polish_node (which fixed based on QA scores), this agent fixes
-specific problems identified by a naive reader. It targets only what's broken.
+Fixes specific problems identified by a naive reader. It targets only what's broken.
 """
 
 FIX_SYSTEM = """\

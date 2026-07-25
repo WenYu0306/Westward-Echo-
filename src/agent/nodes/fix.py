@@ -2,8 +2,6 @@
 
 Receives the cold reader's specific complaints and fixes only what's broken.
 Does NOT blindly re-translate. Fixes are targeted and surgical.
-
-Replaces: polish_node
 """
 
 import json
@@ -33,7 +31,7 @@ def fix_node(state: TranslatorState) -> dict:
         api_key=DEEPSEEK_API_KEY,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.1,
-        max_tokens=16384,
+        max_tokens=8192,
         request_timeout=120,
     )
 
@@ -124,26 +122,11 @@ def _format_readback_feedback(feedback: dict) -> str:
 
 def _parse_fix_response(content: str) -> dict:
     """Parse the FIX agent's JSON output with fallback."""
-    text = content.strip()
+    from ..parse_utils import parse_llm_json
 
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
-        text = text.strip()
-
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    m = re.search(r'\{[\s\S]*\}', text)
-    if m:
-        try:
-            return json.loads(m.group())
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    return {
+    fallback = {
         "polished_text": content,
         "changes_made": ["(Parser fallback — raw response returned)"],
     }
+    result, _ = parse_llm_json(content, fallback)
+    return result

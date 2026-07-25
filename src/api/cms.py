@@ -16,7 +16,7 @@ try:
 except Exception:
     _has_celery = False
 
-app = FastAPI(title="Westward Echo CMS API", version="0.12.0")
+app = FastAPI(title="Westward Echo CMS API", version="0.15.0")
 
 
 @app.post("/import")

@@ -25,7 +25,7 @@ try:
 except Exception:
     _has_celery = False
 
-app = FastAPI(title="Westward Echo API", version="0.11.0")
+app = FastAPI(title="Westward Echo API", version="0.15.0")
 
 # ── Security ───────────────────────────────────────────────────
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
@@ -149,12 +149,15 @@ async def translate_novel(
                     pass
             all_translations = []
             prev_summary = ""
+            flash_mode = translate_mode == "flash"
             for i, ch in enumerate(chapters_list):
                 try:
                     result = agent.translate_chapter(
                         chapter_title=ch.title, chapter_content=ch.content,
                         chapter_number=ch.index, previous_summary=prev_summary,
                         target_lang=target_lang, genre=genre,
+                        skip_readback=flash_mode,
+                        use_flash_writer=flash_mode,
                     )
                     all_translations.append(result["translated_text"])
                     prev_summary = result.get("chapter_summary", "")
@@ -276,20 +279,25 @@ async def translate_multi(
                 prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
                 if len(chapters_list) > 1:
                     try:
-                        prefetcher.prefetch(chapters_list[1].heading or chapters_list[1].content[:200])
+                        prefetcher.submit_next(chapters_list[1].content, lang)
                     except Exception:
                         pass
 
+                flash_mode = translate_mode == "flash"
                 for i, ch in enumerate(chapters_list):
                     try:
-                        result = agent.process(
-                            chapter=ch, chapter_num=i + 1, total_chapters=len(chapters_list),
-                            target_lang=lang, prev_summary=prev_summary,
-                            translate_mode=translate_mode,
+                        result = agent.translate_chapter(
+                            chapter_title=ch.title,
+                            chapter_content=ch.content,
+                            chapter_number=ch.index,
+                            previous_summary=prev_summary,
+                            target_lang=lang,
                             genre=genre,
+                            skip_readback=flash_mode,
+                            use_flash_writer=flash_mode,
                         )
-                        all_translations.append(result.translation)
-                        prev_summary = result.summary or prev_summary
+                        all_translations.append(result["translated_text"])
+                        prev_summary = result.get("chapter_summary", "")
                         title = ch.heading or f"Chapter {i + 1}"
                         job_store.update_progress(jid, i + 1, len(chapters_list), title)
                         TranslationStats.record_chapter_complete(lang)

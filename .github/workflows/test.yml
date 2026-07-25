@@ -23,6 +23,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check src/ tests/
+
+      - name: Type check (mypy)
+        run: |
+          pip install mypy
+          mypy src/agent/ --ignore-missing-imports --no-strict-optional
+
       - name: Run tests
         run: |
           pytest -m "not requires_api_key" -v

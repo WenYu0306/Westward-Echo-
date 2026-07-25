@@ -169,12 +169,7 @@ When translating chapter titles, use English web novel conventions:
 - Avoid literal translation of 4-character idioms in titles — capture the IMPACT, not the words
 - Keep titles under 8 words
 
-### 10. Tool Use
-You have access to a `lookup_glossary` tool. Use it to look up the approved translation
-for ANY proper noun, character name, or culturally specific term before translating it.
-If the term is NOT in the glossary (tool returns NOT_FOUND), record it in new_terms_found.
-
-### 11. Output Format
+### 10. Output Format
 Return ONLY the JSON object. NEVER include meta-commentary like "Now let me compile the
 translation", "Here is the translation", or any description of your process. The output
 must contain ONLY valid JSON — not a single character outside the JSON structure.

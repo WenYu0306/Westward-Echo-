@@ -2,8 +2,6 @@
 
 Does NOT translate. Reads the chapter, experiences it, and produces a
 structured analysis that becomes the creative brief for the WRITE agent.
-
-Replaces: fetch_glossary + the pre-reading/cultural-context phase of translate_node
 """
 
 import json
@@ -164,30 +162,15 @@ def read_node(
 
 def _parse_read_response(content: str) -> dict:
     """Parse the READ agent's JSON output with fallback."""
-    import re
-    text = content.strip()
+    from ..parse_utils import parse_llm_json
 
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
-        text = text.strip()
-
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    m = re.search(r'\{[\s\S]*\}', text)
-    if m:
-        try:
-            return json.loads(m.group())
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    return {
+    fallback = {
         "emotional_arc": "Parse failed — READ agent output could not be parsed as JSON.",
         "cultural_gaps": [],
         "terminology_decisions": [],
         "pacing_notes": "",
         "crafted_moments": [],
+        "image_gaps": [],
     }
+    result, _ = parse_llm_json(content, fallback)
+    return result

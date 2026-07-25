@@ -1,0 +1,38 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+no_strict_optional = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "langgraph.*",
+    "langchain.*",
+    "langchain_openai.*",
+    "langchain_core.*",
+    "chromadb.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "celery.*",
+    "redis.*",
+    "httpx.*",
+    "tenacity.*",
+    "pydantic.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+markers = [
+    "requires_api_key: tests that need a real DEEPSEEK_API_KEY",
+]

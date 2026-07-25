@@ -978,7 +978,7 @@ except Exception as e:
 
 section("11. TRANSLATION PARSING EDGE CASES")
 
-from src.agent.nodes.translate import _parse_llm_response
+from src.agent.nodes.write import _parse_write_response as _parse_llm_response
 
 # Attack 11.1: _parse_llm_response with empty string
 try:

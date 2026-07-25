@@ -2,8 +2,6 @@
 
 Receives the READ agent's analysis as creative brief. Does NOT use tool calls.
 Is a storyteller, not a translation machine.
-
-Replaces: translate_node
 """
 
 import json

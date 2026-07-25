@@ -112,33 +112,22 @@ def readback_node(state: TranslatorState) -> dict:
 
 
 def _parse_readback_response(content: str) -> dict:
-    """Parse the READBACK agent's JSON output with fallback."""
-    text = content.strip()
+    """Parse the READBACK agent's JSON output with fallback.
 
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
-        text = text.strip()
+    Falls back to NEEDS_FIX on parse failure — a garbled LLM response
+    must NOT silently pass quality gate.
+    """
+    from ..parse_utils import parse_llm_json
 
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    m = re.search(r'\{[\s\S]*\}', text)
-    if m:
-        try:
-            return json.loads(m.group())
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    return {
+    fallback = {
         "overall_impression": "Parse failed — could not evaluate chapter.",
-        "verdict": "PASS",
-        "would_keep_reading": True,
+        "verdict": "NEEDS_FIX",
+        "would_keep_reading": False,
         "comprehension_issues": [],
         "engagement_gaps": [],
         "standout_moments": [],
         "character_tracking": "",
         "world_comprehension": "",
     }
+    result, _ = parse_llm_json(content, fallback)
+    return result

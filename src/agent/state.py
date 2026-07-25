@@ -44,7 +44,7 @@ class TranslatorState(TypedDict):
     # === Dialect adaptation ===
     dialect_context: str             # Detected dialect hints for this chapter
 
-    # === v0.13: Reader-centric agent outputs ===
+    # === v0.15: Reader-centric agent outputs ===
     read_analysis: dict              # READ agent's structured reading analysis
     readback_feedback: dict          # READBACK cold reader's honest reaction
     context_signals: str             # Aggregated output from 9 signal detectors

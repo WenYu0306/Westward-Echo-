@@ -28,7 +28,7 @@ from src.output_guard import (
     sanitize_translation,
     has_untranslated_chinese,
 )
-from src.agent.nodes.translate import _parse_llm_response
+from src.agent.nodes.write import _parse_write_response
 
 
 # ──────────────────────────────────────────────────────────────
@@ -311,9 +311,9 @@ class TestParseLLMResponseFallbacks:
     """Simulate LLM returning non-JSON garbage — verify all 5 fallback layers."""
 
     def test_layer1_strict_json(self):
-        result = _parse_llm_response(
+        result = _parse_write_response(
             json.dumps({"translated_text": "Hello world", "new_terms_found": [],
-                        "cultural_adaptation_notes": [], "chapter_summary": "ok"})
+                        "adaptation_notes": [], "chapter_summary": "ok"})
         )
         assert result["translated_text"] == "Hello world"
         assert result["chapter_summary"] == "ok"
@@ -324,37 +324,37 @@ class TestParseLLMResponseFallbacks:
             'Sure, here is the translation:\n\n'
             '{"translated_text": "She walked in.", '
             '"new_terms_found": [], '
-            '"cultural_adaptation_notes": [], '
+            '"adaptation_notes": [], '
             '"chapter_summary": "A woman enters."}'
         )
-        result = _parse_llm_response(response)
+        result = _parse_write_response(response)
         assert result["translated_text"] == "She walked in."
         assert result["chapter_summary"] == "A woman enters."
 
     def test_layer3_regex_field_extraction(self):
         """Only translated_text field is extractable via regex."""
         response = '{"translated_text": "Just the text field", "corrupted_rest'
-        result = _parse_llm_response(response)
+        result = _parse_write_response(response)
         assert result["translated_text"] == "Just the text field"
         assert result["new_terms_found"] == []
 
     def test_layer4_markdown_as_translation(self):
         """LLM returns plain markdown (no JSON wrapper) — treat as translation."""
         response = "# Chapter 1: The Beginning\n\nShe opened the door.\n\nIt was dark."
-        result = _parse_llm_response(response)
+        result = _parse_write_response(response)
         assert "Chapter 1" in result["translated_text"]
         assert "She opened the door" in result["translated_text"]
 
     def test_layer5_raw_content_fallback(self):
         """Completely unparseable response — return as-is."""
         response = "Some random text that is definitely not JSON or markdown"
-        result = _parse_llm_response(response)
+        result = _parse_write_response(response)
         assert result["translated_text"] == response
 
     def test_strips_code_fences(self):
         """Markdown code fences are stripped before parsing."""
-        response = '```json\n{"translated_text": "Clean", "new_terms_found": [], "cultural_adaptation_notes": [], "chapter_summary": "ok"}\n```'
-        result = _parse_llm_response(response)
+        response = '```json\n{"translated_text": "Clean", "new_terms_found": [], "adaptation_notes": [], "chapter_summary": "ok"}\n```'
+        result = _parse_write_response(response)
         assert result["translated_text"] == "Clean"
 
     def test_unicode_and_escape_handling(self):
@@ -362,11 +362,11 @@ class TestParseLLMResponseFallbacks:
         data = {
             "translated_text": 'Line 1\\nLine 2 with "quotes"',
             "new_terms_found": [],
-            "cultural_adaptation_notes": [],
+            "adaptation_notes": [],
             "chapter_summary": "ok",
         }
         response = json.dumps(data)
-        result = _parse_llm_response(response)
+        result = _parse_write_response(response)
         assert "Line 1" in result["translated_text"]
         assert "Line 2" in result["translated_text"]
 
@@ -521,32 +521,54 @@ class TestErrorTrackerUnderFaults:
 
 
 # ──────────────────────────────────────────────────────────────
-# Integration — translate_node under fault conditions
+# Integration — write_node under fault conditions
 # ──────────────────────────────────────────────────────────────
 
-class TestTranslateNodeUnderFaults:
-    """Integration-level: translate_node handles API failures and garbage output."""
+class TestWriteNodeUnderFaults:
+    """Integration-level: write_node handles API failures and garbage output."""
 
     def test_circuit_breaker_error_propagated(self):
-        """When the breaker is OPEN, translate_node propagates the error."""
+        """When the breaker is OPEN, write_node propagates the error."""
         from src.agent.state import TranslatorState
-        from src.agent.nodes.translate import translate_node
+        from src.agent.nodes.write import write_node
+        from src.circuit_breaker import _breakers, _breakers_lock
+
+        # Clear any existing "en-US" breaker so we get a fresh one
+        # with failure_threshold=1 (the singleton may have threshold=5
+        # from a prior test).
+        with _breakers_lock:
+            _breakers.pop("en-us", None)
+            _breakers.pop("en-US", None)
 
         state: TranslatorState = {
             "chapter_title": "Chapter 1",
             "chapter_content": "苏念醒过来的时候，发现自己躺在一张陌生的大床上。",
             "chapter_number": 1,
             "target_lang": "en-US",
+            "genre": "romance_ceo",
             "exact_glossary": {},
             "semantic_terms": [],
-            "full_glossary_text": "",
+            "exact_matches_text": "",
+            "semantic_matches_text": "",
             "translated_text": "",
             "new_terms_found": [],
             "adaptation_notes": [],
+            "chapter_summary": "",
             "previous_chapter_summary": "",
-            "quality_score": 0.0,
+            "quality_score": 5.0,
             "quality_issues": [],
-            "needs_retranslation": False,
+            "retranslation_count": 0,
+            "glossary_snapshot_json": "",
+            "read_analysis": {},
+            "readback_feedback": {},
+            "context_signals": "",
+            "image_gaps": [],
+            "style_memo": "",
+            "skip_readback": False,
+            "use_flash_writer": False,
+            "term_conflicts": [],
+            "resolved_conflicts": [],
+            "dialect_context": "",
         }
 
         # Force the breaker OPEN before the call
@@ -559,7 +581,7 @@ class TestTranslateNodeUnderFaults:
         assert breaker.is_open()
 
         with pytest.raises(CircuitBreakerOpenError):
-            translate_node(state)
+            write_node(state)
 
         # Reset breaker so other tests using "en-US" aren't poisoned
         breaker._state = CircuitBreaker.CLOSED
@@ -569,7 +591,7 @@ class TestTranslateNodeUnderFaults:
                                                     sample_chapter):
         """LLM returns plain chatter (no JSON) → Layer 4/5 fallback produces output."""
         from src.agent.state import TranslatorState
-        from src.agent.nodes.translate import translate_node
+        from src.agent.nodes.write import write_node
         from src.circuit_breaker import _breakers, _breakers_lock
 
         # Reset the breaker for this test language to avoid poisoning
@@ -582,16 +604,30 @@ class TestTranslateNodeUnderFaults:
             "chapter_content": sample_chapter["content"],
             "chapter_number": 1,
             "target_lang": "en-US",
+            "genre": "romance_ceo",
             "exact_glossary": {},
             "semantic_terms": [],
-            "full_glossary_text": "",
+            "exact_matches_text": "",
+            "semantic_matches_text": "",
             "translated_text": "",
             "new_terms_found": [],
             "adaptation_notes": [],
+            "chapter_summary": "",
             "previous_chapter_summary": "",
-            "quality_score": 0.0,
+            "quality_score": 5.0,
             "quality_issues": [],
-            "needs_retranslation": False,
+            "retranslation_count": 0,
+            "glossary_snapshot_json": "",
+            "read_analysis": {},
+            "readback_feedback": {},
+            "context_signals": "",
+            "image_gaps": [],
+            "style_memo": "",
+            "skip_readback": False,
+            "use_flash_writer": False,
+            "term_conflicts": [],
+            "resolved_conflicts": [],
+            "dialect_context": "",
         }
 
         # The LLM returns a conversational response instead of JSON
@@ -609,15 +645,15 @@ class TestTranslateNodeUnderFaults:
             "neon lights flickering in the darkness."
         )
 
-        with patch("src.agent.nodes.translate.ChatOpenAI") as mock_llm_class:
+        with patch("src.agent.nodes.write.ChatOpenAI") as mock_llm_class:
             mock_llm = MagicMock()
             mock_response = MagicMock()
             mock_response.content = chatter_text
+            mock_response.response_metadata = {}
             mock_llm.invoke.return_value = mock_response
-            mock_llm.bind_tools.return_value = mock_llm
             mock_llm_class.return_value = mock_llm
 
-            result = translate_node(state)
+            result = write_node(state)
 
         # Should have produced SOME output via fallback layers
         assert result["translated_text"]
@@ -639,7 +675,7 @@ class TestTranslateNodeUnderFaults:
             '"new_terms_found": [{"term_cn": "古董", "term_en":'
             # JSON cut off mid-value — malformed
         )
-        result = _parse_llm_response(garbage)
+        result = _parse_write_response(garbage)
         # Layer 2 or 3 should extract translated_text
         assert "房间" in result["translated_text"] or "She entered" in result["translated_text"]
         # No crash
@@ -703,7 +739,7 @@ class TestTranslationStatsUnderFaults:
         snap = TranslationStats.snapshot()
         expected_keys = [
             "chapters_translated", "chapters_failed",
-            "api_calls_total", "api_calls_failed", "tool_calls_total",
+            "api_calls_total", "api_calls_failed",
             "throughput_chapters_per_minute", "error_rates_per_language",
             "chapters_per_language", "uptime_seconds",
             "tokens_input", "tokens_output", "tokens_total",

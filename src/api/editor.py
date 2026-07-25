@@ -18,7 +18,7 @@ from ..config import OUTPUT_DIR, DATA_DIR
 from ..chapter_splitter import split_chapters
 from ..job_store import job_store
 
-app = FastAPI(title="Westward Echo Editor API", version="0.12.0")
+app = FastAPI(title="Westward Echo Editor API", version="0.15.0")
 
 # ── SQLite for edits (per-worker thread-local connection) ────────────────
 

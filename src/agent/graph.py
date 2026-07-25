@@ -1,4 +1,4 @@
-"""LangGraph graph assembly — v0.13 Reader-Centric Multi-Agent pipeline.
+"""LangGraph graph assembly — v0.15 Reader-Centric Multi-Agent pipeline.
 
 4-node graph:
   START → READ → WRITE → READBACK → (NEEDS_FIX?) → FIX → READBACK (loop)
@@ -59,7 +59,7 @@ def build_graph(
     exact_store: ExactGlossary,
     semantic_store: SemanticGlossary,
 ) -> StateGraph:
-    """Build the v0.13 4-node reader-centric graph."""
+    """Build the v0.15 4-node reader-centric graph."""
 
     builder = StateGraph(TranslatorState)
 
@@ -103,10 +103,7 @@ def build_graph(
 
 
 class TranslationAgent:
-    """High-level wrapper around the v0.13 reader-centric LangGraph pipeline.
-
-    Public interface unchanged from v0.12 — all external callers are compatible.
-    """
+    """High-level wrapper around the v0.15 reader-centric LangGraph pipeline."""
 
     def __init__(self, book_id: str = "default"):
         self.exact_store = ExactGlossary()
@@ -114,6 +111,8 @@ class TranslationAgent:
         self.graph = build_graph(self.exact_store, self.semantic_store)
         from ..style_memo import StyleMemoStore
         self.style_memo: "StyleMemoStore" = StyleMemoStore(book_id)
+        self._prefetched_exact: dict | None = None
+        self._prefetched_semantic: list[dict] | None = None
 
     def load_glossary(self, target_lang: str = "en-US"):
         self.exact_store.load_from_db(target_lang)
@@ -121,6 +120,16 @@ class TranslationAgent:
     def load_glossary_snapshot(self, snapshot_json: str):
         if snapshot_json and snapshot_json != "{}":
             self.exact_store.restore_snapshot(snapshot_json)
+
+    def set_prefetched_glossary(self, exact_matches: dict, semantic_matches: list[dict]):
+        """Accept pre-computed glossary results from ChapterPrefetcher.
+
+        When the prefetcher has already run exact-match and semantic-search
+        for this chapter in a background thread, the caller injects the
+        results here so _make_state can skip those lookups.
+        """
+        self._prefetched_exact = exact_matches
+        self._prefetched_semantic = semantic_matches
 
     def translate_chapter(
         self,
@@ -168,7 +177,13 @@ class TranslationAgent:
         # Exact matches: terms that appear in this chapter's text.
         # Use notes-enhanced format so the WRITE agent gets cultural context,
         # not just word-for-word mappings.
-        exact_matches = self.exact_store.match_in_text(content)
+        # If ChapterPrefetcher already ran these lookups in a background thread,
+        # use the cached results to skip the blocking lookups.
+        if self._prefetched_exact is not None:
+            exact_matches = self._prefetched_exact
+            self._prefetched_exact = None
+        else:
+            exact_matches = self.exact_store.match_in_text(content)
         exact_text = (
             self.exact_store.to_formatted_text_with_notes(exact_matches, target_lang=lang)
             if exact_matches
@@ -176,7 +191,11 @@ class TranslationAgent:
         )
 
         # Semantic matches: culturally related terms for context
-        semantic_hits = self.semantic_store.search(content, top_k=15, target_lang=lang)
+        if self._prefetched_semantic is not None:
+            semantic_hits = self._prefetched_semantic
+            self._prefetched_semantic = None
+        else:
+            semantic_hits = self.semantic_store.search(content, top_k=15, target_lang=lang)
         # Filter out terms already covered by exact matches
         semantic_hits = [t for t in semantic_hits if t["term_cn"] not in exact_matches]
         semantic_text = self._format_semantic(semantic_hits)
@@ -205,7 +224,7 @@ class TranslationAgent:
             "quality_issues": [],
             "retranslation_count": 0,
             "glossary_snapshot_json": "",
-            # v0.13 reader-centric fields
+            # v0.15 reader-centric fields
             "read_analysis": {},
             "readback_feedback": {},
             "context_signals": "",

@@ -28,7 +28,7 @@ Usage pattern (in Celery task or Gradio loop)::
 
 Thread safety: all shared state (``prefetched`` tuple) is guarded by a lock.
 If the prefetch is still running when ``get_if_ready`` is called, it returns
-``None`` and the normal (blocking) fetch_glossary path runs as fallback.
+``None`` and the normal (blocking) glossary lookup runs as fallback.
 """
 
 from concurrent.futures import ThreadPoolExecutor

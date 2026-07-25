@@ -10,7 +10,7 @@ def mock_llm_response():
     def _build(
         translated_text="She stepped into the grand hall, her heels clicking against the marble floor.",
         new_terms_found=None,
-        cultural_adaptation_notes=None,
+        adaptation_notes=None,
         chapter_summary="The heroine enters the grand hall and faces the CEO.",
     ):
         return json.dumps({
@@ -19,7 +19,7 @@ def mock_llm_response():
                 {"term_cn": "大殿", "term_en": "grand hall", "category": "location"},
                 {"term_cn": "霸总", "term_en": "Alpha CEO", "category": "culture"},
             ],
-            "cultural_adaptation_notes": cultural_adaptation_notes or [
+            "adaptation_notes": adaptation_notes or [
                 "Adapted '霸总' to 'Alpha CEO' for Western romance genre context"
             ],
             "chapter_summary": chapter_summary,
@@ -114,7 +114,7 @@ def mock_translate_invoke(mock_llm_response):
     def _patcher(
         translated_text="Su Nian opened her eyes and found herself lying on a large, unfamiliar bed.",
         new_terms_found=None,
-        target_path="src.agent.nodes.translate.ChatOpenAI",
+        target_path="src.agent.nodes.write.ChatOpenAI",
     ):
         import json as _json
         from unittest.mock import patch, MagicMock
