@@ -34,6 +34,7 @@ def fix_node(state: TranslatorState) -> dict:
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.1,
         max_tokens=16384,
+        request_timeout=120,
     )
 
     # Format the cold reader's feedback for the editor

@@ -42,6 +42,7 @@ def write_node(state: TranslatorState) -> dict:
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
         max_tokens=16384,
+        request_timeout=120,
     )
 
     # Format the READ analysis as context

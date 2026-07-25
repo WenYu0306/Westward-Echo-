@@ -49,6 +49,7 @@ def readback_node(state: TranslatorState) -> dict:
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.1,
         max_tokens=2048,
+        request_timeout=120,
     )
 
     user_prompt = READBACK_USER.format(chapter_content=translated_text)

@@ -92,6 +92,7 @@ def read_node(
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
         max_tokens=4096,
+        request_timeout=120,
     )
 
     target_lang = state.get("target_lang", "en-US")
