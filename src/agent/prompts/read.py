@@ -115,6 +115,14 @@ authority radiating from her household shrine. The English reader sees only \
 the label. Every such conceptual passage is an image gap. Tag it, and provide \
 sensory_anchors for the world BEHIND the label.
 
+**A paragraph of pure cultural exposition with ZERO sensory content is the \
+WORST kind of image gap.** It will kill pacing and make English readers skip. \
+If you see a paragraph that reads like a textbook definition — labels, \
+taxonomies, terminology lists without any concrete detail — flag it as \
+priority: "critical" and give sensory_anchors that let the WRITER replace \
+the ENTIRE paragraph with ONE vivid detail. One detail, well chosen, carries \
+more weight than a taxonomy.
+
 ### 3. Crafted Moments
 Authors bury craft in the text. Find it:
 - Wordplay, puns, names with double meanings

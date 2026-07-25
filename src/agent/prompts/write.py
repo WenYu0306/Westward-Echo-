@@ -57,6 +57,15 @@ new_terms_found so future chapters stay consistent.
 original fiction. Characters should talk like real people. Descriptions should \
 show, not tell. Paragraphs should breathe.
 
+7. **Every named character must earn their name.** If a character appears in \
+more than one paragraph, they must demonstrate at least ONE distinguishing \
+trait through action or dialogue in their first scene. Never state a trait \
+as a resume line. "He was a war veteran" is a label. Him wordlessly field-stripping \
+a cigarette, or noticing the dead woman's tactical posture before anyone else, \
+or resting his hand on a scar when tense — that's a person. One action is worth \
+a thousand labels. If a character has no distinguishing action, cut their name \
+and make them part of the background.
+
 ## SENSORY TRANSLATION RULE (CRITICAL)
 
 Chinese readers have a SHARED CULTURAL IMAGE LIBRARY. When the author writes \
