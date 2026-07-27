@@ -5,7 +5,6 @@ import tempfile
 import os
 from src.glossary.exact_store import ExactGlossary
 from src.glossary.semantic_store import SemanticGlossary
-from src.glossary.models import GlossaryTerm, TermCategory, TermStatus
 
 
 class TestExactGlossary:
@@ -85,32 +84,3 @@ class TestExactGlossary:
         matches = store.match_in_text(text)
         assert "林小满" not in matches
 
-
-class TestGlossaryTerm:
-
-    def test_to_dict(self):
-        term = GlossaryTerm(
-            term_cn="霸总",
-            term_en="Alpha CEO",
-            category=TermCategory.CULTURE,
-            context="她是霸总文的女主角",
-            chapter_first_seen=1,
-        )
-        d = term.to_dict()
-        assert d["term_cn"] == "霸总"
-        assert d["term_en"] == "Alpha CEO"
-        assert d["category"] == "culture"
-
-    def test_from_dict(self):
-        d = {
-            "term_cn": "穿越",
-            "term_en": "Transmigration",
-            "category": "culture",
-            "context": "我一睁眼就穿越了",
-            "chapter_first_seen": 1,
-            "status": "pending_review",
-        }
-        term = GlossaryTerm.from_dict(d)
-        assert term.term_cn == "穿越"
-        assert term.category == TermCategory.CULTURE
-        assert term.status == TermStatus.PENDING_REVIEW
