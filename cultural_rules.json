@@ -520,7 +520,608 @@
       }
     },
     "urban": {
-      "en-US": {}
+      "en-US": {
+        "_bridge_80111": {
+          "target": "Reader confused by 'Don't exchange for anything except making yourself a woman! Nothing else! Wait u': I had no idea wha",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_72917": {
+          "target": "Reader confused by 'Reward Points and Branch Story rewards... His stats read: Intelligence 107, Spir': The point system ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_19280": {
+          "target": "Reader confused by 'The Lord God seemed to read his intent. The Entertainment category flipped open.': 'The Lord God' is",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_28233": {
+          "target": "Reader confused by 'created a person at the Lord God': I don't know what the Lord God is — a machine, a deity, a place? ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_58618": {
+          "target": "Reader confused by 'the feelings he had suppressed for nearly ten years exploded. He grabbed a room ': This is framed as",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_89260": {
+          "target": "Reader confused by 'he saw only the cold white light of the Lord God's plaza': I don't understand the spatial relationsh",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_95221": {
+          "target": "Reader confused by 'That future... I didn't want it. I didn't want it.': What future? I assume something terrible happen",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_29276": {
+          "target": "Reader confused by 'The aftereffect was poison. His body was still trembling from it, the enhanced s': When did he get v",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_27871": {
+          "target": "Reader confused by 'in that moment of life and death, something inside him had unlocked—like those a': What exactly is a",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_54659": {
+          "target": "Reader confused by '“If you don't understand the rules, just think at the Lord God. It'll answer.”': What is the Lord Go",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_85301": {
+          "target": "Reader confused by 'The Lord God seemed to read his mind. The Entertainment category opened, and an ': How does he know ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_73678": {
+          "target": "Reader confused by 'First creation of a humanoid life form is free.': So he's literally creating a person? Is she a clon",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_33153": {
+          "target": "Reader confused by 'On her thighs and the sheets, faint traces of red.': This implies they had sex. But she's a 'created",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_8433": {
+          "target": "Reader confused by 'He ran toward the light. 'Tell me, Lord God... She's a created lifeform, isn't s': I don't know what",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_80125": {
+          "target": "Reader confused by 'He picked a room at random and took her. I didn't know how many times he'd turne': This happens very",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_41117": {
+          "target": "Reader confused by 'Zhang Jie, from the Hive. From that nightmare.': What is 'the Hive'? A place? An event? The term is ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_46532": {
+          "target": "Reader confused by 'Or maybe it was the Gene Lock Chu Xuan had described—an evolutionary state that ': Gene Lock is ment",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_65975": {
+          "target": "Reader confused by 'His Bloodkin heritage was already stitching flesh faster than any human should h': Bloodkin heritage",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_74323": {
+          "target": "Reader confused by 'He channeled Inner Qi into his Nà Ring and began sweeping supplies off the shelv': Inner Qi and Nà R",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_87142": {
+          "target": "Reader confused by 'In a cold room somewhere else, a boy sat on a floor that was too clean. He was m': The transition fr",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_30229": {
+          "target": "Reader confused by 'He was in the Gene Lock. And not the first stage.': What is a Gene Lock? The context suggests some k",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_68109": {
+          "target": "Reader confused by '\"I just unlocked my Vampiric Energy during Ju-On\"': What is 'Vampiric Energy'? Is it a power, a skil",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_71427": {
+          "target": "Reader confused by '\"I call it the Unlocked Gene Lock. In these nightmare worlds...\"': What exactly is the Gene Lock? It",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_61754": {
+          "target": "Reader confused by '\"A hundred reward points for ten days of peace\"': The reward point system is mentioned but never def",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_20090": {
+          "target": "Reader confused by '''Someone with unlocked genetic code could barely sense her.''': The term 'unlocked genetic code' is",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_51102": {
+          "target": "Reader confused by '''You're from an assassin clan too?''': Youssef says 'too'—does that mean he's also from an assassin",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_34633": {
+          "target": "Reader confused by ''Gene Lock Stage Two'': No explanation of what Gene Locks are. I assumed it's some power level syste",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_10300": {
+          "target": "Reader confused by ''Manaweya — shield, now!' and later 'the veiled Arabian woman shuddered'': I didn't know Manaweya wa",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_63702": {
+          "target": "Reader confused by ''The same needle that had killed Qi Tengyi'': Qi Tengyi wasn't in this chapter and I have no memory ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_14916": {
+          "target": "Reader confused by 'List of names: Shiva Gandian, Xuenai, Ram, Black Coal, Manaweya, Zheng Zha, Zhao': Too many characte",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_46747": {
+          "target": "Reader confused by ''Zheng Zha's eyes glazed over. The Gene Lock—second stage. A hot surge coiled up': Terms like 'Gene ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_92656": {
+          "target": "Reader confused by ''I'll take Zhang Jie down before she gets to you.' ... Later: 'Can you sense Zha': The pronoun for Z",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_51629": {
+          "target": "Reader confused by ''Death had set this one in motion.' ... 'Fuck you, Death! Just fuck off!'': Death is personified as ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_32432": {
+          "target": "Reader confused by 'He was still rolling when the heavy machine gun came out of his storage ring – a': The storage ring ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_88597": {
+          "target": "Reader confused by 'He didn't have time to activate the second-stage Gene Lock – the body's hidden p': Gene Lock and the",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_37347": {
+          "target": "Reader confused by 'Mass-produced first-stage Gene Lock unlocking – that was what the Lord God calle': The 'Lord God' is",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_29497": {
+          "target": "Reader confused by 'Cheng Xiao grinned, hefted the Zaku Electro Axe, and threw it like a discus. The': 'Zaku Electro Axe",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_63892": {
+          "target": "Reader confused by 'Zheng Z heard it as the Licker dropped from the ceiling. He didn't know what it ': The sentence refe",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_65208": {
+          "target": "Reader confused by 'His Gene Lock was active. Normal vision would be fifty at best.': What is a 'Gene Lock'? Earlier we ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_52612": {
+          "target": "Reader confused by 'He's got a Double-Arms-Four-Hands mutation': This mutation is never shown or explained. Does Dechai ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_36462": {
+          "target": "Reader confused by 'the woman who'd entered the Lord God's space because she had nothing left, and d': This backstory as",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_92392": {
+          "target": "Reader confused by 'Wind Arrow … The magic took a step, then another, then it was everywhere. Not fl': Earlier the arrow",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_96693": {
+          "target": "Reader confused by '“I think… my duplicate did the same.”': Mention of 'my duplicate'—I don't know if Zheng Zha has a cl",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_53139": {
+          "target": "Reader confused by 'the Death God Army's soldiers—Anubis-headed warriors': The 'Death God Army' with Egyptian-themed sol",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_92603": {
+          "target": "Reader confused by 'Chu Xuan set a glass jar on the table... 'I tested it with various solutions... ': The experiment de",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_26487": {
+          "target": "Reader confused by 'Zheng Zha turned to Zhan Lan. 'Any luck with the scan?' Zhan Lan shook her head.': Who is Zhan Lan? ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_3594": {
+          "target": "Reader confused by ''Imhotep. Suck the water out of this flesh. I'm curious—if cells lose all moistu': Imhotep is mentio",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_54217": {
+          "target": "Reader confused by ''The Lord God—the entity that controls our reincarnation cycle and assigns these': I pieced it toget",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_65298": {
+          "target": "Reader confused by ''the blood energy from my vampire infection'': Zheng Zha has a vampire infection? This was just drop",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_72557": {
+          "target": "Reader confused by ''It's a skill the Lord God gave me — focuses all my power into a single strike.'': First mention of ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_56825": {
+          "target": "Reader confused by ''The Lord God always has a primary objective hidden behind the scenario's surfac': This sentence ass",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_9340": {
+          "target": "Reader confused by 'She knew the Gene Lock, the system that lets humans push past their limits by un': Gene Lock is intr",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_59897": {
+          "target": "Reader confused by 'Chu Xuan, their team's strategist... said seven minutes until the base self-dest': Flash Spirit is a",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_86945": {
+          "target": "Reader confused by 'Zhao Yingkong, Zero, Zhang Heng, Cheng Xiao, Wang Xia, Qi Tengyi, and Liu Yu jer': Seven names are t",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_41229": {
+          "target": "Reader confused by ''Each team member receives 5000 reward points and one B-rank storyline.'': This game-like reward sys",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_49911": {
+          "target": "Reader confused by ''I was wrong, and so was Xiao Honglu. Freddy is a person. Nothing more. A flesh-': Xiao Honglu is on",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_23633": {
+          "target": "Reader confused by 'Sword of Victory and Covenant, a legendary weapon from the Lord God's armory.': The weapon's name is",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_28475": {
+          "target": "Reader confused by 'After that flaming figure had appeared out of nowhere and nearly killed three me': This is a referen",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_80999": {
+          "target": "Reader confused by 'Cosmos-Ending—a power that consumed matter and light and collapsed into absolute': The description i",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_75191": {
+          "target": "Reader confused by 'At the same time, on another part of the shattered battlefield, another duel mir': This scene shift ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_11163": {
+          "target": "Reader confused by 'By spending the Causality Points stored within it, she could rewrite events... B': The concept is ex",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_25124": {
+          "target": "Reader confused by ''Chu Xuan faced his evil duplicate—a perfect copy from the Demon Reincarnation S': The name 'Demon R",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_2843": {
+          "target": "Reader confused by ''The pulse locked everything: air solidified, dust hung motionless, even sound d': Zhang Xiaoxue app",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_1545": {
+          "target": "Reader confused by 'The life-linking ropes—enchanted threads that returned to him only when their we': Wait, ropes that ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_96980": {
+          "target": "Reader confused by 'A torrent of primal chaos energy erupted from his every pore—the two opposing fo': Heaven Splitting ",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_36231": {
+          "target": "Reader confused by '\"the evil duplicate of Zheng Zha was one of them—a clone born of the Demon Team,': This throws out t",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_64313": {
+          "target": "Reader confused by '\"Across the countless trial worlds of the reincarnation cycle, strength was meas': That's a lot of s",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_67806": {
+          "target": "Reader confused by 'The Hidden Dragon Transformation meant nothing; the force caved his belly inward': Hidden Dragon Tra",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_35918": {
+          "target": "Reader confused by ''These are only seeds. A true black hole would have torn us both down to quarks ': The distinction b",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_16963": {
+          "target": "Reader confused by 'The Primordial—his fusion of the universe's creative force and its entropy into ': I had to pause he",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_20503": {
+          "target": "Reader confused by ''So this is your level,' Zheng Zha said quietly. 'Fourth-stage advanced. Approac': Earlier in the ch",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_40714": {
+          "target": "Reader confused by 'The ropes on his wrist—soul bonds that connected him to each teammate's life for': Soul bonds, ropes",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_11798": {
+          "target": "Reader confused by '\"the pure power of true yuan and the demonic corruption\"': 'True yuan' is not explained. I gather it",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_97199": {
+          "target": "Reader confused by '\"a technique called Primordial Chaos, Open Heaven and Earth, which fused them in': The technique nam",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "_bridge_7478": {
+          "target": "Reader confused by '\"Primordial Darkness, End of the Universe—a crushing void that unraveled matter ': Another technique",
+          "note": "Bridge pattern from limitless_horror_segmented style memo"
+        },
+        "无限恐怖": {
+          "target": "Infinite Horror (keep as title)",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "名为生化": {
+          "target": "Biohazard",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "主神": {
+          "target": "Lord God",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "爬行者": {
+          "target": "Licker",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "猛鬼街": {
+          "target": "A Nightmare on Elm Street",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "马修·艾迪森": {
+          "target": "Matthew Addison",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "生化危机": {
+          "target": "Biohazard",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "火焰女皇": {
+          "target": "Red Queen",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "丧尸": {
+          "target": "Zombie (Standard horror term; no change needed.)",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "精神临界值突破": {
+          "target": "Mental Threshold Breached",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "B级恐怖支线剧情": {
+          "target": "B-rank Horror Side Quest",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "精神值": {
+          "target": "Spirit",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "奖励点数": {
+          "target": "Reward Points",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "奖励点": {
+          "target": "Reward Points",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "B餐厅": {
+          "target": "B Room",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "沙漠之鹰": {
+          "target": "Desert Eagle",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "抹杀": {
+          "target": "erased",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "兑换品": {
+          "target": "Redeemable items / Exchange rewards",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "卡普兰": {
+          "target": "Kaplan",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "蜂房": {
+          "target": "the Hive",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "青梅竹马": {
+          "target": "childhood sweethearts",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "萝丽": {
+          "target": "Luo Li",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "活着的证明": {
+          "target": "Proof That I'm Alive (or 'Proof of Being Alive')",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "制造出来的生命体": {
+          "target": "created lifeform",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "回到原点": {
+          "target": "Return to Origin",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "制造生命体": {
+          "target": "Created Lifeform",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "处男": {
+          "target": "virginity",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "精神力": {
+          "target": "Spirit",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "细胞活力": {
+          "target": "Vitality",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "免疫力强度": {
+          "target": "Resistance",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "支线剧情 (in the context of B级恐怖支线剧情": {
+          "target": "C级转换) → Side Quest",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "血族 (used throughout the bloodline descriptions)": {
+          "target": "Vampire (not 'Blood Clan' or 'Kindred')",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "妖异的俊美": {
+          "target": "uncanny beauty / unsettling handsomeness",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "内力": {
+          "target": "Inner Qi",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "气功": {
+          "target": "Qigong (Basic/Intermediate)",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "血族能量": {
+          "target": "Vampiric Energy",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "修真技术": {
+          "target": "Cultivation techniques / the craft of cultivation",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "灵器": {
+          "target": "Spirit artifact / Cultivation artifact",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "灵体生物": {
+          "target": "Spirit entities / Spectral beings",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "仙人": {
+          "target": "Immortals (cultivated)",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "避邪桃木剑": {
+          "target": "Peach-wood sword of warding",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "嫂子": {
+          "target": "your sister-in-law / the lady of the house",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "素质点": {
+          "target": "attribute points / stat points",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "内力 / 血族能量": {
+          "target": "Inner Qi / Vampiric Energy",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "古典美女": {
+          "target": "classical beauty",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "姐姐妹妹": {
+          "target": "big sister / little sister",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "恶意护身符": {
+          "target": "Malice Talisman",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "止血急救喷雾剂": {
+          "target": "Hemostatic Spray",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "口服式解毒剂": {
+          "target": "Antidote (Oral)",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "高效绷带": {
+          "target": "High-Efficiency Bandage",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "异形一": {
+          "target": "Alien 1",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "五四型": {
+          "target": "Type 54",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "喷血喷雾剂": {
+          "target": "Hemostatic Spray",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "大校": {
+          "target": "Senior Colonel",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "龙隐军事基地": {
+          "target": "Dragon's Shadow Military Base",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "霸王": {
+          "target": "The Baron",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "零点": {
+          "target": "Zero",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "止血喷雾剂": {
+          "target": "Hemostatic Spray",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "鲨鱼皮匕首": {
+          "target": "sharkskin dagger",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "火力手": {
+          "target": "heavy weapons specialist",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "基因锁": {
+          "target": "Gene Lock",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "皇后": {
+          "target": "Queen",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "山顶洞人": {
+          "target": "Peking Man site",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "两米七八": {
+          "target": "around nine feet",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "三十米": {
+          "target": "thirty meters / a hundred feet",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "异形": {
+          "target": "Xenomorph",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "菜鸟 / 资深者": {
+          "target": "noob / veteran",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "剧情人物": {
+          "target": "the original crew / the ship's characters",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "利齿": {
+          "target": "teeth / serrated teeth",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "纳戒": {
+          "target": "Nà Ring",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "种子 (anime reference)": {
+          "target": "entering the SEED",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "血族": {
+          "target": "Bloodkin / Vampiric bloodline",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "内脏 (功法相关)": {
+          "target": "Inner Qi",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "修真器具": {
+          "target": "cultivation artifacts",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        },
+        "内部科学 / 外部科学": {
+          "target": "internal science / external science",
+          "note": "Auto-extracted from limitless_horror_segmented translation memory"
+        }
+      }
     },
     "folk_religion": {
       "en-US": {

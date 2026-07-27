@@ -136,6 +136,7 @@ def read_node(
         TranslationStats.record_api_call(target_lang)
         response = breaker.call(llm.invoke, messages)
         TranslationStats.record_api_success(target_lang)
+        _capture_read_tokens(response)
     except CircuitBreakerOpenError:
         TranslationStats.record_api_failure(target_lang)
         raise
@@ -159,6 +160,20 @@ def read_node(
         "context_signals": context_signals,
         "image_gaps": analysis.get("image_gaps", []),
     }
+
+
+def _capture_read_tokens(response) -> None:
+    """Record READ agent token usage — always Pro tier."""
+    try:
+        usage = response.response_metadata.get("token_usage", {})
+        if usage:
+            TranslationStats.record_tokens(
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+                tier="pro",
+            )
+    except Exception:
+        pass
 
 
 def _parse_read_response(content: str) -> dict:

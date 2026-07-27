@@ -42,20 +42,21 @@ class TranslationStats:
     _recent_api_calls: List[tuple] = []    # [(timestamp, lang, success), ...]
     _max_recent = 200
 
-    # Token / cost tracking
-    _tokens_input: int = 0
-    _tokens_output: int = 0
+    # Token / cost tracking (per model tier)
+    _tokens_input_flash: int = 0
+    _tokens_output_flash: int = 0
+    _tokens_input_pro: int = 0
+    _tokens_output_pro: int = 0
 
     # Session start time
     _start_time: float = time.monotonic()
 
     # Pricing constants (DeepSeek V4, USD per million tokens, cache-miss)
-    # Flash: $0.14/M input,  $0.28/M output  — default for WRITE/READBACK/FIX
-    # Pro:   $0.435/M input, $0.87/M output  — READ node only
-    # Estimates use Flash pricing (conservative; actual cost slightly higher
-    # from READ-Pro calls on non-sample chapters).
-    _PRICE_INPUT_PER_M = 0.14   # $0.14/M input
-    _PRICE_OUTPUT_PER_M = 0.28  # $0.28/M output
+    # Source: https://api-docs.deepseek.com/quick_start/pricing/ (2026-07)
+    _PRICE_FLASH_INPUT_PER_M = 0.14   # deepseek-v4-flash
+    _PRICE_FLASH_OUTPUT_PER_M = 0.28
+    _PRICE_PRO_INPUT_PER_M = 0.435    # deepseek-v4-pro
+    _PRICE_PRO_OUTPUT_PER_M = 0.87
 
     @classmethod
     def record_api_call(cls, lang: str = "en-US"):
@@ -110,25 +111,45 @@ class TranslationStats:
         cls.record_failure(lang)
 
     @classmethod
-    def record_tokens(cls, input_tokens: int, output_tokens: int):
-        """Accumulate token usage from an LLM API response."""
+    def record_tokens(cls, input_tokens: int, output_tokens: int, tier: str = "flash"):
+        """Accumulate token usage from an LLM API response.
+
+        Args:
+            input_tokens: prompt tokens consumed
+            output_tokens: completion tokens generated
+            tier: ``"flash"`` (DeepSeek V4 Flash) or ``"pro"`` (DeepSeek V4 Pro)
+        """
         with cls._lock:
-            cls._tokens_input += input_tokens
-            cls._tokens_output += output_tokens
+            if tier == "pro":
+                cls._tokens_input_pro += input_tokens
+                cls._tokens_output_pro += output_tokens
+            else:
+                cls._tokens_input_flash += input_tokens
+                cls._tokens_output_flash += output_tokens
 
     @classmethod
     def token_snapshot(cls) -> dict:
         """Return {total, input, output, estimated_cost_usd} for the session."""
         with cls._lock:
-            total = cls._tokens_input + cls._tokens_output
+            flash_in = cls._tokens_input_flash
+            flash_out = cls._tokens_output_flash
+            pro_in = cls._tokens_input_pro
+            pro_out = cls._tokens_output_pro
+            total = flash_in + flash_out + pro_in + pro_out
             cost = (
-                (cls._tokens_input / 1_000_000) * cls._PRICE_INPUT_PER_M
-                + (cls._tokens_output / 1_000_000) * cls._PRICE_OUTPUT_PER_M
+                (flash_in / 1_000_000) * cls._PRICE_FLASH_INPUT_PER_M
+                + (flash_out / 1_000_000) * cls._PRICE_FLASH_OUTPUT_PER_M
+                + (pro_in / 1_000_000) * cls._PRICE_PRO_INPUT_PER_M
+                + (pro_out / 1_000_000) * cls._PRICE_PRO_OUTPUT_PER_M
             )
             return {
                 "total": total,
-                "input": cls._tokens_input,
-                "output": cls._tokens_output,
+                "input": flash_in + pro_in,
+                "output": flash_out + pro_out,
+                "flash_input": flash_in,
+                "flash_output": flash_out,
+                "pro_input": pro_in,
+                "pro_output": pro_out,
                 "estimated_cost_usd": round(cost, 4),
             }
 
@@ -136,8 +157,10 @@ class TranslationStats:
     def reset_tokens(cls):
         """Reset token counters (e.g. at start of a new job)."""
         with cls._lock:
-            cls._tokens_input = 0
-            cls._tokens_output = 0
+            cls._tokens_input_flash = 0
+            cls._tokens_output_flash = 0
+            cls._tokens_input_pro = 0
+            cls._tokens_output_pro = 0
 
     @classmethod
     def snapshot(cls) -> dict:
@@ -187,12 +210,18 @@ class TranslationStats:
                 "session_start": time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ", time.gmtime(cls._start_time)
                 ),
-                "tokens_input": cls._tokens_input,
-                "tokens_output": cls._tokens_output,
-                "tokens_total": cls._tokens_input + cls._tokens_output,
+                "tokens_input": cls._tokens_input_flash + cls._tokens_input_pro,
+                "tokens_output": cls._tokens_output_flash + cls._tokens_output_pro,
+                "tokens_total": cls._tokens_input_flash + cls._tokens_input_pro + cls._tokens_output_flash + cls._tokens_output_pro,
+                "tokens_flash_input": cls._tokens_input_flash,
+                "tokens_flash_output": cls._tokens_output_flash,
+                "tokens_pro_input": cls._tokens_input_pro,
+                "tokens_pro_output": cls._tokens_output_pro,
                 "estimated_cost_usd": round(
-                    (cls._tokens_input / 1_000_000) * cls._PRICE_INPUT_PER_M
-                    + (cls._tokens_output / 1_000_000) * cls._PRICE_OUTPUT_PER_M,
+                    (cls._tokens_input_flash / 1_000_000) * cls._PRICE_FLASH_INPUT_PER_M
+                    + (cls._tokens_output_flash / 1_000_000) * cls._PRICE_FLASH_OUTPUT_PER_M
+                    + (cls._tokens_input_pro / 1_000_000) * cls._PRICE_PRO_INPUT_PER_M
+                    + (cls._tokens_output_pro / 1_000_000) * cls._PRICE_PRO_OUTPUT_PER_M,
                     4,
                 ),
             }

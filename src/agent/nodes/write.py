@@ -110,7 +110,7 @@ def write_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_failure(target_lang)
         raise
 
-    _capture_response_tokens(response)
+    _capture_response_tokens(response, tier="flash" if flash else "pro")
 
     result = _parse_write_response(
         response.content,
@@ -264,7 +264,7 @@ def _format_image_gaps(gaps: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def _capture_response_tokens(response) -> None:
+def _capture_response_tokens(response, tier: str = "flash") -> None:
     """Extract token usage from a LangChain AIMessage and record it."""
     try:
         usage = response.response_metadata.get("token_usage", {})
@@ -272,6 +272,7 @@ def _capture_response_tokens(response) -> None:
             TranslationStats.record_tokens(
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
+                tier=tier,
             )
     except Exception:
         pass

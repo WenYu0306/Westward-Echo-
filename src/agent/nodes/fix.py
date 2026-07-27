@@ -60,6 +60,7 @@ def fix_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_call(target_lang)
         response = breaker.call(llm.invoke, messages)
         TranslationStats.record_api_success(target_lang)
+        _capture_fix_tokens(response)
     except CircuitBreakerOpenError:
         TranslationStats.record_api_failure(target_lang)
         raise
@@ -119,6 +120,20 @@ def _format_readback_feedback(feedback: dict) -> str:
             parts.append(f"- {m}")
 
     return "\n\n".join(parts) if parts else "(No specific issues — the reader just didn't enjoy it.)"
+
+
+def _capture_fix_tokens(response) -> None:
+    """Record FIX agent token usage — Flash tier."""
+    try:
+        usage = response.response_metadata.get("token_usage", {})
+        if usage:
+            TranslationStats.record_tokens(
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+                tier="flash",
+            )
+    except Exception:
+        pass
 
 
 def _parse_fix_response(content: str) -> dict:

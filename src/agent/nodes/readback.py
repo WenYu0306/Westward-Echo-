@@ -53,7 +53,22 @@ def readback_node(state: TranslatorState) -> dict:
         max_retries=0,
     )
 
-    user_prompt = READBACK_USER.format(chapter_content=translated_text)
+    # Build previous context for the cold reader
+    prev_summary = state.get("previous_chapter_summary", "")
+    ch_num = state.get("chapter_number", 0)
+    if prev_summary and ch_num > 1:
+        prev_context = (
+            "## PREVIOUS CHAPTER SUMMARY\n"
+            f"You are reading Chapter {ch_num}. The previous chapter ended with:\n"
+            f"{prev_summary[:400]}\n\n"
+        )
+    else:
+        prev_context = ""
+
+    user_prompt = READBACK_USER.format(
+        previous_context=prev_context,
+        chapter_content=translated_text,
+    )
 
     messages = [
         SystemMessage(content=READBACK_SYSTEM),
@@ -67,6 +82,7 @@ def readback_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_call(target_lang)
         response = breaker.call(llm.invoke, messages)
         TranslationStats.record_api_success(target_lang)
+        _capture_readback_tokens(response)
     except CircuitBreakerOpenError:
         TranslationStats.record_api_failure(target_lang)
         raise
@@ -110,6 +126,20 @@ def readback_node(state: TranslatorState) -> dict:
         "quality_score": quality_score,
         "quality_issues": issues,
     }
+
+
+def _capture_readback_tokens(response) -> None:
+    """Record READBACK token usage — Flash tier."""
+    try:
+        usage = response.response_metadata.get("token_usage", {})
+        if usage:
+            TranslationStats.record_tokens(
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+                tier="flash",
+            )
+    except Exception:
+        pass
 
 
 def _parse_readback_response(content: str) -> dict:

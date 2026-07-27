@@ -90,6 +90,7 @@ will review and decide. Your job is to surface friction, not to be polite.
 """
 
 READBACK_USER = """\
+{previous_context}
 ## CHAPTER TO READ
 
 {chapter_content}
