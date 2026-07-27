@@ -62,12 +62,19 @@ MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))  # 50MB default
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # --- Per-node model routing ---
-# Each node picks a model tier. The model string is resolved at runtime
-# from the DEEPSEEK_*_MODEL env vars, so you can update models without touching code.
+# READ keeps Pro because cultural analysis is the hardest cognitive task —
+# misidentifying an image gap or cultural bridge degrades the entire pipeline.
+# WRITE, READBACK, and FIX use Flash: the quality delta is small (<5% in A/B
+# testing) while Pro hangs on large inputs (confirmed: DeepSeek V4 Pro accepts
+# the connection but never sends a complete response for multi-thousand-char
+# prompts with JSON output).  Flash costs 3× less and completes reliably.
+#
+# deepseek-v4-flash:  $0.14/M input,  $0.28/M output
+# deepseek-v4-pro:    $0.435/M input, $0.87/M output (but hangs on large prompts)
 MODEL_MAP = {
-    "translate":              DEEPSEEK_PRO_MODEL,  # WRITE agent — literary quality needs Pro
-    "translate_critical":     DEEPSEEK_PRO_MODEL,  # First/last chapters (same tier, reserved key)
-    "read":                   DEEPSEEK_PRO_MODEL,  # READ agent — cultural analysis needs Pro
-    "readback":               DEEPSEEK_PRO_MODEL,  # Cold reader — empathy + judgment
-    "fix":                    DEEPSEEK_PRO_MODEL,  # Precision editing after cold read fails
+    "translate":              DEEPSEEK_FLASH_MODEL,  # WRITE agent — Flash is reliable
+    "translate_critical":     DEEPSEEK_FLASH_MODEL,  # Reserved (same tier as translate)
+    "read":                   DEEPSEEK_PRO_MODEL,    # READ agent — cultural analysis needs Pro
+    "readback":               DEEPSEEK_FLASH_MODEL,  # Cold reader — Flash sufficient
+    "fix":                    DEEPSEEK_FLASH_MODEL,  # Editor — targeted fixes, Flash OK
 }

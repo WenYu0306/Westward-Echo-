@@ -104,22 +104,84 @@ class StyleMemoStore:
         with path.open("a", encoding="utf-8") as f:
             f.write(entry)
 
+    def update_from_read_analysis(
+        self,
+        read_analysis: dict,
+        chapter_number: int,
+    ):
+        """Extract lessons from the READ agent's analysis — runs EVERY chapter.
+
+        Unlike ``update_from_feedback`` which requires a cold-read (sample
+        chapters only), this method pulls directly from the READ agent's
+        structured analysis which is available on every chapter regardless
+        of fast/sample mode.
+
+        Deterministic extraction — no LLM needed.
+        """
+        ra = read_analysis or {}
+
+        # ── Terminology: capture every new term decision ──────
+        for td in ra.get("terminology_decisions", []):
+            cn = td.get("term_cn", "")
+            en = td.get("proposed_en", "")
+            reasoning = td.get("reasoning", "")
+            cultural_note = td.get("cultural_note", "")
+            if cn and en:
+                entry = f"{cn} → {en}"
+                if cultural_note:
+                    entry += f" // {cultural_note[:120]}"
+                elif reasoning:
+                    entry += f" ({reasoning[:120]})"
+                self.record_lesson("terms", entry, chapter_number)
+
+        # ── Bridges: every cultural gap flagged ────────────────
+        for cg in ra.get("cultural_gaps", []):
+            element = cg.get("element", "")[:60]
+            strategy = cg.get("bridge_strategy", "context")
+            guidance = cg.get("bridge_guidance", "")[:150]
+            if element:
+                self.record_lesson(
+                    "bridges",
+                    f"[{strategy}] {element} — {guidance}",
+                    chapter_number,
+                )
+
+        # ── Pacing: capture the READ agent's structural notes ──
+        pacing = ra.get("pacing_notes", "")
+        if pacing and len(pacing.strip()) > 10:
+            self.record_lesson("pacing", pacing.strip()[:300], chapter_number)
+
+        # ── Image gaps: record count + priority breakdown ──────
+        image_gaps = ra.get("image_gaps", [])
+        if image_gaps:
+            critical = sum(1 for g in image_gaps if g.get("priority") == "critical")
+            high = sum(1 for g in image_gaps if g.get("priority") == "high")
+            self.record_lesson(
+                "pacing",
+                f"{len(image_gaps)} image gaps detected (critical={critical}, high={high}). "
+                f"WRITER must rebuild these scenes with sensory_anchors.",
+                chapter_number,
+            )
+        else:
+            self.record_lesson(
+                "pacing",
+                f"No image gaps detected — chapter may be too abstract. "
+                f"Check if cultural concepts were explained rather than shown.",
+                chapter_number,
+            )
+
     def update_from_feedback(
         self,
         readback_feedback: dict,
         read_analysis: dict,
         chapter_number: int,
     ):
-        """Extract concrete lessons from READBACK + READ analysis.
+        """Extract concrete lessons from READBACK cold-reader feedback.
 
-        This is a lightweight post-processing step that runs AFTER the
-        pipeline.  It reads the cold reader's complaints and converts
-        them into memo entries.
-
-        Rules are simple and deterministic — no LLM needed for extraction.
+        Runs only on sample chapters (when READBACK is active). Complements
+        ``update_from_read_analysis`` which runs every chapter.
         """
         fb = readback_feedback or {}
-        ra = read_analysis or {}
 
         # ── Pacing: if reader was bored or wanted to skip ──────
         for eg in fb.get("engagement_gaps", []):
@@ -132,16 +194,6 @@ class StyleMemoStore:
                     f"explanatory passages ≤3 paragraphs, broken by action.",
                     chapter_number,
                 )
-
-        # ── Pacing: exposition-length rules from image_gaps ────
-        ig_count = len(ra.get("image_gaps", []))
-        if ig_count == 0:
-            self.record_lesson(
-                "pacing",
-                f"No image gaps detected — chapter may be too abstract. "
-                f"Check if cultural concepts were explained rather than shown.",
-                chapter_number,
-            )
 
         # ── Comprehension: cultural concepts that confused ─────
         for ci in fb.get("comprehension_issues", []):

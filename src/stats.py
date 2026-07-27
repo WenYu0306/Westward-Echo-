@@ -49,7 +49,11 @@ class TranslationStats:
     # Session start time
     _start_time: float = time.monotonic()
 
-    # Pricing constants (DeepSeek V4, USD per million tokens)
+    # Pricing constants (DeepSeek V4, USD per million tokens, cache-miss)
+    # Flash: $0.14/M input,  $0.28/M output  — default for WRITE/READBACK/FIX
+    # Pro:   $0.435/M input, $0.87/M output  — READ node only
+    # Estimates use Flash pricing (conservative; actual cost slightly higher
+    # from READ-Pro calls on non-sample chapters).
     _PRICE_INPUT_PER_M = 0.14   # $0.14/M input
     _PRICE_OUTPUT_PER_M = 0.28  # $0.28/M output
 

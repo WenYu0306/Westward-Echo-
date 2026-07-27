@@ -146,6 +146,13 @@ abbreviate, summarize, or skip passages. Every scene in the source must have \
 an equivalent in the output — even compressed scenes still convey their story \
 function. If you received a reader analysis that says to cut something, \
 compress it creatively, don't delete it silently.
+
+**ZERO-CHINESE RULE: Not a single Chinese character may appear in the \
+output.** No 的, no 了, no pinyin, no CJK character of any kind. Every \
+character in translated_text must be Latin alphabet, standard punctuation, \
+or Unicode quotes/dashes. If a concept has no exact English equivalent, \
+describe it in English or use the approved glossary term. Chinese \
+characters in the output are the #1 quality failure — strip them all.
 """
 
 WRITE_USER = """\

@@ -47,6 +47,23 @@ def find_untranslated_chinese(text: str) -> list[str]:
     return list(set(CHINESE_CHAR_PATTERN.findall(text)))
 
 
+def strip_chinese_residue(text: str) -> tuple[str, int]:
+    """Remove isolated Chinese characters from translated text.
+
+    Aggressive strategy: delete every CJK character.  LLMs sometimes
+    leak 2-6 source characters in long translations — this ensures
+    the reader never sees them.  Returns (cleaned_text, count_removed).
+    """
+    if not text:
+        return text, 0
+    before = len(text)
+    cleaned = CHINESE_CHAR_PATTERN.sub("", text)
+    # Collapse whitespace that the deletion may have left behind
+    cleaned = re.sub(r" {2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip(), before - len(cleaned)
+
+
 def check_and_record(
     text: str,
     job_id=None,

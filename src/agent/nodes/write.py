@@ -41,6 +41,7 @@ def write_node(state: TranslatorState) -> dict:
         temperature=0.3,
         max_tokens=8192,
         request_timeout=120,
+        max_retries=0,
     )
 
     # Format the READ analysis as context
@@ -122,10 +123,16 @@ def write_node(state: TranslatorState) -> dict:
     # Output quality guard: check for obvious garbage
     from ...output_guard import (
         check_and_record, sanitize_translation, has_untranslated_chinese,
+        strip_chinese_residue,
     )
 
     if has_untranslated_chinese(translated_text) and target_lang != "zh-CN":
-        logger.warning("WRITE ch%d: untranslated Chinese characters detected", chapter_number)
+        cleaned, removed = strip_chinese_residue(translated_text)
+        logger.warning(
+            "WRITE ch%d: %d Chinese chars stripped (%d chars before → %d after)",
+            chapter_number, removed, len(translated_text), len(cleaned),
+        )
+        translated_text = cleaned
 
     warnings = check_and_record(
         translated_text,
@@ -159,6 +166,12 @@ def write_node(state: TranslatorState) -> dict:
             retry_result = _parse_write_response(retry_response.content, chapter_number, target_lang)
             retry_text = retry_result.get("translated_text", "")
             if retry_text and len(retry_text.strip()) >= RETRY_THRESHOLD:
+                if has_untranslated_chinese(retry_text) and target_lang != "zh-CN":
+                    retry_text, removed = strip_chinese_residue(retry_text)
+                    logger.warning(
+                        "WRITE ch%d retry: %d Chinese chars stripped",
+                        chapter_number, removed,
+                    )
                 translated_text = sanitize_translation(retry_text)
                 result = retry_result
                 logger.info("WRITE ch%d: retry successful", chapter_number)

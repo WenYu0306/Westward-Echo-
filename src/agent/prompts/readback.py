@@ -76,13 +76,17 @@ Return a single JSON object — no preamble, no markdown fences:
   "verdict": "PASS"
 }
 
-Set "verdict" to "PASS" if you would keep reading and understood the story. \
-Set it to "NEEDS_FIX" if confusion or boredom would make you stop reading.
+Set "verdict" to "PASS" if the chapter was clear and engaging with no \
+significant friction. Set it to "NEEDS_FIX" if ANY of these apply:
 
-IMPORTANT: "NEEDS_FIX" means the chapter has problems that would make a real \
-reader quit. Use it when there are genuine comprehension or engagement failures. \
-Minor awkwardness or "I wish I knew more about X" is NOT a fix-needed issue — \
-that's normal serial fiction.
+- You had to re-read passages to understand what was happening
+- Jargon or unexplained terms piled up to the point of confusion
+- A scene's pacing felt off (too fast to follow, too slow and boring)
+- Character voices blurred together or felt interchangeable
+- A specific paragraph made you wince at the prose quality
+
+When in doubt between PASS and NEEDS_FIX, choose NEEDS_FIX — the editor \
+will review and decide. Your job is to surface friction, not to be polite.
 """
 
 READBACK_USER = """\

@@ -33,6 +33,7 @@ def fix_node(state: TranslatorState) -> dict:
         temperature=0.1,
         max_tokens=8192,
         request_timeout=120,
+        max_retries=0,
     )
 
     # Format the cold reader's feedback for the editor

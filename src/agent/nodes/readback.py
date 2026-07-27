@@ -50,6 +50,7 @@ def readback_node(state: TranslatorState) -> dict:
         temperature=0.1,
         max_tokens=2048,
         request_timeout=120,
+        max_retries=0,
     )
 
     user_prompt = READBACK_USER.format(chapter_content=translated_text)

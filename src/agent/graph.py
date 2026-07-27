@@ -244,7 +244,7 @@ class TranslationAgent:
     ) -> dict:
         """Run the 4-node pipeline on a single chapter."""
         state = self._make_state(title, content, number, prev_summary, lang, genre, skip_readback, use_flash_writer)
-        result = self.graph.invoke(state)
+        result = self.graph.invoke(state, config={"recursion_limit": 100})
         return self._post_process(result, lang)
 
     def _translate_split(
@@ -311,8 +311,12 @@ class TranslationAgent:
         readback_feedback = result.get("readback_feedback", {})
         chapter_number = result.get("chapter_number", 0)
 
-        # ── Update style memo from this chapter's lessons ────
-        if readback_feedback or read_analysis:
+        # ── Update style memo from READ analysis (EVERY chapter) ──
+        if read_analysis:
+            self.style_memo.update_from_read_analysis(read_analysis, chapter_number)
+
+        # ── Supplement with cold-reader feedback (sample chapters only) ──
+        if readback_feedback:
             self.style_memo.update_from_feedback(
                 readback_feedback, read_analysis, chapter_number,
             )
