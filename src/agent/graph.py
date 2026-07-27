@@ -113,6 +113,61 @@ class TranslationAgent:
         self.style_memo: "StyleMemoStore" = StyleMemoStore(book_id)
         self._prefetched_exact: dict | None = None
         self._prefetched_semantic: list[dict] | None = None
+        self._chapter_context: list[str] = []  # Rolling buffer: last N chapter summaries
+
+    def _update_context(self, chapter_number: int, summary: str):
+        """Accumulate recent chapter summaries for cold reader context."""
+        if summary and len(summary) > 20:
+            self._chapter_context.append(
+                f"[Ch{chapter_number}] {summary.strip()[:300]}"
+            )
+        # Keep the last 5
+        if len(self._chapter_context) > 5:
+            self._chapter_context = self._chapter_context[-5:]
+
+    def _build_cold_read_context(self, chapter_number: int = 0) -> str:
+        """Build a one-page briefing for the cold reader — no LLM needed."""
+        parts = []
+
+        # ── 1. What's happened recently ──
+        if self._chapter_context:
+            parts.append("## PREVIOUSLY (recent chapter summaries)\n")
+            for entry in self._chapter_context:
+                parts.append(f"- {entry}")
+            parts.append("")
+        elif chapter_number > 1:
+            parts.append("## PREVIOUSLY\n"
+                         f"You are reading Chapter {chapter_number}. "
+                         "This is an early chapter.\n")
+
+        # ── 2. Who's who (from exact glossary) ──
+        known = self.exact_store.to_dict()
+        char_list = []
+        for cn, en in known.items():
+            if len(cn) >= 2 and len(en) >= 2:
+                char_list.append(f"  - **{en}** ({cn})")
+            if len(char_list) >= 15:
+                break
+        if char_list:
+            parts.append("## CHARACTERS\n" + '\n'.join(char_list) + "\n")
+
+        # ── 3. Key terms from style memo ──
+        terms_text = self.style_memo.read_all()
+        term_lines = []
+        for line in terms_text.split('\n'):
+            stripped = line.strip()
+            if stripped.startswith('[') and '→' in stripped:
+                term_lines.append(f"- {stripped[:120]}")
+                if len(term_lines) >= 8:
+                    break
+        if term_lines:
+            parts.append("## ESTABLISHED TERMINOLOGY\n")
+            parts.extend(term_lines)
+            parts.append("")
+
+        if len(parts) <= 1:
+            return ""
+        return '\n'.join(parts)
 
     def load_glossary(self, target_lang: str = "en-US"):
         self.exact_store.load_from_db(target_lang)
@@ -238,6 +293,10 @@ class TranslationAgent:
             ),
             "skip_readback": skip_readback,
             "use_flash_writer": use_flash_writer,
+            # Cold reader briefing
+            "cold_read_context": self._build_cold_read_context(
+                chapter_number=number,
+            ),
             # Kept for backward compat (unused by new nodes, harmless)
             "term_conflicts": [],
             "resolved_conflicts": [],
@@ -374,6 +433,11 @@ class TranslationAgent:
 
         # Snapshot exact glossary for checkpoint
         result["glossary_snapshot_json"] = self.exact_store.snapshot()
+
+        # ── Feed the cold reader's context buffer ──
+        chapter_summary = result.get("chapter_summary", "")
+        chapter_number = result.get("chapter_number", 0)
+        self._update_context(chapter_number, chapter_summary)
 
         return result
 

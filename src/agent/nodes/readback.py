@@ -54,19 +54,12 @@ def readback_node(state: TranslatorState) -> dict:
     )
 
     # Build previous context for the cold reader
-    prev_summary = state.get("previous_chapter_summary", "")
-    ch_num = state.get("chapter_number", 0)
-    if prev_summary and ch_num > 1:
-        prev_context = (
-            "## PREVIOUS CHAPTER SUMMARY\n"
-            f"You are reading Chapter {ch_num}. The previous chapter ended with:\n"
-            f"{prev_summary[:400]}\n\n"
-        )
-    else:
-        prev_context = ""
+    cold_context = state.get("cold_read_context", "")
+    if not cold_context:
+        cold_context = ""
 
     user_prompt = READBACK_USER.format(
-        previous_context=prev_context,
+        previous_context=cold_context,
         chapter_content=translated_text,
     )
 

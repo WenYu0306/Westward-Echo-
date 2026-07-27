@@ -52,3 +52,4 @@ class TranslatorState(TypedDict):
     style_memo: str                  # Accumulated translation lessons from prior chapters
     skip_readback: bool              # When True, skip READBACK+FIX (fast mode for non-sample chapters)
     use_flash_writer: bool           # When True, WRITE uses Flash instead of Pro
+    cold_read_context: str           # Character roster + recent summaries for READBACK briefing
