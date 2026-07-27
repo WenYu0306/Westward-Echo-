@@ -229,7 +229,13 @@ class TranslationAgent:
             "readback_feedback": {},
             "context_signals": "",
             "image_gaps": [],
-            "style_memo": self.style_memo.read_all(),
+            "style_memo": self.style_memo.read_all() or (
+                "(No translation memory yet. This is the first chapter. "
+                "Stay close to the source text — do not invent sensory details "
+                "or interior monologue that the original doesn't contain. "
+                "Your creative authority grows as the memo accumulates. "
+                "For now: translate faithfully.)"
+            ),
             "skip_readback": skip_readback,
             "use_flash_writer": use_flash_writer,
             # Kept for backward compat (unused by new nodes, harmless)
@@ -310,6 +316,24 @@ class TranslationAgent:
         read_analysis = result.get("read_analysis", {})
         readback_feedback = result.get("readback_feedback", {})
         chapter_number = result.get("chapter_number", 0)
+        retries = result.get("retranslation_count", 0)
+
+        # ── Audit log: FORCED_ACCEPT when cold reader still says NEEDS_FIX ──
+        # after max retries.  Without this log, we cannot diagnose whether
+        # the chapter was too hard, the cold reader was too strict, or the
+        # FIX agent is ineffective.
+        if readback_feedback:
+            verdict = readback_feedback.get("verdict", "PASS") if readback_feedback else "PASS"
+            if verdict == "NEEDS_FIX" and retries >= 2:
+                logger.warning(
+                    "FORCED_ACCEPT ch%d: verdict=NEEDS_FIX after %d retries. "
+                    "Cold reader issues: comprehension=%d, engagement=%d. "
+                    "FIX changes: %s",
+                    chapter_number, retries,
+                    len(readback_feedback.get("comprehension_issues", [])),
+                    len(readback_feedback.get("engagement_gaps", [])),
+                    result.get("adaptation_notes", [])[:3],
+                )
 
         # ── Update style memo from READ analysis (EVERY chapter) ──
         if read_analysis:

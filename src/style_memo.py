@@ -99,6 +99,18 @@ class StyleMemoStore:
         if filename not in self._content_files():
             raise ValueError(f"Unknown drawer: {drawer}")
         path = self.root / filename
+
+        # ── Dedup: skip if this lesson already exists ──
+        # Extract the first ~50 chars of the lesson (excluding chapter tag)
+        # as a fingerprint.  If a previous entry shares the same fingerprint,
+        # this lesson is redundant — it was already learned from an earlier
+        # chapter.
+        fingerprint = lesson.strip()[:50].lower()
+        if path.exists():
+            existing = path.read_text(encoding="utf-8")
+            if fingerprint in existing.lower():
+                return  # Duplicate — skip
+
         tag = f"[ch{chapter_number}]" if chapter_number else ""
         entry = f"\n{tag} {lesson}".rstrip() + "\n"
         with path.open("a", encoding="utf-8") as f:
