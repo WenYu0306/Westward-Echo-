@@ -1,173 +1,150 @@
-# 西渡 / Westward Echo
+# Westward Echo / 西渡
 
-**A Multi-Agent LLM translation engine for Chinese web novels — with cultural adaptation, dialect preservation, and self-healing quality control.**
+**A reader-centric multi-agent translation engine for Chinese web novels.**
 
-39 commits · 190 tests · v0.12.0
+`209 tests` · `775-chapter validated` · `3 independent audits` · `MIT`
 
 ---
 
-## Problem
+## What This Is
 
-Chinese web novels are a massive, fast-growing content category with a huge global readership — but human translation costs $30-60 per chapter, and naive LLM translation collapses after chapter 50: names drift, terms fragment, cultural references turn to nonsense.
+Westward Echo doesn't translate. Four LLM agents — a reader, a writer, a cold reader, and an editor — each approach the text from a different reader's perspective. The pipeline was validated by translating a complete 775-chapter Chinese web novel (*Infinite Horror* by zhttty) end-to-end: 34 hours, 2.57 million Chinese characters → 1.13 million English words, 16 cold-read quality checks, 0 crashes.
 
-Westward Echo solves all three with a 6-node Multi-Agent LangGraph pipeline — at under $0.02/chapter.
+Three rounds of independent audit (native English reader, bilingual accuracy auditor, professional editor) confirmed the translation is structurally coherent across the full span, with prose quality holding steady from chapter 2 to chapter 770. The serial reader's final verdict: "I would read the sequel."
 
 ---
 
 ## Architecture
 
 ```
-                        FastAPI Backend
-                REST API + WebSocket + Dashboard
-                              │
-                              ▼
-              6-NODE LANGGRAPH MULTI-AGENT PIPELINE
-
-   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-   │ ① FETCH  │──▶│ ② TRANSL │──▶│ ③ UPDATE │──▶│ ④ ARBITR │──▶│ ⑤ QUALTY │
-   │ GLOSSARY │   │ + ADAPT  │   │ GLOSSARY │   │ TERMS    │   │ CHECK    │
-   │          │   │          │   │          │   │          │   │          │
-   │ dict +   │   │ 2-pass   │   │ detect   │   │ resolve  │   │ back-    │
-   │ Chroma   │   │ literal  │   │ conflicts│   │ winner   │   │ translate│
-   │ + 9 ctx  │   │ → native │   │          │   │          │   │ 5-dim    │
-   │ signals  │   │          │   │          │   │          │   │ score    │
-   └──────────┘   └──────────┘   └──────────┘   └──────────┘   └─────┬────┘
-                                                                       │
-                                                          score < 3.5 │
-                                                          ┌────────────▼──────────┐
-                                                          │ ⑥ POLISH EDITOR       │
-                                                          │ targeted fix, not      │
-                                                          │ blind retranslation    │
-                                                          └────────────────────────┘
-
-   Storage:  dict (O(1) exact) + Chroma (semantic) + SQLite (checkpoint) + Redis (Celery)
-   Models:   DeepSeek V4 Flash (bulk) + DeepSeek V4 Pro (QA + critical) + Claude Opus (arbitration)
-   Tools:    lookup_glossary (MCP-style function calling — LLM can query glossary during translation)
+START → READ → WRITE → READBACK → (NEEDS_FIX?) → FIX → READBACK (loop)
+                            ↓ (PASS)
+                           END
 ```
 
-### 9 Context Signals (auto-detected per chapter)
-Dialect voice (5 Chinese→English mappings) · LitRPG system UI · Measurement localization · Onomatopoeia · Chengyu idioms · Cultural rules table · Human-confirmed/rejected terms · MCP Tool Use
+| Node | Role | What It Does | Model |
+|------|------|-------------|-------|
+| **READ** | Bilingual cultural intelligence | Reads the Chinese chapter, analyzes cultural gaps, detects **sensory image gaps** (what a Chinese reader's brain fills in for free that an English reader's brain cannot), proposes terminology decisions | DeepSeek V4 Pro |
+| **WRITE** | English genre fiction writer | Retells the chapter in English — not a translator, a storyteller with permission to restructure, compress, and rebuild sensory images | DeepSeek V4 Flash |
+| **READBACK** | Cold reader from Reddit | Reads ONLY the English output, has no idea this is a translation, reports honest experience: "was I confused? bored? would I keep reading?" | DeepSeek V4 Flash |
+| **FIX** | Editor | Reads the cold reader's specific complaints, fixes only what's broken — targeted, surgical repairs | DeepSeek V4 Flash |
+
+### Why Reader-Centric
+
+Chinese web novels carry a massive cultural payload. When a Chinese reader encounters "鬼节" (Ghost Festival), their brain automatically fills in: incense ash in the wind, paper money burning, a village holding its breath, old wood creaking, the wrongness of being outside after dark. These images cost the Chinese reader nothing because author and reader share the same cultural image library.
+
+**An English reader has none of these images.** They see only the label. No picture forms. The scene fails.
+
+The READ agent identifies every such **sensory image gap** — the full sensory picture the Chinese reader gets for free vs. the thin abstraction the English reader constructs from the same words — and provides **sensory anchors** (universal textures, sounds, colors: frozen meat, frost on skin, unmelted snow) that the WRITE agent uses to rebuild the scene.
 
 ---
 
-## Key Technical Decisions
+## Quality Infrastructure
 
-| Decision | Why | Alternative Rejected |
-|---|---|---|
-| **LangGraph 6-node Multi-Agent** (not raw API) | State management + conditional routing. Polish editor is a different agent with different prompt — fixes specific QA issues instead of blind retry | Dify (can't code-customize), raw LLM call (no state, no QA loop) |
-| **Double-layer glossary** (dict + Chroma) | Character names need 100% deterministic match ("林小满" ≠ "林晓曼"). Cultural terms need semantic search | Pure Chroma (can't guarantee exact match), pure dict (can't handle semantic proximity) |
-| **Translation + adaptation in ONE LLM call** | Cultural adaptation isn't post-processing — meaning is lost if you separate them | Two-pass pipeline (loses original context between stages) |
-| **DeepSeek V4 Flash for bulk, Pro for QA** | Flash 3-5x cheaper, quality gap minimal with good prompts. Pro reserved for reasoning-heavy tasks | GPT-4o (more expensive, no Flash tier), all-Pro (wasteful) |
-| **Celery + Redis for prod, sync for dev** | Same codebase, two modes gated by env var | WebSocket-only (breaks on 1000-chapter runs) |
-| **SQLite checkpoints every chapter** | Crash at chapter 847 → resume from 847 with full glossary intact | In-memory only (catastrophic on crash) |
-| **MCP-style Tool Use** | LLM can call `lookup_glossary` when it encounters unknown terms. Falls back to prompt injection if tool calling unavailable | Pure prompt injection (no autonomy), forced tool use (breaks on unsupported models) |
+### Style Memo (Accumulated Translation Experience)
 
----
+Six drawers of structured knowledge per book: character voices, pacing rules, cultural bridge patterns, prose rhythm, terminology decisions. Every chapter feeds into the memo — the READ agent's cultural analysis and terminology decisions write to it directly, cold reader feedback supplements it at sample points. By chapter 200, the WRITE agent has seen everything learned in chapters 1-199.
 
-## Performance
+### Cold Reader Blind Evaluation
 
-```
-50-chapter test (~150K Chinese characters, 6 named characters, 12 cultural term types):
-  Chapter completion:   50/50 (100%)
-  Empty translations:   0
-  JSON residue:         0
-  Avg quality score:    4.9/5.0 (back-translation QA, 5-dim automated audit)
-  Cost:                 ~$1.50 total (DeepSeek V4 Flash)
-  ZH:EN word ratio:     3.4x (expected 2.0-4.0x)
-```
+At sample points (every ~50 chapters), the READBACK agent cold-reads the English chapter without seeing the Chinese source. Verdict: PASS (clear and engaging) or NEEDS_FIX (significant friction). A serial cold reader evaluated 8 checkpoints across the full 775-chapter span and reported prose quality holding steady at 7/10 from start to finish, comprehension never dropping below 10/10 after chapter 25.
 
----
+### Output Guards
 
-## Production Safety
+Every chapter passes through: Chinese character residue detection and auto-stripping, LLM meta-commentary removal, Arabic blasphemy scanning (ar-SA mode). Terms are locked by a double-layer glossary: SQLite dict for O(1) exact matching plus Chroma vector store for semantic proximity.
+
+### Safety
 
 - **Circuit breaker**: per-language isolation — if en-US API fails, es-ES continues unaffected
-- **Backpressure guard**: rejects new tasks when queue depth > 100 chapters (HTTP 503)
-- **Checkpoint recovery**: crash at any chapter → restart from last SQLite checkpoint
-- **Startup pre-flight**: `start.sh` validates API keys, disk space, SQLite, Chroma before launch
-- **Observability dashboard**: `GET /dashboard` — real-time worker status, throughput, error rates
-- **Health endpoint**: `GET /health` — full subsystem status (not just "ok")
+- **Backpressure guard**: rejects new tasks when queue depth exceeds 100 chapters (HTTP 503)
+- **Checkpoint recovery**: crash at any chapter, resume from last SQLite snapshot with full glossary intact
+- **Pre-commit hooks**: ruff (lint + format), mypy (type checking)
+
+### 9 Context Signal Detectors
+
+Dialect mapping (5 Chinese → English dialect equivalents), LitRPG system UI markers, measurement localization, onomatopoeia, chengyu idiom detection, cultural rule injection, human-confirmed/rejected term lists.
 
 ---
 
-## Tech Stack
+## Validation: 775-Chapter Ground Truth Translation
 
-| Layer | Choice |
-|---|---|
-| Agent Framework | LangGraph (StateGraph + conditional routing) |
-| Backend | FastAPI + Celery + Redis |
-| Frontend | Vanilla HTML/CSS/JS (no framework, 3 pages: main UI + editor workbench + dashboard) |
-| Vector DB | Chroma (ONNX all-MiniLM-L6-v2) |
-| Exact Glossary | Python dict + SQLite |
-| LLM | DeepSeek V4 Flash/Pro, Claude Opus (arbitration) |
-| Deployment | Docker Compose (Redis + API + Worker) |
-
----
-
-## Project Structure
+*Infinite Horror* (无限恐怖) by zhttty — 2.57 million Chinese characters, 775 chapters, translated end-to-end.
 
 ```
-westward-echo/
-├── src/
-│   ├── agent/
-│   │   ├── graph.py              # LangGraph state graph (6 nodes)
-│   │   ├── state.py              # TranslatorState TypedDict
-│   │   ├── nodes/
-│   │   │   ├── fetch_glossary.py # Double-layer term retrieval
-│   │   │   ├── translate.py      # Translation + cultural adaptation (core)
-│   │   │   ├── polish.py         # Editor Agent (targeted QA fixes)
-│   │   │   ├── update_glossary.py# Term validation + conflict detection
-│   │   │   ├── arbitrate_terms.py# Conflict resolution (pick best translation)
-│   │   │   └── quality_check.py  # Back-translation 5-dim scoring
-│   │   └── prompts/              # 5 prompt templates
-│   ├── glossary/                 # Double-layer: exact_store + semantic_store
-│   ├── api/                      # REST + WebSocket + auth + rate_limit + CMS + editor + review
-│   ├── web_ui.py                 # Main translation UI
-│   ├── editor_ui.py              # Human-in-the-loop editor workbench
-│   ├── dashboard.py              # Observability dashboard
-│   ├── cultural_rules.json       # Per-genre × per-language adaptation rules
-│   ├── dialect.py                # 5 Chinese dialects → English dialect mapping
-│   ├── idioms.py                 # 70+ chengyu detection + translation hints
-│   ├── measurements.py           # Chinese unit detection + localization
-│   ├── onomatopoeia.py           # 20 sound words → English equivalents
-│   ├── tools.py                  # MCP-style function calling (lookup_glossary)
-│   ├── circuit_breaker.py        # Per-language circuit breaker
-│   ├── backpressure.py           # Queue depth guard
-│   ├── stats.py                  # Token cost tracking + throughput metrics
-│   ├── prefetch.py               # Parallel glossary prefetch
-│   ├── celery_app.py             # Celery task definitions
-│   ├── cms.py                    # CMS integration (file + webhook connectors)
-│   ├── epub_builder.py           # EPUB 3 generator (stdlib only)
-│   └── health.py                 # Startup pre-flight checks
-├── tests/                        # 190 tests (unit + integration + fault injection)
-├── start.sh                      # One-command launch with pre-flight
-├── docker-compose.yml            # Redis + API + Worker
-├── Dockerfile
-├── ACCEPTANCE_CRITERIA.md        # 26-item production acceptance checklist
-└── PROJECT_PLAN.md               # Design document
+Duration:     ~34 hours
+Output:       1.13 million English words
+Cold reads:   16/16 PASS (old prompt) → 8/8 PASS (serial reader, new prompt + context)
+Prose:        7/10 (steady, chapters 2-770)
+Comprehension: 10/10 (from chapter 25 onward)
+Cost:         ~$4 (DeepSeek V4 Flash + Pro mixed)
+Crashes:      0
+Circuit breaker trips: 0
 ```
+
+### Independent Audit Results (Round 2, Chapter 149)
+
+| Auditor | Role | Verdict |
+|---------|------|---------|
+| Native English reader | Read ch2-5, 50-55, 120-130, 140-149 | "The translator now produces professional-grade genre fiction at English web-serial quality." Prose peaked at 9/10 (ch120-130). |
+| Bilingual accuracy auditor | Compared ch100, 120, 131 source vs. translation side-by-side | "No new meaning errors found in the ch60-149 range." Terminology consistent across the full span. |
+| Professional editor | Evaluated ch60-80, 100-120, 140-149 | "Needs one editing pass (80-100 hours). The core prose is readable and the pipeline preserved the novel's pacing." |
+
+### Serial Cold Reader (Final, Chapter 774)
+
+One reader, 8 checkpoints, accumulating knowledge like a real reader:
+> "This is a deeply enjoyable progression fantasy that does not read like a translation — it reads like a mid-tier Royal Road serial. The characters are real, their deaths matter, and I would read the sequel."
 
 ---
 
 ## Quick Start
 
 ```bash
-cp .env.example .env   # add your DEEPSEEK_API_KEY
+cp .env.example .env          # add your DEEPSEEK_API_KEY
 pip install -r requirements.txt
-./start.sh             # pre-flight check + launch
-# Open http://localhost:8000
+python3 -m src.main            # http://localhost:8000
 ```
 
-**Key pages:**
-- `/` — Translation UI (upload, multi-job management)
-- `/editor/{job_id}` — Editor workbench (CN↔EN side-by-side, inline editing)
-- `/review` — Glossary review (confirm/reject terms, Agent feedback loop)
-- `/dashboard` — Observability (real-time metrics)
+**Translate a complete novel (terminal, no sandbox):**
+
+```bash
+python3 scripts/run_one_segment.py
+```
+
+15-chapter segments with automatic checkpoint recovery. Ctrl+C safe. Resumes from last checkpoint on restart. Quality sampled at milestone chapters, results saved to `_quality.json`.
 
 ---
 
-## What's Not Here (Yet)
+## Key Technical Decisions
 
-- Real-world deployment validation (Docker config ready, never deployed)
-- Celery + Redis end-to-end test (code complete, needs `redis-server`)
-- es-ES / ar-SA native-speaker review (rules populated, quality unverified)
-- 1000-chapter stress test (50-chapter test passed, scale TBD)
+| Decision | Why |
+|----------|-----|
+| **4-node reader pipeline** (not 6-node worker pipeline) | Each node is a reader, not a tool-calling executor. Cultural analysis and translation are handled by agents with distinct reader identities. |
+| **READ always Pro, WRITE/READBACK/FIX always Flash** | DeepSeek V4 Pro hangs on large inputs (>4000 chars) with JSON output. Flash is reliable and costs 3× less. READ is the only node that needs Pro-level cultural reasoning. |
+| **No MCP tool calling** | Pre-computed glossary injection eliminates reliability issues (wrong tool calls, duplicate calls, missed calls). |
+| **max_retries=0 on all LLM calls** | OpenAI SDK defaults to 2 retries, consuming 3× the request_timeout before surfacing errors. Direct control prevents silent hangs. |
+| **Style memo from READ analysis every chapter** | Not just from cold reader feedback at sample chapters. Every chapter's READ analysis writes to the memo. |
+
+---
+
+## Dependencies
+
+```
+langgraph ≥0.2.0    langchain ≥0.3.0    langchain-openai ≥0.2.0
+chromadb ≥0.5.0     fastapi ≥0.115.0    uvicorn[standard] ≥0.32.0
+pydantic ≥2.0       python-dotenv ≥1.0   celery[redis] ≥5.4.0
+redis ≥5.2.0        httpx ≥0.28.0
+```
+
+---
+
+## What's Not Here
+
+- `es-ES` / `ar-SA` native-speaker quality review (style notes populated, multi-language routing tested, quality unverified)
+- Long-distance style memo A/B validation (infrastructure built, never compared memo-on vs. memo-off translation quality across chapters 1-200)
+- Foreshadowing tracker (the pipeline can delete passages marked as "pure cultural fluff" — it has never been observed doing so, but no formal mechanism prevents it)
+
+---
+
+## License
+
+MIT · github.com/WenYu0306/Westward-Echo-
