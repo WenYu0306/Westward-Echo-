@@ -524,7 +524,7 @@ body{
 
         <header class="hero">
           <h1>西渡<span class="slash"> / </span><span class="en">Westward Echo</span></h1>
-          <p>AI 驱动的网文翻译引擎 &mdash; 术语全本统一，文化自适应适配，覆盖英语、西班牙语、阿拉伯语</p>
+          <p>四 Agent 读者视角多语种翻译 &mdash; READ·WRITE·READBACK·FIX 协作，术语全本统一，感官画面重建，冷读质量验证</p>
         </header>
 
         <div class="translation-form-layout">
@@ -566,8 +566,8 @@ body{
               <div class="field">
                 <label>翻译模型</label>
                 <div class="toggle-group" id="tgl-model">
-                  <label class="on"><input type="radio" name="model" value="flash" checked>V4 Flash</label>
-                  <label><input type="radio" name="model" value="pro">V4 Pro</label>
+                  <label class="on"><input type="radio" name="model" value="flash" checked>V4 Flash (快速模式)</label>
+                  <label><input type="radio" name="model" value="pro">V4 Pro (全量质量)</label>
                 </div>
               </div>
 
