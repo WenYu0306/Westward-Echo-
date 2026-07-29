@@ -59,3 +59,6 @@ tests/fixtures/*.json
 !tests/fixtures/test_novel_50ch_glossary.json
 tests/fixtures/jianke_ch1_*_*.md
 tests/fixtures/eval_*
+/tmp/claude-501/diag_hang.py
+check_source.py
+novels/test_*.txt
