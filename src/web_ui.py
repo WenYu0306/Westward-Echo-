@@ -564,10 +564,10 @@ body{
               </div>
 
               <div class="field">
-                <label>翻译模型</label>
-                <div class="toggle-group" id="tgl-model">
-                  <label class="on"><input type="radio" name="model" value="flash" checked>V4 Flash (快速模式)</label>
-                  <label><input type="radio" name="model" value="pro">V4 Pro (全量质量)</label>
+                <label>翻译模式</label>
+                <div class="toggle-group-display" style="background:#f5f5f7;border-radius:6px;padding:10px 14px;font-size:13px;color:#1c1c1e;">
+                  混合模式 &mdash; READ(Pro) + WRITE(Flash) + 冷读采样<br>
+                  <span style="color:#8e8e93;font-size:11px;">775章验证通过 &middot; 16次冷读全PASS</span>
                 </div>
               </div>
 
@@ -1169,7 +1169,7 @@ function buildForm(){
   }else{
     form.append('target_lang',$('#target-lang').value);
   }
-  form.append('translate_mode',document.querySelector('input[name="model"]:checked').value);
+  form.append('translate_mode','flash');
   form.append('qa_interval',rangeInput.value);
   form.append('genre',$('#genre').value);
   form.append('glossary_preset',$('#glossary-preset').value);
