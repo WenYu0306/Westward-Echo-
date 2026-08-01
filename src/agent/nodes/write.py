@@ -42,6 +42,7 @@ def write_node(state: TranslatorState) -> dict:
         max_tokens=8192,
         request_timeout=120,
         max_retries=0,
+        model_kwargs={"response_format": {"type": "json_object"}},
     )
 
     # Format the READ analysis as context
@@ -145,38 +146,47 @@ def write_node(state: TranslatorState) -> dict:
 
     translated_text = sanitize_translation(translated_text)
 
-    # Auto-retry if output is empty
+    # Auto-retry if output is empty (up to 2 additional attempts)
     RETRY_THRESHOLD = 10
     if not translated_text or len(translated_text.strip()) < RETRY_THRESHOLD:
-        logger.warning(
-            "WRITE ch%d: empty/short output (%d chars). Retrying once.",
-            chapter_number, len(translated_text) if translated_text else 0,
-        )
-        try:
-            retry_messages = [
-                SystemMessage(content=WRITE_SYSTEM),
-                HumanMessage(content=user_prompt + "\n\nCRITICAL: Your previous response was empty. "
-                              "Output the complete translated chapter as JSON NOW. "
-                              "The translated_text field MUST contain the full chapter."),
-            ]
-            TranslationStats.record_api_call(target_lang)
-            retry_response = breaker.call(llm.invoke, retry_messages)
-            TranslationStats.record_api_success(target_lang)
-            _capture_response_tokens(retry_response)
-            retry_result = _parse_write_response(retry_response.content, chapter_number, target_lang)
-            retry_text = retry_result.get("translated_text", "")
-            if retry_text and len(retry_text.strip()) >= RETRY_THRESHOLD:
-                if has_untranslated_chinese(retry_text) and target_lang != "zh-CN":
-                    retry_text, removed = strip_chinese_residue(retry_text)
-                    logger.warning(
-                        "WRITE ch%d retry: %d Chinese chars stripped",
-                        chapter_number, removed,
-                    )
-                translated_text = sanitize_translation(retry_text)
-                result = retry_result
-                logger.info("WRITE ch%d: retry successful", chapter_number)
-        except Exception as retry_exc:
-            logger.error("WRITE ch%d: retry failed: %s", chapter_number, retry_exc)
+        for retry_num in range(1, 3):  # Retry 1, Retry 2
+            logger.warning(
+                "WRITE ch%d: empty/short output (%d chars). Retry %d/2.",
+                chapter_number, len(translated_text) if translated_text else 0, retry_num,
+            )
+            try:
+                retry_messages = [
+                    SystemMessage(content=WRITE_SYSTEM),
+                    HumanMessage(content=user_prompt + "\n\nCRITICAL: Your previous response was empty. "
+                                  "Output the complete translated chapter as JSON NOW. "
+                                  "The translated_text field MUST contain the full chapter."),
+                ]
+                TranslationStats.record_api_call(target_lang)
+                retry_response = breaker.call(llm.invoke, retry_messages)
+                TranslationStats.record_api_success(target_lang)
+                _capture_response_tokens(retry_response, tier="flash" if flash else "pro")
+                retry_result = _parse_write_response(retry_response.content, chapter_number, target_lang)
+                retry_text = retry_result.get("translated_text", "")
+                if retry_text and len(retry_text.strip()) >= RETRY_THRESHOLD:
+                    if has_untranslated_chinese(retry_text) and target_lang != "zh-CN":
+                        retry_text, removed = strip_chinese_residue(retry_text)
+                        logger.warning(
+                            "WRITE ch%d retry%d: %d Chinese chars stripped",
+                            chapter_number, retry_num, removed,
+                        )
+                    translated_text = sanitize_translation(retry_text)
+                    result = retry_result
+                    logger.info("WRITE ch%d: retry %d successful", chapter_number, retry_num)
+                    break  # Success — exit retry loop
+            except Exception as retry_exc:
+                logger.error("WRITE ch%d retry %d failed: %s", chapter_number, retry_num, retry_exc)
+        else:
+            # All retries exhausted — log and continue (chapter will be empty/short)
+            logger.error(
+                "WRITE ch%d: ALL RETRIES EXHAUSTED — chapter skipped (0 chars). "
+                "Next chapter will continue normally.",
+                chapter_number,
+            )
 
     return {
         "translated_text": translated_text,
