@@ -27,11 +27,12 @@ NOVELS = {
         "book_id": "limitless_horror",
         "output_dir": "novels/output/limitless_horror_segmented",
         "output_file": "limitless_horror_en.md",
-        "max_chapters": 775,
+        "expected_chapters": 775,
         # Every ~50 chapters + key milestones
-        "sample_points": (
-            frozenset(range(10, 780, 50))
-            | {25, 75, 100, 200, 300, 400, 500, 600, 700, 775}
+        "sample_points_fn": lambda total: (
+            frozenset(range(10, min(total, 2300) + 1, 50))
+            | {n for n in [25, 75, 100, 200, 300, 400, 500, 600, 700, total]
+               if n <= total}
         ),
     },
     "difu": {
@@ -41,10 +42,11 @@ NOVELS = {
         "book_id": "difu_xiao_xiansheng",
         "output_dir": "novels/output/difu_segmented",
         "output_file": "difu_en.md",
-        "max_chapters": 2301,
-        "sample_points": (
-            frozenset(range(10, 2301, 50))
-            | {25, 75, 100, 200, 300, 500, 750, 1000, 1250, 1500, 1750, 2000, 2301}
+        "expected_chapters": 2301,
+        "sample_points_fn": lambda total: (
+            frozenset(range(10, min(total, 2300) + 1, 50))
+            | {n for n in [25, 75, 100, 200, 300, 500, 750, 1000, 1250, 1500, 1750, 2000, total]
+               if n <= total}
         ),
     },
 }
@@ -57,7 +59,7 @@ def main():
         print("Usage: python3 scripts/run_novel.py <novel_key>")
         print("Available novels:")
         for key, cfg in NOVELS.items():
-            print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, {cfg['max_chapters']} chapters)")
+            print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
         sys.exit(1)
 
     novel_key = sys.argv[1]
@@ -66,12 +68,20 @@ def main():
         sys.exit(1)
 
     cfg = NOVELS[novel_key]
-    max_chapters = cfg["max_chapters"]
-    sample_points = cfg["sample_points"]
 
     text, enc = detect_and_read(cfg["path"])
     chapters = split_chapters(text)
-    chapters = [c for c in chapters if c.action != ParagraphTag.SKIP][:max_chapters]
+    chapters = [c for c in chapters if c.action != ParagraphTag.SKIP]
+    total_chapters = len(chapters)
+    expected = cfg.get("expected_chapters")
+
+    if expected and total_chapters != expected:
+        print(f"WARNING: source has {total_chapters} chapters, expected {expected}.")
+        print("Using actual count. Sample points are clipped to actual chapter range.")
+
+    sample_points = cfg["sample_points_fn"](total_chapters)
+
+    print(f"Source: {cfg['name']} — {total_chapters} chapters, {cfg['genre']}")
 
     ckpt_file = os.path.join(cfg["output_dir"], "_checkpoint.json")
     out_file = os.path.join(cfg["output_dir"], cfg["output_file"])
