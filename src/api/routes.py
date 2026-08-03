@@ -29,7 +29,7 @@ app = FastAPI(title="Westward Echo API", version="0.15.0")
 
 # ── Security ───────────────────────────────────────────────────
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
-_KNOWN_LANGS = frozenset({"en-US", "es-ES", "ar-SA"})
+_KNOWN_LANGS = frozenset({"en-US", "es-ES", "de", "fr"})
 _KNOWN_GENRES = frozenset({"romance_ceo", "xianxia", "urban", "scifi", "folk_religion"})
 
 def _safe_job_id(job_id: str) -> str:
@@ -186,7 +186,7 @@ async def translate_novel(
 @app.post("/translate/multi")
 async def translate_multi(
     file: UploadFile = File(...),
-    target_langs: str = Form("en-US,es-ES,ar-SA"),
+    target_langs: str = Form("en-US,es-ES,de,fr"),
     translate_mode: str = Form("flash"),
     genre: str = Form("romance_ceo"),
     qa_interval: int = Form(20),
@@ -357,7 +357,7 @@ def get_glossary(job_id: str):
 @app.get("/translation/{job_id}")
 def get_translation(job_id: str):
     """Download the translated novel markdown."""
-    for lang in ["en-US", "es-ES", "ar-SA"]:
+    for lang in ["en-US", "es-ES", "de", "fr"]:
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
             return {"text": path.read_text(encoding="utf-8"), "target_lang": lang}
@@ -416,7 +416,7 @@ def download_epub(job_id: str):
     # ── Locate the translated Markdown file ──
     md_path = None
     target_lang = "en-US"
-    for lang in ["en-US", "es-ES", "ar-SA"]:
+    for lang in ["en-US", "es-ES", "de", "fr"]:
         candidate = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if candidate.exists():
             md_path = candidate

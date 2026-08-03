@@ -550,7 +550,8 @@ body{
                 <select id="target-lang">
                   <option value="en-US">English（英语）</option>
                   <option value="es-ES">Espa&ntilde;ol（西班牙语）</option>
-                  <option value="ar-SA">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;（阿拉伯语）</option>
+                  <option value="de">Deutsch（德语）</option>
+                  <option value="fr">Fran&ccedil;ais（法语）</option>
                 </select>
               </div>
               <div class="field" id="field-multi-langs" style="display:none">
@@ -558,7 +559,8 @@ body{
                 <div class="multi-lang-chips" id="multi-lang-chips">
                   <span class="lang-chip on" data-lang="en-US">English</span>
                   <span class="lang-chip on" data-lang="es-ES">Espa&ntilde;ol</span>
-                  <span class="lang-chip on" data-lang="ar-SA">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</span>
+                  <span class="lang-chip on" data-lang="de">Deutsch</span>
+                  <span class="lang-chip on" data-lang="fr">Fran&ccedil;ais</span>
                 </div>
                 <div class="multi-lang-hint">点击语言标签选择/取消。所选语言将同时翻译。</div>
               </div>
@@ -751,7 +753,7 @@ function renderJobList(){
 
     const jobCount=p.jobs.length;
     const langList=p.jobs.map(j=>{
-      const langLabel=j.target_lang==='en-US'?'EN':j.target_lang==='es-ES'?'ES':j.target_lang==='ar-SA'?'AR':j.target_lang;
+      const langLabel=j.target_lang==='en-US'?'EN':j.target_lang==='es-ES'?'ES':j.target_lang==='de'?'DE':j.target_lang==='fr'?'FR':j.target_lang;
       const icon=j.status==='complete'?'&#9989;':j.status==='failed'?'&#10060;':j.status==='translating'?'&#9881;':'&#9203;';
       return icon+' '+langLabel;
     }).join(' ');
@@ -770,7 +772,8 @@ function renderJobList(){
       let langLabel=j.target_lang;
       if(j.target_lang==='en-US')langLabel='en-US';
       else if(j.target_lang==='es-ES')langLabel='es-ES';
-      else if(j.target_lang==='ar-SA')langLabel='ar-SA';
+      else if(j.target_lang==='de')langLabel='de';
+      else if(j.target_lang==='fr')langLabel='fr';
       let meta=formatDate(j.created_at);
       if(j.status==='translating' && j.completed_chapters && j.total_chapters)
         meta=j.completed_chapters+'/'+j.total_chapters+' 章';
@@ -905,7 +908,8 @@ function renderJobDetail(job){
   let langLabel=job.target_lang;
   if(job.target_lang==='en-US')langLabel='英语';
   else if(job.target_lang==='es-ES')langLabel='西班牙语';
-  else if(job.target_lang==='ar-SA')langLabel='阿拉伯语';
+  else if(job.target_lang==='de')langLabel='德语';
+  else if(job.target_lang==='fr')langLabel='法语';
 
   let h='';
   h+='<div class="job-detail-header">';

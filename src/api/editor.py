@@ -82,7 +82,7 @@ def _load_en_paragraphs(text: str) -> list[str]:
 
 def _get_en_chapter_text(job_id: str, chapter_num: int) -> Optional[str]:
     """Read a single chapter's English translation from the Markdown output."""
-    for lang in ["en-US", "es-ES", "ar-SA"]:
+    for lang in ["en-US", "es-ES", "de", "fr"]:
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
             text = path.read_text(encoding="utf-8")

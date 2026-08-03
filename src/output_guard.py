@@ -83,13 +83,6 @@ def check_and_record(
         cn_warning = f"UNTRANSLATED: {len(chars)} Chinese characters found in output: {', '.join(chars[:5])}"
         warnings.append(cn_warning)
 
-    # ── Arabic blasphemy scan ──
-    if target_lang == "ar-SA":
-        from .sensitive_terms import scan_arabic_blasphemy
-        ar_warnings = scan_arabic_blasphemy(text)
-        for aw in ar_warnings:
-            warnings.append(aw)
-
     if warnings:
         from .error_tracker import record_event
         for w in warnings:

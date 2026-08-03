@@ -2,7 +2,7 @@
 
 States: CLOSED (normal) -> OPEN (tripped, fast-fail) -> HALF_OPEN (testing recovery)
 
-One circuit breaker per language — if en-US fails, es-ES and ar-SA continue unaffected.
+One circuit breaker per language — if en-US fails, es-ES, de, and fr continue unaffected.
 """
 
 import threading
