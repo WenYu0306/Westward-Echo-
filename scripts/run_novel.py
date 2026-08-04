@@ -55,19 +55,32 @@ SEGMENT = 15  # chapters per checkpoint segment
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 scripts/run_novel.py <novel_key>")
+    do_seed = "--seed" in sys.argv
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+
+    if len(args) < 1:
+        print("Usage: python3 scripts/run_novel.py <novel_key> [--seed]")
+        print("  --seed  Pre-fill glossary and style memo from Analyze Echo before translating")
         print("Available novels:")
         for key, cfg in NOVELS.items():
             print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
         sys.exit(1)
 
-    novel_key = sys.argv[1]
+    novel_key = args[0]
     if novel_key not in NOVELS:
         print(f"Unknown novel '{novel_key}'. Available: {', '.join(NOVELS.keys())}")
         sys.exit(1)
 
     cfg = NOVELS[novel_key]
+
+    # ── Seed from Analyze Echo before translation ──
+    if do_seed:
+        from scripts.seed_from_analyze import (
+            load_extraction, seed_glossary, seed_style_memo,
+        )
+        extraction = load_extraction(novel_key)
+        seed_glossary(extraction, cfg["book_id"])
+        seed_style_memo(extraction, cfg["book_id"])
 
     text, enc = detect_and_read(cfg["path"])
     chapters = split_chapters(text)

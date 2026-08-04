@@ -16,6 +16,7 @@ from ..chapter_splitter import split_chapters, ParagraphTag
 from ..job_store import job_store
 from ..backpressure import backpressure
 from ..stats import TranslationStats
+from ..api.logging import logger
 
 try:
     from ..celery_app import translate_novel_task, resume_translate_task
@@ -137,6 +138,7 @@ async def translate_novel(
     from ..circuit_breaker import CircuitBreakerOpenError
 
     def _run_sync():
+        import traceback as _tb
         try:
             chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
             agent = TranslationAgent()
@@ -147,9 +149,11 @@ async def translate_novel(
                         agent.exact_store.add(cn, en, category="culture", target_lang=target_lang)
                 except Exception:
                     pass
-            all_translations = []
             prev_summary = ""
             flash_mode = translate_mode == "flash"
+            output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
+            exists = Path(output_path).exists()
+            import time as _t
             for i, ch in enumerate(chapters_list):
                 try:
                     result = agent.translate_chapter(
@@ -159,21 +163,26 @@ async def translate_novel(
                         skip_readback=flash_mode,
                         use_flash_writer=flash_mode,
                     )
-                    all_translations.append(result["translated_text"])
+                    tt = result.get("translated_text", "")
                     prev_summary = result.get("chapter_summary", "")
                     job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
                 except CircuitBreakerOpenError:
-                    break
-                except Exception:
+                    job_store.fail_job(job_id, "Circuit breaker opened")
+                    return
+                except Exception as exc:
+                    logger.warning("Sync chapter %d failed: %s", ch.index, exc)
                     continue
-            import time as _t
-            output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
-            Path(output_path).write_text("\n\n".join(all_translations), encoding="utf-8")
+                with open(output_path, "a" if exists else "w", encoding="utf-8") as f:
+                    if not exists:
+                        f.write(f"# {job_id} — English Translation\n\n")
+                    f.write(f"## Chapter {ch.index}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                    exists = True
             glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
             job_store.complete_job(job_id, output_path, len(agent.exact_store))
         except Exception as e:
+            logger.error("Sync translation failed for job %s: %s\n%s", job_id, e, _tb.format_exc())
             job_store.fail_job(job_id, str(e))
         finally:
             backpressure.release()
@@ -263,10 +272,8 @@ async def translate_multi(
             try:
                 chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
                 agent = TranslationAgent()
-                all_translations = []
                 prev_summary = ""
 
-                # ── Pre-load preset glossary into agent's exact_store ──
                 if preset_glossary_json:
                     try:
                         preset_terms = json.loads(preset_glossary_json)
@@ -284,6 +291,7 @@ async def translate_multi(
                         pass
 
                 flash_mode = translate_mode == "flash"
+                exists = Path(output_path).exists()
                 for i, ch in enumerate(chapters_list):
                     try:
                         result = agent.translate_chapter(
@@ -296,10 +304,9 @@ async def translate_multi(
                             skip_readback=flash_mode,
                             use_flash_writer=flash_mode,
                         )
-                        all_translations.append(result["translated_text"])
+                        tt = result.get("translated_text", "")
                         prev_summary = result.get("chapter_summary", "")
-                        title = ch.heading or f"Chapter {i + 1}"
-                        job_store.update_progress(jid, i + 1, len(chapters_list), title)
+                        job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
                         TranslationStats.record_chapter_complete(lang)
                     except CircuitBreakerOpenError:
                         TranslationStats.record_chapter_failed(lang)
@@ -307,14 +314,14 @@ async def translate_multi(
                     except Exception:
                         TranslationStats.record_chapter_failed(lang)
                         continue
-
-                merged = "\n\n".join(all_translations)
-                import os as _os
-                _os.makedirs(str(OUTPUT_DIR), exist_ok=True)
-                with open(output_path, "w", encoding="utf-8") as fh:
-                    fh.write(merged)
+                    with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
+                        if not exists:
+                            fh.write(f"# {jid} — English Translation\n\n")
+                        fh.write(f"## Chapter {ch.index}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                        exists = True
                 job_store.complete_job(jid, output_path, 0)
             except Exception as exc:
+                logger.error("Multi-lang sync translation failed for job %s: %s", jid, exc)
                 job_store.fail_job(jid, str(exc))
             finally:
                 backpressure.release()
@@ -334,13 +341,17 @@ async def translate_multi(
 
 @app.get("/translate/{job_id}")
 def get_translation_status(job_id: str):
-    """Poll job progress from Redis."""
+    """Poll job progress — Celery backend or job_store fallback."""
     if _has_celery:
         from ..celery_app import app as celery_app
         key = f"translation:{job_id}"
         data = celery_app.backend.get(key)
         if data:
             return json.loads(data)
+    # Fallback: query job_store when Celery is unavailable
+    job = job_store.get_job(job_id)
+    if job:
+        return job
     return {"status": "unknown", "job_id": job_id}
 
 
@@ -351,7 +362,10 @@ def get_glossary(job_id: str):
     glossary_path = OUTPUT_DIR / f"{job_id}_glossary.json"
     if glossary_path.exists():
         return json.loads(glossary_path.read_text(encoding="utf-8"))
-    return {"error": "Glossary not found", "job_id": job_id}
+    return JSONResponse(
+        status_code=404,
+        content={"error": "Glossary not found", "job_id": job_id},
+    )
 
 
 @app.get("/translation/{job_id}")
@@ -361,12 +375,15 @@ def get_translation(job_id: str):
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
             return {"text": path.read_text(encoding="utf-8"), "target_lang": lang}
-    return {"error": "Translation not found", "job_id": job_id}
+    return JSONResponse(
+        status_code=404,
+        content={"error": "Translation not found", "job_id": job_id},
+    )
 
 
 # ── Chapter parsing helpers for EPUB generation ─────────────────────
 
-_CHAPTER_HEADER_RE = re.compile(r"^#\s+Chapter\s+(\d+):?\s*(.*)", re.IGNORECASE)
+_CHAPTER_HEADER_RE = re.compile(r"^#{1,2}\s+Chapter\s+(\d+):?\s*(.*)", re.IGNORECASE)
 
 
 def _parse_markdown_chapters(md_text: str) -> list[dict]:

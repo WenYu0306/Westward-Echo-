@@ -382,7 +382,7 @@ class TestWriteNode:
             write_node(state)
 
         call_kwargs = mock_cls.call_args[1]
-        assert call_kwargs["model"] == "deepseek-v4-flash"
+        assert call_kwargs["model"] == "deepseek-chat"
 
     def test_parse_fallback_layer5_raw_content(self):
         from src.agent.nodes.write import write_node
