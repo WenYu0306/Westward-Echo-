@@ -93,6 +93,14 @@ def main():
     if os.path.exists(quality_file):
         quality_log = json.load(open(quality_file))
 
+    # Load set of already-written chapters to prevent duplicates on resume
+    written_chapters: set[int] = set()
+    if os.path.exists(out_file):
+        import re as _re
+        with open(out_file, encoding="utf-8") as _f:
+            for _m in _re.finditer(r"^## Chapter (\d+):", _f.read(), _re.MULTILINE):
+                written_chapters.add(int(_m.group(1)))
+
     agent = TranslationAgent(book_id=cfg["book_id"])
 
     start = 0
@@ -137,8 +145,28 @@ def main():
                 time.sleep(30)
                 continue
             except Exception as e:
-                print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e}")
-                continue
+                err_msg = str(e).lower()
+                is_timeout = "timed out" in err_msg or "timeout" in err_msg
+                if is_timeout:
+                    print(f"  [{pos}/{len(chapters)} Ch{ch_num}] TIMEOUT (attempt 1) - retrying...")
+                    time.sleep(3)
+                    try:
+                        result = agent.translate_chapter(
+                            chapter_title=ch.title,
+                            chapter_content=ch.content,
+                            chapter_number=ch_num,
+                            previous_summary=prev,
+                            target_lang="en-US",
+                            genre=cfg["genre"],
+                            skip_readback=not is_sample,
+                            use_flash_writer=not is_sample,
+                        )
+                    except Exception as e2:
+                        print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e2} (after retry)")
+                        continue
+                else:
+                    print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e}")
+                    continue
 
             tt = result.get("translated_text", "")
             prev = result.get("chapter_summary", "")
@@ -167,10 +195,12 @@ def main():
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {len(tt)}c [F] {ok_flag}")
 
             exists = os.path.exists(out_file)
-            with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
-                if not exists:
-                    f.write(f"# {cfg['name']} — English Translation\n\n")
-                f.write(f"## Chapter {ch_num}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+            if ch_num not in written_chapters:
+                with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
+                    if not exists:
+                        f.write(f"# {cfg['name']} — English Translation\n\n")
+                    f.write(f"## Chapter {ch_num}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                written_chapters.add(ch_num)
 
         json.dump({
             "last_idx": batch_end - 1,

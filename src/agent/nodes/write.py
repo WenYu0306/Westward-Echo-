@@ -32,7 +32,7 @@ def write_node(state: TranslatorState) -> dict:
     """
     chapter_number = state["chapter_number"]
     flash = state.get("use_flash_writer", False)
-    model_id = "deepseek-v4-flash" if flash else MODEL_MAP["translate"]
+    model_id = "deepseek-chat" if flash else MODEL_MAP["translate"]
 
     llm = ChatOpenAI(
         model=model_id,

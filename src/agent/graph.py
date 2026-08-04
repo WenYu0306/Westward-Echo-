@@ -284,7 +284,9 @@ class TranslationAgent:
             "readback_feedback": {},
             "context_signals": "",
             "image_gaps": [],
-            "style_memo": self.style_memo.read_all() or (
+            "style_memo": self.style_memo.read_relevant(
+                content, exact_matches,
+            ) or (
                 "(No translation memory yet. This is the first chapter. "
                 "Stay close to the source text — do not invent sensory details "
                 "or interior monologue that the original doesn't contain. "

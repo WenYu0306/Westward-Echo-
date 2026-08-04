@@ -66,6 +66,10 @@ class StyleMemoStore:
 
         Reads MEMO.md + all linked files, concatenated.  Each file is
         truncated to ~60 lines (oldest-first) to keep total tokens in check.
+
+        Prefer ``read_relevant()`` for the main agent prompts — it retrieves
+        only entries relevant to the current chapter, keeping prompt size
+        constant regardless of book length.
         """
         parts = []
         for filename in ["MEMO.md"] + self._content_files():
@@ -74,13 +78,69 @@ class StyleMemoStore:
                 continue
             content = path.read_text(encoding="utf-8")
             lines = content.strip().split("\n")
-            # Truncate to newest ~60 lines if the file grows too large
             if len(lines) > 70:
                 header = lines[0] if lines[0].startswith("#") else ""
                 keep = lines[-60:] if header else lines[-60:]
                 content = (header + "\n" if header else "") + "\n".join(keep)
             parts.append(content)
         return "\n\n---\n\n".join(parts)
+
+    def read_relevant(
+        self,
+        chapter_content: str = "",
+        exact_matches=None,
+        *,
+        max_chars: int = 5000,
+        per_drawer_recent: int = 5,
+    ) -> str:
+        """Return the most recent memo entries, capped at ``max_chars``.
+
+        Instead of dumping the entire accumulated memo into every prompt,
+        this takes only the newest entries from each drawer — the ones most
+        likely to be relevant to the current story arc.
+
+        Recent entries naturally track the active cast, ongoing cultural
+        patterns, and current pacing rhythm. Old entries (from ch50 when
+        we're on ch1600) are rarely useful and cost prompt tokens.
+
+        Keeps prompt size **constant** regardless of how many chapters
+        have been translated.
+        """
+        parts: list[str] = []
+        budget = max_chars
+
+        for drawer in self._content_files():
+            if budget <= 200:
+                break
+
+            path = self.root / drawer
+            if not path.exists():
+                continue
+            lines = path.read_text(encoding="utf-8").strip().split("\n")
+            if len(lines) < 2:
+                continue
+
+            header = lines[0]
+            entries = [l.strip()[:250] for l in lines[1:] if l.strip()]
+            if not entries:
+                continue
+
+            # Take the most recent N entries
+            recent = entries[-per_drawer_recent:]
+            body = "\n".join(recent)
+            block = f"{header}\n{body}"
+
+            if len(block) > budget:
+                block = block[:budget]
+            parts.append(block)
+            budget -= len(block)
+
+        if not parts:
+            return self.read_all()
+        result = "\n\n---\n\n".join(parts)
+        if len(result) > max_chars:
+            result = result[:max_chars]
+        return result
 
     def record_lesson(
         self,

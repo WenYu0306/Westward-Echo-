@@ -17,6 +17,7 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
 DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro")
+DEEPSEEK_CHAT_MODEL = os.getenv("DEEPSEEK_CHAT_MODEL", "deepseek-chat")
 
 # --- Anthropic Claude (optional arbitration) ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -72,9 +73,9 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # deepseek-v4-flash:  $0.14/M input,  $0.28/M output
 # deepseek-v4-pro:    $0.435/M input, $0.87/M output (but hangs on large prompts)
 MODEL_MAP = {
-    "translate":              DEEPSEEK_FLASH_MODEL,  # WRITE agent — Flash is reliable
-    "translate_critical":     DEEPSEEK_FLASH_MODEL,  # Reserved (same tier as translate)
-    "read":                   DEEPSEEK_PRO_MODEL,    # READ agent — cultural analysis needs Pro
-    "readback":               DEEPSEEK_FLASH_MODEL,  # Cold reader — Flash sufficient
-    "fix":                    DEEPSEEK_FLASH_MODEL,  # Editor — targeted fixes, Flash OK
+    "translate":              DEEPSEEK_CHAT_MODEL,  # WRITE agent
+    "translate_critical":     DEEPSEEK_CHAT_MODEL,  # Reserved (same tier as translate)
+    "read":                   DEEPSEEK_CHAT_MODEL,  # READ agent
+    "readback":               DEEPSEEK_CHAT_MODEL,  # Cold reader
+    "fix":                    DEEPSEEK_CHAT_MODEL,  # Editor
 }
