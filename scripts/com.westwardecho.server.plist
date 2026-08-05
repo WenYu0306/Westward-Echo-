@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.westwardecho.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Developer/CommandLineTools/usr/bin/python3</string>
+        <string>-u</string>
+        <string>-m</string>
+        <string>src.main</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/wenyudemac/Documents/dev/Westward Echo（西渡）</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/wenyudemac/Documents/dev/Westward Echo（西渡）</string>
+    </dict>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/westward_launchd.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/westward_launchd.log</string>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

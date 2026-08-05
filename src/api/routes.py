@@ -250,6 +250,15 @@ async def translate_novel(
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
             job_store.complete_job(job_id, output_path, len(agent.exact_store))
+            # Log session cost estimate
+            try:
+                snap = TranslationStats.token_snapshot()
+                logger.info(
+                    "Job %s completed. Tokens: %s total, ~$%.4f estimated cost.",
+                    job_id, f"{snap['total']:,}", snap.get("estimated_cost_usd", 0),
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.error("Sync translation failed for job %s: %s\n%s", job_id, e, _tb.format_exc())
             job_store.fail_job(job_id, str(e))
