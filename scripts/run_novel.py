@@ -197,6 +197,7 @@ def main():
                     continue
 
             tt = result.get("translated_text", "")
+            title_en = result.get("chapter_title_en", "")
             prev = result.get("chapter_summary", "")
             word_count = len(tt.split())
             src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
@@ -235,7 +236,8 @@ def main():
                 with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
                         f.write(f"# {cfg['name']} — English Translation\n\n")
-                    f.write(f"## Chapter {ch_num}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                    display_title = title_en or ch.title[:60]
+                    f.write(f"## Chapter {ch_num}: {display_title}\n\n{tt}\n\n---\n\n")
                 written_chapters.add(ch_num)
                 last_written = i
         json.dump({

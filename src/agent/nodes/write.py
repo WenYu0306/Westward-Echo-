@@ -191,6 +191,7 @@ def write_node(state: TranslatorState) -> dict:
 
     return {
         "translated_text": translated_text,
+        "chapter_title_en": result.get("chapter_title_en", ""),
         "new_terms_found": result.get("new_terms_found", []),
         "adaptation_notes": result.get("adaptation_notes", []),
         "chapter_summary": result.get("chapter_summary", ""),

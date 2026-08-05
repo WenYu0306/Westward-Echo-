@@ -125,6 +125,8 @@ meta-commentary about your process:
   "translated_text": "The complete chapter in English. This is the final \
 product — natural English prose with paragraph breaks. No chapter headers \
 (those are added by the system). No meta-commentary.",
+  "chapter_title_en": "The chapter title translated to natural English. \
+Keep it concise — one line, no subtitle markers.",
   "new_terms_found": [
     {
       "term_cn": "Chinese term",

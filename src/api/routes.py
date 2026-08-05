@@ -202,6 +202,7 @@ async def translate_novel(
                         logger.warning("Sync chapter %d failed: %s", ch.index, exc)
                         continue
                 tt = result.get("translated_text", "")
+                title_en = result.get("chapter_title_en", "")
                 prev_summary = result.get("chapter_summary", "")
                 word_count = len(tt.split())
                 src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
@@ -210,10 +211,11 @@ async def translate_novel(
                     logger.warning("Sync chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
                     continue
                 job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
+                display_title = title_en or ch.title[:60]
                 with open(output_path, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
                         f.write(f"# {job_id} — English Translation\n\n")
-                    f.write(f"## Chapter {ch.index}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                    f.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
                     exists = True
             glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
@@ -371,6 +373,7 @@ async def translate_multi(
                             TranslationStats.record_chapter_failed(lang)
                             continue
                     tt = result.get("translated_text", "")
+                    title_en = result.get("chapter_title_en", "")
                     prev_summary = result.get("chapter_summary", "")
                     word_count = len(tt.split())
                     src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
@@ -381,10 +384,11 @@ async def translate_multi(
                         continue
                     job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
                     TranslationStats.record_chapter_complete(lang)
+                    display_title = title_en or ch.title[:60]
                     with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
                         if not exists:
                             fh.write(f"# {jid} — English Translation\n\n")
-                        fh.write(f"## Chapter {ch.index}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                        fh.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
                         exists = True
                 job_store.complete_job(jid, output_path, 0)
             except Exception as exc:
