@@ -163,15 +163,37 @@ async def translate_novel(
                         skip_readback=flash_mode,
                         use_flash_writer=flash_mode,
                     )
-                    tt = result.get("translated_text", "")
-                    prev_summary = result.get("chapter_summary", "")
-                    job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
                 except CircuitBreakerOpenError:
                     job_store.fail_job(job_id, "Circuit breaker opened")
                     return
                 except Exception as exc:
-                    logger.warning("Sync chapter %d failed: %s", ch.index, exc)
+                    err_msg = str(exc).lower()
+                    if "timed out" in err_msg or "timeout" in err_msg:
+                        logger.warning("Sync chapter %d timed out — retrying", ch.index)
+                        _t.sleep(3)
+                        try:
+                            result = agent.translate_chapter(
+                                chapter_title=ch.title, chapter_content=ch.content,
+                                chapter_number=ch.index, previous_summary=prev_summary,
+                                target_lang=target_lang, genre=genre,
+                                skip_readback=flash_mode,
+                                use_flash_writer=flash_mode,
+                            )
+                        except Exception as e2:
+                            logger.warning("Sync chapter %d failed after retry: %s", ch.index, e2)
+                            continue
+                    else:
+                        logger.warning("Sync chapter %d failed: %s", ch.index, exc)
+                        continue
+                tt = result.get("translated_text", "")
+                prev_summary = result.get("chapter_summary", "")
+                word_count = len(tt.split())
+                src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
+                min_words = max(50, src_chars / 10)
+                if word_count < min_words:
+                    logger.warning("Sync chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
                     continue
+                job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
                 with open(output_path, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
                         f.write(f"# {job_id} — English Translation\n\n")
@@ -304,16 +326,44 @@ async def translate_multi(
                             skip_readback=flash_mode,
                             use_flash_writer=flash_mode,
                         )
-                        tt = result.get("translated_text", "")
-                        prev_summary = result.get("chapter_summary", "")
-                        job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
-                        TranslationStats.record_chapter_complete(lang)
                     except CircuitBreakerOpenError:
                         TranslationStats.record_chapter_failed(lang)
                         break
-                    except Exception:
+                    except Exception as exc:
+                        err_msg = str(exc).lower()
+                        if "timed out" in err_msg or "timeout" in err_msg:
+                            logger.warning("Multi-lang chapter %d timed out — retrying", ch.index)
+                            _time.sleep(3)
+                            try:
+                                result = agent.translate_chapter(
+                                    chapter_title=ch.title,
+                                    chapter_content=ch.content,
+                                    chapter_number=ch.index,
+                                    previous_summary=prev_summary,
+                                    target_lang=lang,
+                                    genre=genre,
+                                    skip_readback=flash_mode,
+                                    use_flash_writer=flash_mode,
+                                )
+                            except Exception as e2:
+                                logger.warning("Multi-lang chapter %d failed after retry: %s", ch.index, e2)
+                                TranslationStats.record_chapter_failed(lang)
+                                continue
+                        else:
+                            logger.warning("Multi-lang chapter %d failed: %s", ch.index, exc)
+                            TranslationStats.record_chapter_failed(lang)
+                            continue
+                    tt = result.get("translated_text", "")
+                    prev_summary = result.get("chapter_summary", "")
+                    word_count = len(tt.split())
+                    src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
+                    min_words = max(50, src_chars / 10)
+                    if word_count < min_words:
+                        logger.warning("Multi-lang chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
                         TranslationStats.record_chapter_failed(lang)
                         continue
+                    job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
+                    TranslationStats.record_chapter_complete(lang)
                     with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
                         if not exists:
                             fh.write(f"# {jid} — English Translation\n\n")
