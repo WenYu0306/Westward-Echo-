@@ -33,10 +33,11 @@ def write_node(state: TranslatorState) -> dict:
     chapter_number = state["chapter_number"]
     flash = state.get("use_flash_writer", False)
     model_id = "deepseek-chat" if flash else MODEL_MAP["translate"]
+    api_key = state.get("api_key") or DEEPSEEK_API_KEY
 
     llm = ChatOpenAI(
         model=model_id,
-        api_key=DEEPSEEK_API_KEY,
+        api_key=api_key,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
         max_tokens=8192,

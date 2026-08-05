@@ -45,7 +45,7 @@ def readback_node(state: TranslatorState) -> dict:
 
     llm = ChatOpenAI(
         model=MODEL_MAP["readback"],
-        api_key=DEEPSEEK_API_KEY,
+        api_key=state.get("api_key") or DEEPSEEK_API_KEY,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.1,
         max_tokens=2048,

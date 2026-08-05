@@ -566,6 +566,12 @@ body{
               </div>
 
               <div class="field">
+                <label>DeepSeek API Key（必填）</label>
+                <input type="password" id="api-key" placeholder="sk-..." style="width:100%;padding:8px 12px;border:1px solid #d2d2d7;border-radius:6px;font-size:13px;">
+                <div style="font-size:11px;color:#8e8e93;margin-top:4px">你的 Key，你的费用。我们不会存储。</div>
+              </div>
+
+              <div class="field">
                 <label>翻译模式</label>
                 <div class="toggle-group-display" style="background:#f5f5f7;border-radius:6px;padding:10px 14px;font-size:13px;color:#1c1c1e;">
                   混合模式 &mdash; READ(Pro) + WRITE(Flash) + 冷读采样<br>
@@ -1177,6 +1183,7 @@ function buildForm(){
   form.append('qa_interval',rangeInput.value);
   form.append('genre',$('#genre').value);
   form.append('glossary_preset',$('#glossary-preset').value);
+  form.append('api_key',$('#api-key').value);
   return form;
 }
 

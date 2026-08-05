@@ -84,6 +84,7 @@ async def translate_novel(
     qa_interval: int = Form(20),
     genre: str = Form("romance_ceo"),
     glossary_preset: str = Form(""),
+    api_key: str = Form(""),
 ):
     """Submit a novel for translation. Returns job_id immediately.
 
@@ -108,6 +109,21 @@ async def translate_novel(
     if error:
         status_code = 413 if "too large" in error.lower() else 400
         return JSONResponse(status_code=status_code, content={"error": error})
+
+    # ── API key validation (optional: user's key overrides env) ──
+    if api_key and not api_key.startswith("sk-"):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "无效的 API Key 格式（应以 sk- 开头）"},
+        )
+    if not api_key:
+        from ..config import DEEPSEEK_API_KEY as _dk
+        if not _dk:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "请提供 DeepSeek API Key，或配置服务器环境变量"},
+            )
+        api_key = _dk
 
     chapters = split_chapters(text)
     total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
@@ -141,7 +157,7 @@ async def translate_novel(
         import traceback as _tb
         try:
             chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-            agent = TranslationAgent()
+            agent = TranslationAgent(api_key=api_key)
             if preset_glossary_json:
                 try:
                     preset_terms = json.loads(preset_glossary_json)
@@ -222,6 +238,7 @@ async def translate_multi(
     genre: str = Form("romance_ceo"),
     qa_interval: int = Form(20),
     glossary_preset: str = Form(""),
+    api_key: str = Form(""),
 ) -> dict:
     """Start translation into multiple languages simultaneously.
 
@@ -293,7 +310,7 @@ async def translate_multi(
             _asyncio.set_event_loop(loop)
             try:
                 chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-                agent = TranslationAgent()
+                agent = TranslationAgent(api_key=api_key)
                 prev_summary = ""
 
                 if preset_glossary_json:

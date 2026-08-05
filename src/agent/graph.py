@@ -105,7 +105,7 @@ def build_graph(
 class TranslationAgent:
     """High-level wrapper around the v0.15 reader-centric LangGraph pipeline."""
 
-    def __init__(self, book_id: str = "default"):
+    def __init__(self, book_id: str = "default", api_key: str = ""):
         self.exact_store = ExactGlossary()
         self.semantic_store = SemanticGlossary()
         self.graph = build_graph(self.exact_store, self.semantic_store)
@@ -113,7 +113,8 @@ class TranslationAgent:
         self.style_memo: "StyleMemoStore" = StyleMemoStore(book_id)
         self._prefetched_exact: dict | None = None
         self._prefetched_semantic: list[dict] | None = None
-        self._chapter_context: list[str] = []  # Rolling buffer: last N chapter summaries
+        self._chapter_context: list[str] = []
+        self.api_key = api_key  # User-provided BYOK key (empty = use config default)
 
     def _update_context(self, chapter_number: int, summary: str):
         """Accumulate recent chapter summaries for cold reader context."""
@@ -295,6 +296,7 @@ class TranslationAgent:
             ),
             "skip_readback": skip_readback,
             "use_flash_writer": use_flash_writer,
+            "api_key": self.api_key or "",  # BYOK: user-provided key overrides env
             # Cold reader briefing
             "cold_read_context": self._build_cold_read_context(
                 chapter_number=number,

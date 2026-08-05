@@ -84,9 +84,10 @@ def read_node(
         - read_analysis: the READ agent's structured analysis (JSON)
         - context_signals: aggregated context signal text
     """
+    api_key = state.get("api_key") or DEEPSEEK_API_KEY
     llm = ChatOpenAI(
         model=MODEL_MAP.get("read", MODEL_MAP["translate"]),
-        api_key=DEEPSEEK_API_KEY,
+        api_key=api_key,
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
         max_tokens=4096,

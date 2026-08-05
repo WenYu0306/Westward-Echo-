@@ -49,6 +49,20 @@ NOVELS = {
                if n <= total}
         ),
     },
+    "jianke": {
+        "name": "间客",
+        "path": "tests/fixtures/《间客》（精校版全本）作者：猫腻.txt",
+        "genre": "scifi",
+        "book_id": "jianke",
+        "output_dir": "novels/output/jianke_segmented",
+        "output_file": "jianke_en.md",
+        "expected_chapters": 743,
+        "sample_points_fn": lambda total: (
+            frozenset(range(10, min(total, 2300) + 1, 50))
+            | {n for n in [25, 50, 100, 200, 300, 400, 500, 600, 700, total]
+               if n <= total}
+        ),
+    },
 }
 
 SEGMENT = 15  # chapters per checkpoint segment
@@ -135,6 +149,7 @@ def main():
     while start < len(chapters):
         batch_end = min(start + SEGMENT, len(chapters))
         t0 = time.monotonic()
+        last_written = start  # track array position of last successfully written chapter
 
         for i in range(start, batch_end):
             ch = chapters[i]
@@ -183,7 +198,15 @@ def main():
 
             tt = result.get("translated_text", "")
             prev = result.get("chapter_summary", "")
-            ok_flag = "OK" if len(tt) >= 50 else "EMPTY"
+            word_count = len(tt.split())
+            src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
+            min_words = max(50, src_chars / 10)
+
+            ok_flag = "OK"
+            if word_count < min_words:
+                ok_flag = f"TRUNCATED ({word_count}w < {min_words:.0f}w)"
+            elif word_count < 50:
+                ok_flag = "EMPTY"
 
             fb = result.get("readback_feedback", {})
             if is_sample and fb:
@@ -208,15 +231,15 @@ def main():
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {len(tt)}c [F] {ok_flag}")
 
             exists = os.path.exists(out_file)
-            if ch_num not in written_chapters:
+            if ch_num not in written_chapters and "TRUNCATED" not in ok_flag and "EMPTY" not in ok_flag:
                 with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
                         f.write(f"# {cfg['name']} — English Translation\n\n")
                     f.write(f"## Chapter {ch_num}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
                 written_chapters.add(ch_num)
-
+                last_written = i
         json.dump({
-            "last_idx": batch_end - 1,
+            "last_idx": last_written,
             "glossary_snapshot": agent.exact_store.snapshot(),
             "previous_summary": prev,
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
