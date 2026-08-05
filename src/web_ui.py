@@ -221,6 +221,39 @@ body{
   .form-left{flex:1 1 auto;width:100%}
 }
 
+@media(max-width:680px){
+  /* Sidebar → collapsible top bar */
+  .app-shell{flex-direction:column}
+  .sidebar{width:100%;min-width:unset;max-height:56px;overflow:hidden;flex-shrink:0;
+    border-right:none;border-bottom:1px solid #e5e5ea;transition:max-height .25s}
+  .sidebar.open{max-height:420px;overflow-y:auto}
+  .sidebar-header{padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+  .sidebar-brand{font-size:15px;margin-bottom:0}
+  .sidebar-brand .en{display:none}
+  .btn-new-translation{display:none}
+  .btn-cms-import{display:none}
+  .sidebar-jobs{display:none}
+  .sidebar.open .sidebar-jobs{display:block}
+  .sidebar-footer{display:none}
+  /* Hamburger */
+  .sidebar-toggle{
+    display:flex!important;width:32px;height:32px;align-items:center;justify-content:center;
+    border-radius:6px;cursor:pointer;border:1px solid #e5e5ea;background:#fff;
+    font-size:16px;color:#3a3a3c;flex-shrink:0;
+  }
+  /* Main content */
+  .main-content-inner{padding:16px}
+  .hero h1{font-size:20px!important}
+  .hero h1 .en{font-size:18px!important}
+  .hero p{font-size:12px!important}
+  .preview-panel{border-radius:0;margin:0 -16px}
+  .card{padding:16px;border-radius:10px}
+  .drop-zone{padding:20px 12px}
+  /* Job detail */
+  .job-detail-header{flex-direction:column;gap:8px}
+  .job-detail-title{white-space:normal!important}
+}
+
 /* ── VIEW: Job Detail ── */
 .view-job-detail .job-detail-header{
   display:flex;align-items:center;justify-content:space-between;
@@ -500,6 +533,7 @@ body{
         西渡
         <span class="en">Westward Echo</span>
       </div>
+      <button class="sidebar-toggle" id="sidebar-toggle" style="display:none" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</button>
       <button class="btn-new-translation" id="btn-new-translation">+ 新建翻译</button>
       <button class="btn-cms-import" id="btn-cms-import">&larr; 从 CMS 导入</button>
       <button class="btn-cms-import" id="btn-multi-translate" style="margin-top:4px">+ 多语种翻译</button>
@@ -566,16 +600,16 @@ body{
               </div>
 
               <div class="field">
-                <label>DeepSeek API Key（必填）</label>
-                <input type="password" id="api-key" placeholder="sk-..." style="width:100%;padding:8px 12px;border:1px solid #d2d2d7;border-radius:6px;font-size:13px;">
-                <div style="font-size:11px;color:#8e8e93;margin-top:4px">你的 Key，你的费用。我们不会存储。</div>
+                <label>DeepSeek API Key（可选）</label>
+                <input type="password" id="api-key" placeholder="留空使用服务器默认 Key" style="width:100%;padding:8px 12px;border:1px solid #d2d2d7;border-radius:6px;font-size:13px;">
+                <div style="font-size:11px;color:#8e8e93;margin-top:4px">内测阶段可不填。有自己 Key 的填自己的。</div>
               </div>
 
               <div class="field">
                 <label>翻译模式</label>
                 <div class="toggle-group-display" style="background:#f5f5f7;border-radius:6px;padding:10px 14px;font-size:13px;color:#1c1c1e;">
-                  混合模式 &mdash; READ(Pro) + WRITE(Flash) + 冷读采样<br>
-                  <span style="color:#8e8e93;font-size:11px;">775章验证通过 &middot; 16次冷读全PASS</span>
+                  四 Agent 协作翻译 &mdash; READ / WRITE / READBACK / FIX<br>
+                  <span style="color:#8e8e93;font-size:11px;">文化缺口检测 &middot; 感官画面重建 &middot; 冷读盲评</span>
                 </div>
               </div>
 
@@ -703,11 +737,14 @@ function showView(name){
 async function loadJobList(){
   try{
     const r=await fetch('/api/jobs?limit=50');
-    jobsCache=await r.json();
+    const allJobs=await r.json();
+    const myJobs=getOwnJobs();
+    jobsCache=allJobs.filter(j=>myJobs.includes(j.job_id));
     // Also fetch projects for grouping
     try{
       const pr=await fetch('/api/projects?limit=10');
-      projectsCache=await pr.json();
+      const allProjects=await pr.json();
+      projectsCache=allProjects.filter(p=>p.jobs.some(j=>myJobs.includes(j.job_id)));
     }catch(e){projectsCache=[]}
     renderJobList();
   }catch(e){/* silent */}
@@ -1167,6 +1204,10 @@ $$('#preview-tabs .preview-tab').forEach(t=>{
 
 function showToast(msg){toast.textContent=msg;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000)}
 
+// ── Per-browser job isolation ──
+function getOwnJobs(){try{return JSON.parse(localStorage.getItem('westward_my_jobs')||'[]')}catch(e){return[]}}
+function saveOwnJob(id){const jobs=getOwnJobs();if(!jobs.includes(id)){jobs.push(id);localStorage.setItem('westward_my_jobs',JSON.stringify(jobs))}}
+
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 function buildForm(){
@@ -1277,6 +1318,7 @@ async function doTranslate(form){
     const projectId=resp.project_id;
     const jobs=resp.jobs;
     const total=resp.total_chapters;
+    jobs.forEach(j=>saveOwnJob(j.job_id));
 
     progressText.innerHTML='<span class="spinner"></span>多语种翻译进行中 — '+jobs.length+' 个语种';
     progressFill.style.width='10%';
@@ -1324,6 +1366,7 @@ async function doTranslate(form){
   const jobId=resp.job_id;
   const total=resp.total_chapters;
   activeJobId=jobId;activeForm=form;
+  saveOwnJob(jobId);
 
   // Refresh sidebar
   loadJobList();

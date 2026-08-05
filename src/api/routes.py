@@ -1,6 +1,7 @@
 """API routes — Celery-backed translation (mounted at /api)."""
 
 import json
+import os
 import re
 import sqlite3
 import asyncio
@@ -8,6 +9,7 @@ import threading
 import time as _time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 
@@ -46,26 +48,53 @@ def _safe_job_id(job_id: str) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 async def _validate_novel_upload(file: UploadFile):
-    """Validate an uploaded novel file for size, encoding, and content.
+    """Validate and auto-convert uploaded novel file to plain UTF-8 text.
 
-    Returns ``(content, error_message)`` — exactly one will be non-None.
-    Use typing.Optional for Python 3.9 compatibility.
+    Supports: .txt (UTF-8/GBK/GB2312), .rtf (macOS TextEdit), .docx (Word),
+              .md (Markdown), .epub (extracted text).
+    Returns ``(text, error_message)`` — exactly one will be non-None.
     """
-    # 1. Size check
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
         return None, f"File too large. Maximum {MAX_UPLOAD_SIZE_MB}MB."
 
-    # 2. UTF-8 encoding check
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        return None, "File must be UTF-8 encoded text."
+    filename = (file.filename or "").lower()
+    text = None
 
-    # 3. Content check: does it contain Chinese characters?
+    # ── RTF: macOS TextEdit default format ──
+    if filename.endswith(".rtf") or content[:5] == b"{\\rtf":
+        text = _convert_rtf(content)
+
+    # ── DOCX: Word documents ──
+    elif filename.endswith(".docx") or (content[:2] == b"PK" and b"word/document" in content[:2048]):
+        text = _convert_docx(content)
+
+    # ── EPUB: extract plain text from packaged novel ──
+    elif filename.endswith(".epub"):
+        text = _convert_epub(content)
+
+    # ── Markdown: pass through ──
+    elif filename.endswith(".md") or filename.endswith(".markdown"):
+        for enc in ["utf-8", "gb18030", "gbk"]:
+            try:
+                text = content.decode(enc)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+    # ── Plain text: auto-detect encoding ──
+    else:
+        for enc in ["utf-8", "gb18030", "gbk", "gb2312"]:
+            try:
+                text = content.decode(enc)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+    if not text:
+        return None, "Unable to decode file. Supported: .txt, .rtf, .docx, .md, .epub"
     if not re.search(r'[一-鿿]', text[:10000]):
-        return None, "File does not appear to contain Chinese text. Upload a Chinese web novel .txt file."
-
+        return None, "File does not appear to contain Chinese text."
     return text, None
 
 
@@ -797,3 +826,70 @@ def delete_preset(preset_name: str):
         )
     job_store.delete_glossary_preset(preset_name)
     return {"status": "deleted", "preset_name": preset_name}
+
+
+# ═══════════════════════════════════════════════════════════════
+# File format auto-converters
+# ═══════════════════════════════════════════════════════════════
+
+def _convert_rtf(raw: bytes) -> Optional[str]:
+    """Convert RTF bytes to plain UTF-8 text via macOS textutil."""
+    import subprocess, tempfile
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".rtf", delete=False) as tf:
+            tmp_path = tf.name
+            tf.write(raw)
+            tf.flush()
+        result = subprocess.run(
+            ["textutil", "-convert", "txt", "-stdout", tmp_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+    return None
+
+
+def _convert_docx(raw: bytes) -> Optional[str]:
+    """Convert DOCX bytes to plain UTF-8 text."""
+    import zipfile, io, tempfile
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf:
+            tf.write(raw)
+            tf.flush()
+            from docx import Document as DocxDocument
+            doc = DocxDocument(tf.name)
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            os.unlink(tf.name)
+            return text.strip() or None
+    except Exception:
+        return None
+
+
+def _convert_epub(raw: bytes) -> Optional[str]:
+    """Extract plain text from EPUB bytes. Strips HTML tags, returns raw text."""
+    import zipfile, io
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            # Find all XHTML/HTML content files in OEBPS/
+            text_parts = []
+            for name in sorted(zf.namelist()):
+                if name.endswith((".xhtml", ".html", ".htm")) and "OEBPS" in name:
+                    html = zf.read(name).decode("utf-8", errors="ignore")
+                    # Strip HTML tags
+                    html = __import__("re").sub(r"<[^>]+>", "", html)
+                    html = __import__("re").sub(r"&\w+;", " ", html)
+                    html = __import__("re").sub(r"\n{3,}", "\n\n", html)
+                    if html.strip():
+                        text_parts.append(html.strip())
+            return "\n\n".join(text_parts) if text_parts else None
+    except Exception:
+        return None
