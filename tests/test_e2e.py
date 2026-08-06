@@ -76,6 +76,87 @@ def test_upload_and_poll(client, novel_txt):
     client.delete(f"/api/jobs/{job_id}")
 
 
+def test_script_upload_splits_by_episode(client):
+    """content_type=script must split by episodes and route to the script branch.
+
+    LLM calls are mocked so no API quota is consumed.
+    """
+    from unittest.mock import patch, MagicMock
+
+    script_content = """第1集 穿书
+
+场景1：裴家别墅-主卧/夜
+
+苏念醒来，发现自己躺在陌生的大床上。
+【系统绑定成功，当前好感度：-50】
+
+第2集 契约
+
+场景1：裴家客厅/清晨
+
+裴衍舟递出一份契约。苏念扫了一眼，笑了。
+"""
+    read_out = json.dumps({
+        "emotional_arc": "Hook and reversal.",
+        "cultural_gaps": [],
+        "crafted_moments": [],
+        "image_gaps": [],
+        "pacing_notes": "",
+        "terminology_decisions": [],
+    })
+    write_out = json.dumps({
+        "translated_text": "Su Nian wakes up in the penthouse and sees the system panel. " * 12,
+        "chapter_title_en": "Transmigrated",
+        "new_terms_found": [],
+        "adaptation_notes": [],
+        "chapter_summary": "Su Nian transmigrates.",
+    })
+
+    def _mock_llm(out):
+        resp = MagicMock()
+        resp.content = out
+        resp.response_metadata = {}
+        llm = MagicMock()
+        llm.invoke.return_value = resp
+        return llm
+
+    with patch("src.agent.nodes.read.ChatOpenAI", return_value=_mock_llm(read_out)), \
+         patch("src.agent.nodes.write.ChatOpenAI", return_value=_mock_llm(write_out)), \
+         patch("src.agent.nodes.readback.ChatOpenAI", return_value=_mock_llm(read_out)), \
+         patch("src.agent.nodes.fix.ChatOpenAI", return_value=_mock_llm(write_out)):
+
+        r = client.post(
+            "/api/translate",
+            files={"file": ("script.txt", script_content.encode("utf-8"), "text/plain")},
+            data={"target_lang": "en-US", "genre": "romance_ceo", "content_type": "script"},
+        )
+        assert r.status_code == 200
+        j = r.json()
+        assert "job_id" in j
+        # Two episodes, split by the script splitter (not chapter splitter)
+        assert j["total_chapters"] == 2
+        assert j["status"] in ("translating", "queued")
+
+        job_id = j["job_id"]
+
+        # Job record must carry the content type
+        from src.job_store import job_store
+        job = job_store.get_job(job_id)
+        assert job["content_type"] == "script"
+
+        # Wait for the sync thread to finish (mocked LLM is fast)
+        for _ in range(40):
+            r = client.get(f"/api/translate/{job_id}")
+            assert r.status_code == 200
+            status = r.json()
+            if status.get("status") in ("complete", "error"):
+                break
+            time.sleep(0.5)
+        assert status.get("status") == "complete", f"Job did not complete: {status}"
+
+        client.delete(f"/api/jobs/{job_id}")
+
+
 def test_job_not_found(client):
     r = client.get("/api/jobs/nonexistent")
     assert r.status_code == 404

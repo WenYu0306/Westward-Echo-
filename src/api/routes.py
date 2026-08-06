@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, FileResponse
 
 from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB, VERSION
 from ..chapter_splitter import split_chapters, ParagraphTag
+from ..script_splitter import split_episodes
 from ..job_store import job_store
 from ..backpressure import backpressure
 from ..stats import TranslationStats
@@ -32,8 +33,23 @@ app = FastAPI(title="Westward Echo API", version=VERSION)
 
 # ── Security ───────────────────────────────────────────────────
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
-_KNOWN_LANGS = frozenset({"en-US", "es-ES", "de", "fr"})
+_KNOWN_LANGS = frozenset({"en-US", "es-ES", "de", "fr", "en"})
 _KNOWN_GENRES = frozenset({"romance_ceo", "xianxia", "urban", "scifi", "folk_religion"})
+_VALID_CONTENT_TYPES = frozenset({"novel", "script", "game"})
+
+
+def _split_by_content_type(text: str, content_type: str):
+    """Split upload text by content type.
+
+    "script" uses the episode splitter (vertical short drama); everything
+    else falls back to the novel chapter splitter. Returns the list of
+    translatable sections (SKIP-filtered).
+    """
+    if content_type == "script":
+        chunks = split_episodes(text)
+    else:
+        chunks = split_chapters(text)
+    return [c for c in chunks if c.action != ParagraphTag.SKIP]
 
 def _safe_job_id(job_id: str) -> str:
     """Reject job IDs containing path traversal or illegal characters."""
@@ -155,8 +171,8 @@ async def translate_novel(
             )
         api_key = _dk
 
-    chapters = split_chapters(text)
-    total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
+    chapters = _split_by_content_type(text, content_type)
+    total = len(chapters)
 
     # Create persistent job record
     filename = file.filename or "unknown.txt"
@@ -175,6 +191,7 @@ async def translate_novel(
             translate_mode=translate_mode, qa_interval=qa_interval,
             genre=genre,
             glossary_preset_glossary=preset_glossary_json,
+            content_type=content_type,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
 
@@ -223,6 +240,7 @@ async def translate_novel(
                         target_lang=target_lang, genre=genre,
                         skip_readback=flash_mode,
                         use_flash_writer=flash_mode,
+                        content_type=content_type,
                     )
                 except CircuitBreakerOpenError:
                     job_store.fail_job(job_id, "Circuit breaker opened")
@@ -239,6 +257,7 @@ async def translate_novel(
                                 target_lang=target_lang, genre=genre,
                                 skip_readback=flash_mode,
                                 use_flash_writer=flash_mode,
+                                content_type=content_type,
                             )
                         except Exception as e2:
                             logger.warning("Sync chapter %d failed after retry: %s", ch.index, e2)
@@ -334,8 +353,8 @@ async def translate_multi(
         status_code = 413 if "too large" in error.lower() else 400
         return JSONResponse(status_code=status_code, content={"error": error})
 
-    chapters = split_chapters(text)
-    total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
+    chapters = _split_by_content_type(text, content_type)
+    total = len(chapters)
     filename = file.filename or "unknown.txt"
 
     # Create a project to group all language variants
@@ -360,6 +379,7 @@ async def translate_multi(
                 translate_mode=translate_mode, qa_interval=qa_interval,
                 genre=genre,
                 glossary_preset_glossary=preset_glossary_json,
+                content_type=content_type,
             )
             results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
         else:
@@ -425,6 +445,7 @@ async def translate_multi(
                             genre=genre,
                             skip_readback=flash_mode,
                             use_flash_writer=flash_mode,
+                            content_type=content_type,
                         )
                     except CircuitBreakerOpenError:
                         TranslationStats.record_chapter_failed(lang)
@@ -444,6 +465,7 @@ async def translate_multi(
                                     genre=genre,
                                     skip_readback=flash_mode,
                                     use_flash_writer=flash_mode,
+                                    content_type=content_type,
                                 )
                             except Exception as e2:
                                 logger.warning("Multi-lang chapter %d failed after retry: %s", ch.index, e2)
@@ -531,7 +553,7 @@ def get_glossary(job_id: str):
 @app.get("/translation/{job_id}")
 def get_translation(job_id: str):
     """Download the translated novel markdown."""
-    for lang in ["en-US", "es-ES", "de", "fr"]:
+    for lang in ["en-US", "es-ES", "de", "fr", "en"]:
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
             return {"text": path.read_text(encoding="utf-8"), "target_lang": lang}
@@ -593,7 +615,7 @@ def download_epub(job_id: str):
     # ── Locate the translated Markdown file ──
     md_path = None
     target_lang = "en-US"
-    for lang in ["en-US", "es-ES", "de", "fr"]:
+    for lang in ["en-US", "es-ES", "de", "fr", "en"]:
         candidate = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if candidate.exists():
             md_path = candidate
@@ -720,9 +742,10 @@ async def resume_translation(
         # No checkpoint table yet — start from chapter 0
         pass
 
-    # 4. Re-split to verify total chapters
-    chapters = split_chapters(text)
-    total = len([c for c in chapters if c.action != ParagraphTag.SKIP])
+    # 4. Re-split to verify total chapters (content type comes from the job record)
+    content_type = job.get("content_type", "novel")
+    chapters = _split_by_content_type(text, content_type)
+    total = len(chapters)
 
     # 5. Start the resume task from chapter N+1
     start_chapter = last_chapter + 1
@@ -736,6 +759,7 @@ async def resume_translation(
         translate_mode=translate_mode,
         qa_interval=qa_interval,
         genre=genre,
+        content_type=content_type,
     )
 
     # 6. Update job status back to translating

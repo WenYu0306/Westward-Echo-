@@ -1197,9 +1197,30 @@ input:focus, select:focus, textarea:focus {
   $('#btn-download-glossary').addEventListener('click', () => dl('glossary'));
   function dl(fmt) {
     if (!currentJobId) return;
-    if (fmt === 'epub') window.open(API.epub + currentJobId, '_blank');
-    else if (fmt === 'md') window.open(API.download + currentJobId, '_blank');
-    else if (fmt === 'glossary') window.open(API.glossary + currentJobId, '_blank');
+    let url = '';
+    if (fmt === 'epub') url = API.epub + currentJobId;
+    else if (fmt === 'md') url = API.download + currentJobId;
+    else if (fmt === 'glossary') url = API.glossary + currentJobId;
+    if (!url) return;
+
+    fetch(url)
+      .then(r => {
+        if (fmt === 'epub') return r.blob();
+        return r.json().then(data => {
+          const text = data.text || JSON.stringify(data, null, 2);
+          return new Blob([text], { type: 'text/plain;charset=utf-8' });
+        });
+      })
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'westward_echo_' + currentJobId + '.' + (fmt === 'epub' ? 'epub' : fmt === 'md' ? 'md' : 'json');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(() => { window.open(url, '_blank'); });
   }
 
   /* —— 新建/重置 —— */

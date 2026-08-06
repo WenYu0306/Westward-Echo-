@@ -197,12 +197,16 @@ class TranslationAgent:
         genre: str = "romance_ceo",
         skip_readback: bool = False,
         use_flash_writer: bool = False,
+        content_type: str = "novel",
     ) -> dict:
         """Translate a single chapter through the 4-node reader-centric pipeline.
 
         Set skip_readback=True for fast mode: READ→WRITE→END, skipping
         the cold reader and editor nodes. Use for non-sample chapters
         to save ~50% API calls and latency.
+
+        content_type selects the parallel prompt branch ("novel" default,
+        "script" for short drama scripts); the novel path is unchanged.
 
         Returns:
             {translated_text, new_terms_found, adaptation_notes,
@@ -214,16 +218,18 @@ class TranslationAgent:
             return self._translate_split(
                 chapter_title, chapter_content, chapter_number,
                 previous_summary, target_lang, genre, skip_readback,
+                content_type=content_type,
             )
 
         return self._translate_once(
             chapter_title, chapter_content, chapter_number,
             previous_summary, target_lang, genre, skip_readback,
+            content_type=content_type,
         )
 
     def _make_state(
         self, title, content, number, prev_summary, lang, genre,
-        skip_readback=False, use_flash_writer=False,
+        skip_readback=False, use_flash_writer=False, content_type="novel",
     ) -> TranslatorState:
         """Build the initial state for a chapter translation.
 
@@ -263,6 +269,7 @@ class TranslationAgent:
             "chapter_number": number,
             "target_lang": lang,
             "genre": genre,
+            "content_type": content_type,
             # Glossary
             "exact_glossary": self.exact_store.to_dict(),
             "semantic_terms": semantic_hits,
@@ -309,16 +316,17 @@ class TranslationAgent:
 
     def _translate_once(
         self, title, content, number, prev_summary, lang, genre,
-        skip_readback=False, use_flash_writer=False,
+        skip_readback=False, use_flash_writer=False, content_type="novel",
     ) -> dict:
         """Run the 4-node pipeline on a single chapter."""
-        state = self._make_state(title, content, number, prev_summary, lang, genre, skip_readback, use_flash_writer)
+        state = self._make_state(title, content, number, prev_summary, lang, genre,
+                                 skip_readback, use_flash_writer, content_type)
         result = self.graph.invoke(state, config={"recursion_limit": 100})
         return self._post_process(result, lang)
 
     def _translate_split(
         self, title, content, number, prev_summary, lang, genre,
-        skip_readback=False, use_flash_writer=False,
+        skip_readback=False, use_flash_writer=False, content_type="novel",
     ) -> dict:
         """Translate a long chapter by splitting into segments.
 
@@ -340,7 +348,8 @@ class TranslationAgent:
             seg_title = build_segment_title(title, seg)
 
             result = self._translate_once(
-                seg_title, seg["content"], number, segment_summary, lang, genre, skip_readback, use_flash_writer,
+                seg_title, seg["content"], number, segment_summary, lang, genre,
+                skip_readback, use_flash_writer, content_type=content_type,
             )
 
             tt = result.get("translated_text", "")

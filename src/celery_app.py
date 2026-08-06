@@ -25,6 +25,7 @@ from .config import (
     OUTPUT_DIR,
 )
 from .chapter_splitter import split_chapters, merge_chapters, ParagraphTag
+from .script_splitter import split_episodes
 from .agent.graph import TranslationAgent
 from .prefetch import ChapterPrefetcher
 from .backpressure import backpressure
@@ -50,12 +51,21 @@ if _celery_ok:
     def translate_novel_task(self, job_id: str, text: str, target_lang: str = "en-US",
                               translate_mode: str = "flash", qa_interval: int = 20,
                               genre: str = "romance_ceo",
-                              glossary_preset_glossary: str = ""):
-        """Main translation Celery task — durable, retryable, checkpointed."""
+                              glossary_preset_glossary: str = "",
+                              content_type: str = "novel"):
+        """Main translation Celery task — durable, retryable, checkpointed.
+
+        content_type selects the splitting + prompt branch:
+        "novel" (chapter splitter, web-novel prompts) or "script"
+        (episode splitter, short-drama prompts).
+        """
         progress = TranslationProgress(job_id)
         try:
-            chapters = split_chapters(text)
-            translatable = [c for c in chapters if c.action != ParagraphTag.SKIP]
+            if content_type == "script":
+                chunks = split_episodes(text)
+            else:
+                chunks = split_chapters(text)
+            translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
             agent = TranslationAgent()
             all_translations = []
@@ -89,6 +99,7 @@ if _celery_ok:
                         chapter_title=chapter.title, chapter_content=chapter.content,
                         chapter_number=chapter.index, previous_summary=prev_summary,
                         target_lang=target_lang, genre=genre,
+                        content_type=content_type,
                     )
                 except CircuitBreakerOpenError:
                     # Circuit is open for this language — skip remaining chapters
@@ -131,7 +142,7 @@ if _celery_ok:
     def resume_translate_task(self, job_id: str, start_chapter: int, glossary_snapshot: str,
                                text: str = "", target_lang: str = "en-US",
                                translate_mode: str = "flash", qa_interval: int = 20,
-                               genre: str = "romance_ceo"):
+                               genre: str = "romance_ceo", content_type: str = "novel"):
         """Resume a crashed translation from the given starting chapter number.
 
         Accepts a glossary snapshot (JSON) and a start_chapter index so the
@@ -141,8 +152,11 @@ if _celery_ok:
         """
         progress = TranslationProgress(job_id)
         try:
-            chapters = split_chapters(text)
-            translatable = [c for c in chapters if c.action != ParagraphTag.SKIP]
+            if content_type == "script":
+                chunks = split_episodes(text)
+            else:
+                chunks = split_chapters(text)
+            translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
             agent = TranslationAgent()
 
@@ -189,6 +203,7 @@ if _celery_ok:
                         chapter_title=chapter.title, chapter_content=chapter.content,
                         chapter_number=chapter.index, previous_summary=prev_summary,
                         target_lang=target_lang, genre=genre,
+                        content_type=content_type,
                     )
                 except CircuitBreakerOpenError:
                     logger.warning(

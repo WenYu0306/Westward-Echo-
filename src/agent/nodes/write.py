@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import TranslatorState
-from ..prompts.write import WRITE_SYSTEM, WRITE_USER
+from ..prompts.registry import get_prompt_set
 from ..prompts.translation import LANGUAGE_STYLE_NOTES
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
 from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
@@ -77,7 +77,8 @@ def write_node(state: TranslatorState) -> dict:
     image_gaps_text = _format_image_gaps(state.get("image_gaps", []))
 
     memo = state.get("style_memo", "(No style memo yet — this is the first chapter.)")
-    user_prompt = WRITE_USER.format(
+    prompts = get_prompt_set(state.get("content_type", "novel"))
+    user_prompt = prompts.write_user.format(
         style_memo=memo,
         reader_analysis=analysis_text,
         image_gaps=image_gaps_text,
@@ -94,7 +95,7 @@ def write_node(state: TranslatorState) -> dict:
     )
 
     messages = [
-        SystemMessage(content=WRITE_SYSTEM),
+        SystemMessage(content=prompts.write_system),
         HumanMessage(content=user_prompt),
     ]
 
@@ -157,7 +158,7 @@ def write_node(state: TranslatorState) -> dict:
             )
             try:
                 retry_messages = [
-                    SystemMessage(content=WRITE_SYSTEM),
+                    SystemMessage(content=prompts.write_system),
                     HumanMessage(content=user_prompt + "\n\nCRITICAL: Your previous response was empty. "
                                   "Output the complete translated chapter as JSON NOW. "
                                   "The translated_text field MUST contain the full chapter."),

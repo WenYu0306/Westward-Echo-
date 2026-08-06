@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import TranslatorState
-from ..prompts.readback import READBACK_SYSTEM, READBACK_USER
+from ..prompts.registry import get_prompt_set
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
 from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
 from ...stats import TranslationStats
@@ -58,13 +58,14 @@ def readback_node(state: TranslatorState) -> dict:
     if not cold_context:
         cold_context = ""
 
-    user_prompt = READBACK_USER.format(
+    prompts = get_prompt_set(state.get("content_type", "novel"))
+    user_prompt = prompts.readback_user.format(
         previous_context=cold_context,
         chapter_content=translated_text,
     )
 
     messages = [
-        SystemMessage(content=READBACK_SYSTEM),
+        SystemMessage(content=prompts.readback_system),
         HumanMessage(content=user_prompt),
     ]
 

@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import TranslatorState
-from ..prompts.fix import FIX_SYSTEM, FIX_USER
+from ..prompts.registry import get_prompt_set
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
 from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
 from ...stats import TranslationStats
@@ -42,7 +42,8 @@ def fix_node(state: TranslatorState) -> dict:
 
     target_lang = state.get("target_lang", "en-US")
 
-    user_prompt = FIX_USER.format(
+    prompts = get_prompt_set(state.get("content_type", "novel"))
+    user_prompt = prompts.fix_user.format(
         original_cn=state["chapter_content"],
         current_en=state.get("translated_text", ""),
         reader_feedback=feedback_text,
@@ -50,7 +51,7 @@ def fix_node(state: TranslatorState) -> dict:
     )
 
     messages = [
-        SystemMessage(content=FIX_SYSTEM),
+        SystemMessage(content=prompts.fix_system),
         HumanMessage(content=user_prompt),
     ]
 

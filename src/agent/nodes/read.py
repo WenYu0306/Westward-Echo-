@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from ..state import TranslatorState
-from ..prompts.read import READ_SYSTEM, READ_USER
+from ..prompts.registry import get_prompt_set
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
 from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
@@ -114,7 +114,8 @@ def read_node(
     )
 
     memo = state.get("style_memo", "(No style memo yet — this is the first chapter.)")
-    user_prompt = READ_USER.format(
+    prompts = get_prompt_set(state.get("content_type", "novel"))
+    user_prompt = prompts.read_user.format(
         style_memo=memo,
         chapter_number=state["chapter_number"],
         chapter_title=state["chapter_title"],
@@ -128,7 +129,7 @@ def read_node(
     )
 
     messages = [
-        SystemMessage(content=READ_SYSTEM),
+        SystemMessage(content=prompts.read_system),
         HumanMessage(content=user_prompt),
     ]
 
