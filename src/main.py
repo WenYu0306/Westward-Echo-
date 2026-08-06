@@ -66,17 +66,12 @@ def create_app() -> FastAPI:
 
     from pathlib import Path
 
-    # Landing page at /
+    # Anchor-v4 as the main page
     @app.get("/", response_class=HTMLResponse)
     async def index():
         landing = Path(__file__).resolve().parent.parent / "docs" / "anchor-v4.html"
         if landing.exists():
             return landing.read_text(encoding="utf-8")
-        return PAGE
-
-    # Web UI at /app
-    @app.get("/app", response_class=HTMLResponse)
-    async def app_page():
         return PAGE
 
     # Glossary review page at /review

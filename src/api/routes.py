@@ -112,6 +112,7 @@ async def translate_novel(
     translate_mode: str = Form("flash"),
     qa_interval: int = Form(20),
     genre: str = Form("romance_ceo"),
+    content_type: str = Form("novel"),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
 ):
@@ -159,7 +160,7 @@ async def translate_novel(
 
     # Create persistent job record
     filename = file.filename or "unknown.txt"
-    job_id = job_store.create_job(filename, target_lang, total)
+    job_id = job_store.create_job(filename, target_lang, total, content_type=content_type)
 
     # ── Pre-load glossary preset if requested ──
     preset_glossary_json = ""
@@ -299,6 +300,7 @@ async def translate_multi(
     target_langs: str = Form("en-US,es-ES,de,fr"),
     translate_mode: str = Form("flash"),
     genre: str = Form("romance_ceo"),
+    content_type: str = Form("novel"),
     qa_interval: int = Form(20),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
@@ -321,6 +323,10 @@ async def translate_multi(
             },
             headers={"Retry-After": "30"},
         )
+
+    # ── Map content_type → default genre ──
+    if content_type != "novel" and genre == "romance_ceo":
+        genre = {"script": "urban", "game": "scifi"}.get(content_type, genre)
 
     # ── File validation ──
     text, error = await _validate_novel_upload(file)
@@ -346,7 +352,7 @@ async def translate_multi(
     results = []
 
     for lang in langs:
-        job_id = job_store.add_language_job(project_id, lang, filename, total)
+        job_id = job_store.add_language_job(project_id, lang, filename, total, content_type=content_type)
 
         if _has_celery:
             task = translate_novel_task.delay(

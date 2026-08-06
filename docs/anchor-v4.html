@@ -1059,10 +1059,12 @@ input:focus, select:focus, textarea:focus {
   'use strict';
 
   const API = {
-    upload:   '/api/upload',
-    poll:     '/api/status/',
-    download: '/api/download/',
+    upload:   '/api/translate',
+    poll:     '/api/translate/',
+    download: '/api/translation/',
     jobs:     '/api/jobs',
+    glossary: '/api/glossary/',
+    epub:     '/api/epub/',
   };
 
   const POLL_INTERVAL = 3000;
@@ -1157,16 +1159,20 @@ input:focus, select:focus, textarea:focus {
       const res = await fetch(API.poll + currentJobId);
       const data = await res.json();
       updateAgentDisplay(data);
-      if (data.status === 'done' || data.status === 'completed') {
+      if (data.status === 'translating') {
+        const pct = Math.round(data.current / data.total * 100);
+        updateAgentDisplay({ pct, chapter: data.chapter_title });
+        refreshJobs();
+      } else if (data.status === 'complete') {
         stopPolling();
         switchStatus('done');
-        $('#done-title').textContent = data.title || '编译完成';
+        $('#done-title').textContent = '编译完成';
         showToast('编译完成 ✓');
         refreshJobs();
-      } else if (data.status === 'error') {
+      } else if (data.status === 'failed') {
         stopPolling();
         switchStatus('empty');
-        showToast('编译出错：' + (data.error || ''));
+        showToast('编译出错');
       }
     } catch (e) {}
   }
@@ -1189,7 +1195,12 @@ input:focus, select:focus, textarea:focus {
   $('#btn-download-epub').addEventListener('click', () => dl('epub'));
   $('#btn-download-md').addEventListener('click', () => dl('md'));
   $('#btn-download-glossary').addEventListener('click', () => dl('glossary'));
-  function dl(fmt) { if (currentJobId) window.open(API.download + currentJobId + '?format=' + fmt, '_blank'); }
+  function dl(fmt) {
+    if (!currentJobId) return;
+    if (fmt === 'epub') window.open(API.epub + currentJobId, '_blank');
+    else if (fmt === 'md') window.open(API.download + currentJobId, '_blank');
+    else if (fmt === 'glossary') window.open(API.glossary + currentJobId, '_blank');
+  }
 
   /* —— 新建/重置 —— */
   btnNewCompile.addEventListener('click', () => {
@@ -1217,19 +1228,36 @@ input:focus, select:focus, textarea:focus {
       return;
     }
     sidebarJobs.innerHTML = jobs.map(j => {
-      const cls = j.id === currentJobId ? ' active' : '';
-      const st = j.status === 'done' ? 'PASS' : j.status === 'running' ? '编译中' : '失败';
-      return '<a class="job-item' + cls + '" data-job-id="' + j.id + '">'
-        + '<span class="job-title">' + esc(j.title || '未命名') + '</span>'
-        + '<span class="job-meta">' + (j.chapters||0) + '章 · ' + st + '</span></a>';
+      const cls = j.job_id === currentJobId ? ' active' : '';
+      const st = j.status === 'complete' ? 'DONE' : j.status === 'translating' ? '编译中' : j.status === 'failed' ? '失败' : j.status;
+      const title = j.filename || j.source_title || '未命名';
+      const chapters = j.total_chapters || 0;
+      return '<div class="job-item-wrap' + cls + '">'
+        + '<a class="job-item" data-job-id="' + j.job_id + '">'
+        + '<span class="job-title">' + esc(title) + '</span>'
+        + '<span class="job-meta">' + chapters + '章 · ' + st + '</span></a>'
+        + '<button class="job-delete" data-delete-id="' + j.job_id + '" style="font-size:12px;background:none;border:none;color:#aeaeb2;cursor:pointer;padding:0 8px">&times;</button>'
+        + '</div>';
     }).join('');
     sidebarJobs.querySelectorAll('.job-item').forEach(item => {
       item.addEventListener('click', () => {
         currentJobId = item.dataset.jobId;
         switchStatus('running');
         startPolling();
-        sidebarJobs.querySelectorAll('.job-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
+        sidebarJobs.querySelectorAll('.job-item-wrap').forEach(i => i.classList.remove('active'));
+        item.parentElement.classList.add('active');
+      });
+    });
+    sidebarJobs.querySelectorAll('.job-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const jid = btn.dataset.deleteId;
+        if (!confirm('确定要删除此编译记录吗？')) return;
+        try {
+          await fetch('/api/jobs/' + jid, { method: 'DELETE' });
+          if (jid === currentJobId) { currentJobId = null; stopPolling(); switchStatus('empty'); }
+          refreshJobs();
+        } catch (e) { showToast('删除失败'); }
       });
     });
   }
