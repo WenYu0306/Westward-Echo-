@@ -62,3 +62,11 @@ tests/fixtures/eval_*
 /tmp/claude-501/diag_hang.py
 check_source.py
 novels/test_*.txt
+.claude/
+DESIGN_BRIEF.md
+Echo_Series_Maimai.md
+docs/*.html
+\!docs/anchor-v4.html
+novels/实验文本.txt
+scripts/com.westwardecho.tunnel.plist
+*.png
