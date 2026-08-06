@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse, FileResponse
 
-from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB
+from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB, VERSION
 from ..chapter_splitter import split_chapters, ParagraphTag
 from ..job_store import job_store
 from ..backpressure import backpressure
@@ -28,7 +28,7 @@ try:
 except Exception:
     _has_celery = False
 
-app = FastAPI(title="Westward Echo API", version="0.15.0")
+app = FastAPI(title="Westward Echo API", version=VERSION)
 
 # ── Security ───────────────────────────────────────────────────
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
@@ -197,9 +197,24 @@ async def translate_novel(
             prev_summary = ""
             flash_mode = translate_mode == "flash"
             output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
-            exists = Path(output_path).exists()
+            ckpt_path = str(OUTPUT_DIR / f"{job_id}_checkpoint.json")
+
+            # ── Resume from checkpoint if available ──
+            start_i = 0
+            if os.path.exists(ckpt_path):
+                try:
+                    ckpt = json.loads(Path(ckpt_path).read_text("utf-8"))
+                    start_i = ckpt.get("last_idx", -1) + 1
+                    prev_summary = ckpt.get("previous_summary", "")
+                    if ckpt.get("glossary_snapshot"):
+                        agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
+                    logger.info("Web sync: resuming %s from chapter %d/%d", job_id, start_i + 1, len(chapters_list))
+                except Exception:
+                    start_i = 0
+
             import time as _t
-            for i, ch in enumerate(chapters_list):
+            for i in range(start_i, len(chapters_list)):
+                ch = chapters_list[i]
                 try:
                     result = agent.translate_chapter(
                         chapter_title=ch.title, chapter_content=ch.content,
@@ -241,11 +256,19 @@ async def translate_novel(
                     continue
                 job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
                 display_title = title_en or ch.title[:60]
+                exists = os.path.exists(output_path)
                 with open(output_path, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
                         f.write(f"# {job_id} — English Translation\n\n")
                     f.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
-                    exists = True
+                    f.flush()
+                    os.fsync(f.fileno())
+                # ── Save checkpoint after every chapter ──
+                json.dump({
+                    "last_idx": i,
+                    "glossary_snapshot": agent.exact_store.snapshot(),
+                    "previous_summary": prev_summary,
+                }, Path(ckpt_path).open("w"), ensure_ascii=False)
             glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
@@ -361,6 +384,20 @@ async def translate_multi(
                     except (json.JSONDecodeError, Exception):
                         pass
                 output_path = str(OUTPUT_DIR / f"{jid}_full_novel_{lang}.md")
+                ckpt_path = str(OUTPUT_DIR / f"{jid}_checkpoint.json")
+
+                # ── Resume from checkpoint if available ──
+                start_i = 0
+                if os.path.exists(ckpt_path):
+                    try:
+                        ckpt = json.loads(Path(ckpt_path).read_text("utf-8"))
+                        start_i = ckpt.get("last_idx", -1) + 1
+                        prev_summary = ckpt.get("previous_summary", "")
+                        if ckpt.get("glossary_snapshot"):
+                            agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
+                        logger.info("Multi-lang sync: resuming %s from chapter %d/%d", jid, start_i + 1, len(chapters_list))
+                    except Exception:
+                        start_i = 0
 
                 prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
                 if len(chapters_list) > 1:
@@ -370,8 +407,8 @@ async def translate_multi(
                         pass
 
                 flash_mode = translate_mode == "flash"
-                exists = Path(output_path).exists()
-                for i, ch in enumerate(chapters_list):
+                for i in range(start_i, len(chapters_list)):
+                    ch = chapters_list[i]
                     try:
                         result = agent.translate_chapter(
                             chapter_title=ch.title,
@@ -423,11 +460,19 @@ async def translate_multi(
                     job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
                     TranslationStats.record_chapter_complete(lang)
                     display_title = title_en or ch.title[:60]
+                    exists = os.path.exists(output_path)
                     with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
                         if not exists:
                             fh.write(f"# {jid} — English Translation\n\n")
                         fh.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
-                        exists = True
+                        fh.flush()
+                        os.fsync(fh.fileno())
+                    # ── Save checkpoint after every chapter ──
+                    json.dump({
+                        "last_idx": i,
+                        "glossary_snapshot": agent.exact_store.snapshot(),
+                        "previous_summary": prev_summary,
+                    }, Path(ckpt_path).open("w"), ensure_ascii=False)
                 job_store.complete_job(jid, output_path, 0)
             except Exception as exc:
                 logger.error("Multi-lang sync translation failed for job %s: %s", jid, exc)

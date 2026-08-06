@@ -14,11 +14,11 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from ..config import OUTPUT_DIR, DATA_DIR
+from ..config import OUTPUT_DIR, DATA_DIR, VERSION
 from ..chapter_splitter import split_chapters
 from ..job_store import job_store
 
-app = FastAPI(title="Westward Echo Editor API", version="0.15.0")
+app = FastAPI(title="Westward Echo Editor API", version=VERSION)
 
 # ── SQLite for edits (per-worker thread-local connection) ────────────────
 

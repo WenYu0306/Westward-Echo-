@@ -6,6 +6,7 @@ Mounted at /api/cms by src/main.py.
 from fastapi import FastAPI, Form
 from fastapi.responses import JSONResponse
 
+from ..config import VERSION
 from ..cms import get_connector
 from ..chapter_splitter import split_chapters, ParagraphTag
 from ..job_store import job_store
@@ -16,7 +17,7 @@ try:
 except Exception:
     _has_celery = False
 
-app = FastAPI(title="Westward Echo CMS API", version="0.15.0")
+app = FastAPI(title="Westward Echo CMS API", version=VERSION)
 
 
 @app.post("/import")

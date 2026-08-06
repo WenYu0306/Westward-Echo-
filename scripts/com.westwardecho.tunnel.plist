@@ -3,13 +3,14 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.westwardecho.server</string>
+    <string>com.westwardecho.tunnel</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/zsh</string>
-        <string>-c</string>
-        <string>cd "/Users/wenyudemac/Documents/dev/Westward Echo（西渡）" &amp;&amp; PYTHONPATH=. /Library/Developer/CommandLineTools/usr/bin/python3 -u -m src.main</string>
+        <string>/opt/homebrew/bin/cloudflared</string>
+        <string>tunnel</string>
+        <string>run</string>
+        <string>westwardecho</string>
     </array>
 
     <key>KeepAlive</key>
@@ -19,10 +20,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/westward_launchd.log</string>
+    <string>/tmp/westward_tunnel.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/westward_launchd.log</string>
+    <string>/tmp/westward_tunnel.log</string>
 
     <key>ThrottleInterval</key>
     <integer>10</integer>

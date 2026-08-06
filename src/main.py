@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi import Request
 
-from .config import API_PORT, HOST
+from .config import VERSION, API_PORT, HOST
 from .web_ui import PAGE, REVIEW_PAGE
 from .editor_ui import EDITOR_PAGE
 from .api.routes import app as api_router
@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Westward Echo",
         description="AI-powered web novel translation with cultural adaptation",
-        version="0.15.0",
+        version=VERSION,
     )
 
     # ── Startup health checks ──
@@ -64,9 +64,19 @@ def create_app() -> FastAPI:
     except ImportError:
         logger.warning("rate_limit module unavailable — running without rate limiting")
 
-    # Web UI at /
+    from pathlib import Path
+
+    # Landing page at /
     @app.get("/", response_class=HTMLResponse)
     async def index():
+        landing = Path(__file__).resolve().parent.parent / "docs" / "anchor-v4.html"
+        if landing.exists():
+            return landing.read_text(encoding="utf-8")
+        return PAGE
+
+    # Web UI at /app
+    @app.get("/app", response_class=HTMLResponse)
+    async def app_page():
         return PAGE
 
     # Glossary review page at /review
@@ -108,7 +118,7 @@ def create_app() -> FastAPI:
     app.mount("/api/review", review_api_router)
     app.mount("/api/editor", editor_api_router)
 
-    logger.info("Westward Echo v0.15.0 (Celery + Redis + Auth + Logging + Health + CMS + Editor)")
+    logger.info(f"Westward Echo v{VERSION} (Celery + Redis + Auth + Logging + Health + CMS + Editor)")
 
     return app
 

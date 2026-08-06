@@ -1,24 +1,4 @@
-"""Observability dashboard — real-time system metrics as a dark-theme HTML page.
-
-Served at ``GET /dashboard`` (no auth).  Auto-refreshes every 5 seconds.
-"""
-
-import json
-import os
-
-from .health import HealthChecker, check_memory
-from .stats import TranslationStats
-from .circuit_breaker import get_all_breakers
-from .backpressure import backpressure
-from .config import (
-    VERSION, HOST,
-    API_PORT,
-    RATE_LIMIT_RPM,
-    RATE_LIMIT_ENABLED,
-    CHAPTER_COOLDOWN_SECONDS,
-)
-
-DASHBOARD_PAGE = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -214,7 +194,7 @@ function render(data){
     {label:'Queue Depth',value:fmt(bp.queue_depth),sub:bp.backpressured?'<span class="error-high">BACKPRESSURE</span>':'/'+fmt(bp.max_queue_depth)},
     {label:'Memory',value:memory.percent!=null?memory.percent+'%':'—',sub:memory.used_gb!=null?memory.used_gb+' / '+memory.total_gb+' GB':''},
     {label:'Rate Limit',value:config.rate_limit_enabled?'ON':'OFF',sub:config.rate_limit_rpm+' RPM'},
-    {label:'Config',value:'v0.16.0',sub:'DeepSeek V4 / Celery'},
+    {label:'Config',value:'v0.15.0',sub:'DeepSeek V4 / Celery'},
   ].map(function(c){
     return '<div class="card"><div class="card-label">'+c.label+'</div><div class="card-value">'+c.value+'</div><div class="card-sub">'+c.sub+'</div></div>';
   }).join('');
@@ -262,29 +242,4 @@ poll();
 setInterval(poll, 5000);
 </script>
 </body>
-</html>"""
-
-
-def get_dashboard_data() -> dict:
-    """Assemble all live metrics for the dashboard JSON endpoint."""
-    health = HealthChecker().check_all()
-    memory = check_memory()
-
-    return {
-        "metrics_stats": TranslationStats.snapshot(),
-        "health": health,
-        "backpressure": backpressure.snapshot(),
-        "breakers": get_all_breakers(),
-        "memory": {
-            "used_gb": memory.get("used_gb"),
-            "total_gb": memory.get("total_gb"),
-            "percent": memory.get("percent"),
-        },
-        "config": {
-            "rate_limit_rpm": RATE_LIMIT_RPM,
-            "rate_limit_enabled": RATE_LIMIT_ENABLED,
-            "chapter_cooldown_seconds": CHAPTER_COOLDOWN_SECONDS,
-            "host": HOST,
-            "port": API_PORT,
-        },
-    }
+</html>
