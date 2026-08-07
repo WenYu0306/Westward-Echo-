@@ -1093,7 +1093,7 @@ input:focus, select:focus, textarea:focus {
     <section class="workspace">
       <div class="upload-zone" id="upload-zone">
         <div class="upload-inner">
-          <p class="upload-hint">把稿子放上来</p>
+          <p class="upload-hint">把稿子拖进来，或点这里选择</p>
           <p class="upload-formats">.txt · .rtf · .docx · .md · .epub</p>
         </div>
         <input type="file" id="file-input" accept=".txt,.rtf,.docx,.md,.epub" hidden>
@@ -1111,6 +1111,7 @@ input:focus, select:focus, textarea:focus {
           <select id="content-type">
             <option value="novel">网文小说</option>
             <option value="script">短剧剧本</option>
+            <option value="game">游戏文案</option>
           </select>
         </div>
         <div class="setting-item" id="script-mode-item" style="display:none;">
@@ -1402,7 +1403,7 @@ input:focus, select:focus, textarea:focus {
     currentJobId = null;
     stopPolling();
     switchStatus('empty');
-    uploadZone.querySelector('.upload-hint').textContent = '把稿子放上来';
+    uploadZone.querySelector('.upload-hint').textContent = '把稿子拖进来，或点这里选择';
     uploadZone.querySelector('.upload-formats').textContent = '.txt · .rtf · .docx · .md · .epub';
     fileInput.value = '';
     btnCompile.disabled = true;
