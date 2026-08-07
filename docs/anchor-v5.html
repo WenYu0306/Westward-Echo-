@@ -285,6 +285,40 @@ input:focus, select:focus, textarea:focus {
   margin-top: 2px;
 }
 
+/* —— 任务行 + 删除按钮 —— */
+.job-item-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.job-item-wrap .job-item { flex: 1; min-width: 0; }
+
+.job-delete {
+  flex-shrink: 0;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--transition-fast), color var(--transition-fast),
+              background var(--transition-fast);
+}
+.job-item-wrap:hover .job-delete,
+.job-delete:focus-visible { opacity: 1; }
+.job-delete:hover {
+  color: var(--color-error);
+  background: rgba(176, 74, 58, 0.1);
+}
+.job-delete:active { transform: scale(0.94); }
+.job-delete svg { display: block; }
+
 .jobs-empty {
   font-size: var(--text-xs);
   color: var(--text-muted);
@@ -1042,14 +1076,14 @@ input:focus, select:focus, textarea:focus {
         <div class="compare-card">
           <div class="compare-block compare-source">
             <span class="compare-tag">原文</span>
-            <p class="compare-text">鬼节夜敲门，月光像旧骨头的颜色照在雪上，纸钱灰在风中打旋。</p>
+            <p class="compare-text">中秋，一家人分一块月饼。月圆，人也要团圆。</p>
           </div>
           <div class="compare-arrow">
-            <span class="arrow-label">文化缺口 → 感官重建</span>
+            <span class="arrow-label">文化缺口 → 情感重建</span>
           </div>
           <div class="compare-block compare-target">
             <span class="compare-tag">编译</span>
-            <p class="compare-text">On the night of the Ghost Festival, someone knocked. Moonlight fell on the snow like the color of old bones. Ash from spirit money spiraled in the wind, and the whole village held its breath.</p>
+            <p class="compare-text">On Mid-Autumn night the family shares a single mooncake, cut into careful pieces. When the moon is full, the feeling goes, the family should be whole too — no one far away.</p>
           </div>
         </div>
       </div>
@@ -1407,7 +1441,9 @@ input:focus, select:focus, textarea:focus {
         + '<span class="job-title">' + esc(title) + '</span>'
         + '<span class="job-meta"><span class="' + dotCls + '"></span>'
         + chapters + (j.content_type === 'script' ? '集' : '章') + modeTag + ' · ' + st + '</span></a>'
-        + '<button class="job-delete" data-delete-id="' + j.job_id + '" style="font-size:12px;background:none;border:none;color:#aeaeb2;cursor:pointer;padding:0 8px">&times;</button>'
+        + '<button class="job-delete" data-delete-id="' + j.job_id + '" title="删除此记录" aria-label="删除此记录">'
+        + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+        + '</button>'
         + '</div>';
     }).join('');
     sidebarJobs.querySelectorAll('.job-item').forEach(item => {
