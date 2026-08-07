@@ -4,7 +4,6 @@ Chinese web novels downloaded from various sources use different encodings:
 UTF-8 (most modern sites), GBK/GB2312 (older Chinese sites), GB18030 (national standard).
 """
 
-import codecs
 
 
 # Ordered by likelihood for Chinese web novels

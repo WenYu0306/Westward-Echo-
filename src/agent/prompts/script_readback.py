@@ -80,7 +80,8 @@ Return a single JSON object — no preamble, no markdown fences:
       "issue": "Why you would swipe away, skim, or lose interest"
     }
   ],
-  "character_tracking": "Can you tell the characters apart by voice? Who stands out, who blends together?",
+  "character_tracking": "Can you tell the characters apart by voice? \
+Who stands out, who blends together?",
   "world_comprehension": "Do you understand the setup? What's missing?",
   "would_keep_reading": true,
   "standout_moments": [

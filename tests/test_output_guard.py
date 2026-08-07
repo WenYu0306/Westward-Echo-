@@ -29,7 +29,10 @@ class TestCheckTranslationOutput:
         assert len(warnings) > 0
 
     def test_valid_translation_passes(self):
-        text = "This is a valid chapter translation. It has multiple sentences and is long enough to pass the minimum length check. The story begins here."
+        text = (
+            "This is a valid chapter translation. It has multiple sentences and is long "
+            "enough to pass the minimum length check. The story begins here."
+        )
         warnings = check_translation_output(text)
         assert len(warnings) == 0
 

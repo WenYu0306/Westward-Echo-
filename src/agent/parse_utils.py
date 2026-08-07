@@ -11,8 +11,8 @@ layer fails.  For READBACK, that fallback should be NEEDS_FIX, not PASS
 """
 
 import json
-import re
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 

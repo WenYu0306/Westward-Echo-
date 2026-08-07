@@ -4,17 +4,16 @@ Receives the cold reader's specific complaints and fixes only what's broken.
 Does NOT blindly re-translate. Fixes are targeted and surgical.
 """
 
-import json
-import re
 import logging
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
-from ..state import TranslatorState
-from ..prompts.registry import get_prompt_set
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
+from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
-from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
 from ...stats import TranslationStats
+from ..prompts.registry import get_prompt_set
+from ..state import TranslatorState
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +25,9 @@ def fix_node(state: TranslatorState) -> dict:
         - translated_text: the fixed English chapter
         - adaptation_notes: what was changed and why
     """
-    llm = ChatOpenAI(
+    llm = ChatOpenAI(  # type: ignore[call-arg]
         model=MODEL_MAP["translate_critical"],  # Pro — editing needs precision
-        api_key=state.get("api_key") or DEEPSEEK_API_KEY,
+        api_key=state.get("api_key") or DEEPSEEK_API_KEY,  # type: ignore[arg-type]
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.1,
         max_tokens=8192,
@@ -120,7 +119,9 @@ def _format_readback_feedback(feedback: dict) -> str:
         for m in feedback["standout_moments"]:
             parts.append(f"- {m}")
 
-    return "\n\n".join(parts) if parts else "(No specific issues — the reader just didn't enjoy it.)"
+    return (
+        "\n\n".join(parts) if parts else "(No specific issues — the reader just didn't enjoy it.)"
+    )
 
 
 def _capture_fix_tokens(response) -> None:

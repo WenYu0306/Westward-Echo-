@@ -11,8 +11,6 @@ producing word-for-word gibberish.
 
 from __future__ import annotations
 
-from typing import Optional
-
 # ── Common idioms that appear frequently in web novels ─────────────────
 # Mapping: Chinese idiom → English meaning / equivalent
 

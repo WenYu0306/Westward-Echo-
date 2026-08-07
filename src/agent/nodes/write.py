@@ -7,18 +7,22 @@ Is a storyteller, not a translation machine.
 import json
 import logging
 import re
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
-from ..state import TranslatorState
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
+from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
+from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+from ...job_store import job_store
+from ...stats import TranslationStats
 from ..prompts.registry import get_prompt_set
 from ..prompts.translation import LANGUAGE_STYLE_NOTES
-from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
-from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
-from ...stats import TranslationStats
-from ...job_store import job_store
+from ..state import TranslatorState
 
 logger = logging.getLogger(__name__)
+
+# Outputs shorter than this are treated as empty and trigger a retry.
+RETRY_THRESHOLD = 10
 
 
 def write_node(state: TranslatorState) -> dict:
@@ -35,9 +39,9 @@ def write_node(state: TranslatorState) -> dict:
     model_id = "deepseek-chat" if flash else MODEL_MAP["translate"]
     api_key = state.get("api_key") or DEEPSEEK_API_KEY
 
-    llm = ChatOpenAI(
+    llm = ChatOpenAI(  # type: ignore[call-arg]
         model=model_id,
-        api_key=api_key,
+        api_key=api_key,  # type: ignore[arg-type]
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
         max_tokens=8192,
@@ -125,7 +129,9 @@ def write_node(state: TranslatorState) -> dict:
 
     # Output quality guard: check for obvious garbage
     from ...output_guard import (
-        check_and_record, sanitize_translation, has_untranslated_chinese,
+        check_and_record,
+        has_untranslated_chinese,
+        sanitize_translation,
         strip_chinese_residue,
     )
 
@@ -149,7 +155,6 @@ def write_node(state: TranslatorState) -> dict:
     translated_text = sanitize_translation(translated_text)
 
     # Auto-retry if output is empty (up to 2 additional attempts)
-    RETRY_THRESHOLD = 10
     if not translated_text or len(translated_text.strip()) < RETRY_THRESHOLD:
         for retry_num in range(1, 3):  # Retry 1, Retry 2
             logger.warning(
@@ -159,7 +164,8 @@ def write_node(state: TranslatorState) -> dict:
             try:
                 retry_messages = [
                     SystemMessage(content=prompts.write_system),
-                    HumanMessage(content=user_prompt + "\n\nCRITICAL: Your previous response was empty. "
+                    HumanMessage(content=user_prompt
+                                  + "\n\nCRITICAL: Your previous response was empty. "
                                   "Output the complete translated chapter as JSON NOW. "
                                   "The translated_text field MUST contain the full chapter."),
                 ]
@@ -167,7 +173,9 @@ def write_node(state: TranslatorState) -> dict:
                 retry_response = breaker.call(llm.invoke, retry_messages)
                 TranslationStats.record_api_success(target_lang)
                 _capture_response_tokens(retry_response, tier="flash" if flash else "pro")
-                retry_result = _parse_write_response(retry_response.content, chapter_number, target_lang)
+                retry_result = _parse_write_response(
+                    retry_response.content, chapter_number, target_lang
+                )
                 retry_text = retry_result.get("translated_text", "")
                 if retry_text and len(retry_text.strip()) >= RETRY_THRESHOLD:
                     if has_untranslated_chinese(retry_text) and target_lang != "zh-CN":
@@ -254,7 +262,8 @@ def _format_image_gaps(gaps: list[dict]) -> str:
                 f"\n**PASSAGE:** {g.get('passage', '?')}\n"
                 f"**CN READER SEES:** {g.get('cn_reader_sees', '?')}\n"
                 f"**EN READER GETS:** {g.get('en_reader_gets', '?')}\n"
-                f"**BUILD WITH:** {g.get('sensory_anchors', 'use universal textures, sounds, colors')}"
+                f"**BUILD WITH:** "
+                f"{g.get('sensory_anchors', 'use universal textures, sounds, colors')}"
             )
 
     if high:
@@ -308,7 +317,7 @@ def _parse_write_response(
 
     # Layer 1: Strict JSON
     try:
-        return json.loads(text)
+        return json.loads(text)  # type: ignore[no-any-return]
     except (json.JSONDecodeError, ValueError):
         pass
 
@@ -319,7 +328,7 @@ def _parse_write_response(
             result = json.loads(m.group())
             record_event(None, chapter_number, "parse_fallback",
                          "Layer 2: regex-extracted JSON object", target_lang)
-            return result
+            return result  # type: ignore[no-any-return]
         except (json.JSONDecodeError, ValueError):
             pass
 

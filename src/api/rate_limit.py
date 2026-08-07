@@ -1,14 +1,14 @@
 """Token-bucket rate limiter middleware for translation API endpoints."""
 
-import time
 import threading
-from typing import List, Optional
+import time
+from typing import Optional
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..config import RATE_LIMIT_RPM, RATE_LIMIT_ENABLED
+from ..config import RATE_LIMIT_ENABLED, RATE_LIMIT_RPM
 from .logging import logger
 
 

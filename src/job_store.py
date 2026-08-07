@@ -5,8 +5,8 @@ updates to completion or failure.  Jobs persist across server restarts.
 """
 
 import sqlite3
-import uuid
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -27,7 +27,7 @@ def _get_conn() -> sqlite3.Connection:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         _local.conn = conn
-    return conn
+    return conn  # type: ignore[no-any-return]
 
 
 _SCHEMA = """
@@ -122,7 +122,8 @@ class JobStore:
         job_id = str(uuid.uuid4())[:8]
         conn = _get_conn()
         conn.execute(
-            """INSERT INTO jobs (job_id, project_id, filename, target_lang, content_type, script_mode, total_chapters, status)
+            """INSERT INTO jobs (job_id, project_id, filename, target_lang, content_type, \
+script_mode, total_chapters, status)
                VALUES (?, ?, ?, ?, ?, ?, ?, 'queued')""",
             (job_id, project_id, filename, target_lang, content_type,
              script_mode if content_type == "script" else "full", total_chapters),
@@ -259,7 +260,7 @@ class JobStore:
             "SELECT glossary_json FROM glossary_presets WHERE preset_name = ?",
             (preset_name,),
         ).fetchone()
-        return row["glossary_json"] if row else None
+        return row["glossary_json"] if row else None  # type: ignore[no-any-return]
 
     def list_glossary_presets(self) -> list[dict]:
         """List all available presets."""

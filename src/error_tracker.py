@@ -7,9 +7,8 @@ and iterate on prompts / guard rules / model selection.
 
 import sqlite3
 import threading
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from .config import DATA_DIR
 
@@ -27,7 +26,7 @@ def _get_conn() -> sqlite3.Connection:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         _local.conn = conn
-    return conn
+    return conn  # type: ignore[no-any-return]
 
 
 _SCHEMA = """
@@ -187,7 +186,7 @@ def get_editor_stats() -> dict:
     }
 
     # ── Editor edits ──
-    from .api.editor import EDITOR_DB_PATH, _get_conn as _editor_conn
+    from .api.editor import _get_conn as _editor_conn
     try:
         econn = _editor_conn()
         # Count all chapters that have edits across all per-job tables

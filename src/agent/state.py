@@ -1,7 +1,7 @@
 """LangGraph state definition for the translation agent."""
 
-from typing import TypedDict, Annotated
 import operator
+from typing import Annotated, TypedDict
 
 
 class TranslatorState(TypedDict):
@@ -51,6 +51,8 @@ class TranslatorState(TypedDict):
     context_signals: str             # Aggregated output from 9 signal detectors
     image_gaps: list[dict]           # Sensory image gaps: what CN reader sees vs EN reader misses
     style_memo: str                  # Accumulated translation lessons from prior chapters
-    skip_readback: bool              # When True, skip READBACK+FIX (fast mode for non-sample chapters)
+    # When True, skip READBACK+FIX (fast mode for non-sample chapters)
+    skip_readback: bool
     use_flash_writer: bool           # When True, WRITE uses Flash instead of Pro
+    api_key: str                     # BYOK: user-provided API key ("" = use env default)
     cold_read_context: str           # Character roster + recent summaries for READBACK briefing

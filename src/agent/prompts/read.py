@@ -166,10 +166,14 @@ Return a single JSON object — no preamble, no markdown fences:
   "image_gaps": [
     {
       "passage": "The Chinese text or scene description",
-      "cn_reader_sees": "FULL sensory picture — colors, textures, sounds, temperature, movement. What your cultural library fills in for free. Write this vividly — the WRITER needs it as raw material.",
-      "en_reader_gets": "The thin, abstract version an American reader constructs from the same words",
+      "cn_reader_sees": "FULL sensory picture — colors, textures, sounds, temperature, movement. \
+What your cultural library fills in for free. \
+Write this vividly — the WRITER needs it as raw material.",
+      "en_reader_gets": "The thin, abstract version \
+an American reader constructs from the same words",
       "priority": "critical|high|medium",
-      "sensory_anchors": "Universal sensory cues for rebuilding: frozen meat, frost on skin, silence, unmelted snow signals death. 3-6 vivid phrases."
+      "sensory_anchors": "Universal sensory cues for rebuilding: \
+frozen meat, frost on skin, silence, unmelted snow signals death. 3-6 vivid phrases."
     }
   ],
   "pacing_notes": "What to compress, what to preserve, any reordering needed.",

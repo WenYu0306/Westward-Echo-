@@ -15,11 +15,7 @@ Drawers:
   MEMO.md      — index pointing to the 5 content files
 """
 
-import os
-import re
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Optional
 
 from .config import DATA_DIR
 
@@ -121,7 +117,7 @@ class StyleMemoStore:
                 continue
 
             header = lines[0]
-            entries = [l.strip()[:250] for l in lines[1:] if l.strip()]
+            entries = [line.strip()[:250] for line in lines[1:] if line.strip()]
             if not entries:
                 continue
 
@@ -237,8 +233,8 @@ class StyleMemoStore:
         else:
             self.record_lesson(
                 "pacing",
-                f"No image gaps detected — chapter may be too abstract. "
-                f"Check if cultural concepts were explained rather than shown.",
+                "No image gaps detected — chapter may be too abstract. "
+                "Check if cultural concepts were explained rather than shown.",
                 chapter_number,
             )
 
@@ -259,7 +255,10 @@ class StyleMemoStore:
         for eg in fb.get("engagement_gaps", []):
             passage = eg.get("passage", "")[:80]
             issue = eg.get("issue", "")
-            if "exposition" in issue.lower() or "info" in issue.lower() or "explain" in issue.lower():
+            if (
+                "exposition" in issue.lower()
+                or "info" in issue.lower() or "explain" in issue.lower()
+            ):
                 self.record_lesson(
                     "pacing",
                     f"Exposition drag: '{passage}' — {issue}. Keep "

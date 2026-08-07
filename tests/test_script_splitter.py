@@ -2,11 +2,9 @@
 
 from src.chapter_splitter import ParagraphTag
 from src.script_splitter import (
-    Episode,
-    EpisodeTag,
     EPISODE_PATTERN,
-    Scene,
     SCENE_PATTERN,
+    EpisodeTag,
     classify_episode,
     extract_dialogue,
     merge_episodes,

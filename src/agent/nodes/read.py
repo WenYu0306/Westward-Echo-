@@ -4,19 +4,19 @@ Does NOT translate. Reads the chapter, experiences it, and produces a
 structured analysis that becomes the creative brief for the WRITE agent.
 """
 
-import json
 import logging
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
-from ..state import TranslatorState
-from ..prompts.registry import get_prompt_set
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
+from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+from ...cultural_rules import format_rules_as_bullets, load_rules
 from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
-from ...cultural_rules import load_rules, format_rules_as_bullets
-from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
 from ...stats import TranslationStats
+from ..prompts.registry import get_prompt_set
+from ..state import TranslatorState
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,9 @@ def _build_context_signals(state: TranslatorState) -> str:
     specific chapter.
     """
     from ...dialect import build_dialect_context, has_system_text
+    from ...idioms import build_idiom_context
     from ...measurements import build_measurements_hint
     from ...onomatopoeia import build_onomatopoeia_context
-    from ...idioms import build_idiom_context
     from ...sensitive_terms import build_sensitive_term_context
 
     chapter = state["chapter_content"]
@@ -85,9 +85,9 @@ def read_node(
         - context_signals: aggregated context signal text
     """
     api_key = state.get("api_key") or DEEPSEEK_API_KEY
-    llm = ChatOpenAI(
+    llm = ChatOpenAI(  # type: ignore[call-arg]
         model=MODEL_MAP.get("read", MODEL_MAP["translate"]),
-        api_key=api_key,
+        api_key=api_key,  # type: ignore[arg-type]
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.3,
         max_tokens=4096,
@@ -108,11 +108,6 @@ def read_node(
     # Build exact matches text from glossary
     exact_text = state.get("exact_matches_text", "(No glossary terms yet.)")
 
-    # Also run semantic search for additional context
-    semantic_hits = semantic_store.search(
-        state["chapter_content"], top_k=10, target_lang=target_lang
-    )
-
     memo = state.get("style_memo", "(No style memo yet — this is the first chapter.)")
     prompts = get_prompt_set(state.get("content_type", "novel"))
     user_prompt = prompts.read_user.format(
@@ -123,7 +118,9 @@ def read_node(
         target_language=target_lang,
         previous_summary=state.get("previous_chapter_summary", "(This is the first chapter.)"),
         exact_matches=exact_text,
-        cultural_rules_table=cultural_rules_bullets if cultural_rules_bullets else "(No genre-specific rules.)",
+        cultural_rules_table=(
+            cultural_rules_bullets if cultural_rules_bullets else "(No genre-specific rules.)"
+        ),
         context_signals=context_signals,
         chapter_content=state["chapter_content"],
     )

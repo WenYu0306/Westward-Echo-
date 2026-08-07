@@ -7,8 +7,8 @@ provide this guarantee.
 """
 
 import json
-import sqlite3
 import os
+import sqlite3
 import typing
 from pathlib import Path
 
@@ -66,7 +66,8 @@ class ExactGlossary:
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO exact_glossary
-                   (term_cn, term_en, category, context, chapter_first_seen, note, status, target_lang)
+                   (term_cn, term_en, category, context, chapter_first_seen, note, status, \
+target_lang)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (term_cn, term_en, category, context, chapter, note, status, target_lang),
             )
@@ -138,7 +139,7 @@ class ExactGlossary:
             ).fetchone()
         if row is None:
             return None
-        return row[0]
+        return row[0]  # type: ignore[no-any-return]
 
     def find_chapters_with_term(self, term_cn: str, target_lang: str = "en-US") -> list[int]:
         """
@@ -150,7 +151,8 @@ class ExactGlossary:
         """
         with sqlite3.connect(self._db_path) as conn:
             row = conn.execute(
-                "SELECT chapter_first_seen FROM exact_glossary WHERE term_cn = ? AND target_lang = ?",
+                "SELECT chapter_first_seen FROM exact_glossary "
+                "WHERE term_cn = ? AND target_lang = ?",
                 (term_cn, target_lang),
             ).fetchone()
         if row is None:
@@ -257,7 +259,8 @@ class ExactGlossary:
         """Set a term's status to 'confirmed'."""
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
-                "UPDATE exact_glossary SET status = 'confirmed' WHERE term_cn = ? AND target_lang = ?",
+                "UPDATE exact_glossary SET status = 'confirmed' "
+                "WHERE term_cn = ? AND target_lang = ?",
                 (term_cn, target_lang),
             )
             conn.commit()

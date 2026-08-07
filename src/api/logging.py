@@ -1,12 +1,12 @@
 """Structured logging for the translation service."""
 
-import logging
 import json
+import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..config import LOG_LEVEL, LOG_FILE
+from ..config import LOG_FILE, LOG_LEVEL
 
 
 def setup_logging():

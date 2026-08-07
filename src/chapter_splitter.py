@@ -5,7 +5,7 @@ non-standard paragraphs (prologues, extras, author notes, etc.).
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -70,7 +70,10 @@ def classify_paragraph(title: str, content: str) -> tuple[ParagraphTag, Paragrap
     content_len = len(content.replace('\n', '').replace(' ', ''))
 
     # Author notes: short + contains announcement keywords
-    if content_len < AUTHOR_NOTE_MIN_LENGTH and NON_CHAPTER_PATTERNS[ParagraphTag.AUTHOR_NOTE].search(title):
+    if (
+        content_len < AUTHOR_NOTE_MIN_LENGTH
+        and NON_CHAPTER_PATTERNS[ParagraphTag.AUTHOR_NOTE].search(title)
+    ):
         return ParagraphTag.AUTHOR_NOTE, ParagraphTag.SKIP
 
     # Prologue: translate normally (no glossary yet, so it acts as a cold-start chapter)
@@ -111,7 +114,9 @@ def split_chapters(text: str) -> list[Chapter]:
         preamble = text[:matches[0].start()].strip()
         if preamble:
             tag, action = classify_paragraph("楔子", preamble)
-            chapters.append(Chapter(index=0, title="楔子", content=preamble, tag=tag, action=action))
+            chapters.append(
+                Chapter(index=0, title="楔子", content=preamble, tag=tag, action=action)
+            )
             index = 1
 
     # Extract chapters between headers

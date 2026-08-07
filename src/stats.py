@@ -7,7 +7,6 @@ and throughput.  Used by the observability dashboard and circuit breaker.
 import threading
 import time
 from collections import defaultdict
-from typing import Dict, List
 
 
 class TranslationStats:
@@ -32,14 +31,14 @@ class TranslationStats:
     _api_calls_failed: int = 0
 
     # Per-language counters: lang -> count
-    _api_calls_per_lang: Dict[str, int] = defaultdict(int)
-    _api_failures_per_lang: Dict[str, int] = defaultdict(int)
-    _chapters_per_lang: Dict[str, int] = defaultdict(int)
-    _chapters_failed_per_lang: Dict[str, int] = defaultdict(int)
+    _api_calls_per_lang: dict[str, int] = defaultdict(int)
+    _api_failures_per_lang: dict[str, int] = defaultdict(int)
+    _chapters_per_lang: dict[str, int] = defaultdict(int)
+    _chapters_failed_per_lang: dict[str, int] = defaultdict(int)
 
     # Recent history for sliding-window throughput (last N calls)
-    _recent_completions: List[float] = []  # timestamps of completed chapters
-    _recent_api_calls: List[tuple] = []    # [(timestamp, lang, success), ...]
+    _recent_completions: list[float] = []  # timestamps of completed chapters
+    _recent_api_calls: list[tuple] = []    # [(timestamp, lang, success), ...]
     _max_recent = 200
 
     # Token / cost tracking (per model tier)
@@ -212,7 +211,10 @@ class TranslationStats:
                 ),
                 "tokens_input": cls._tokens_input_flash + cls._tokens_input_pro,
                 "tokens_output": cls._tokens_output_flash + cls._tokens_output_pro,
-                "tokens_total": cls._tokens_input_flash + cls._tokens_input_pro + cls._tokens_output_flash + cls._tokens_output_pro,
+                "tokens_total": (
+                    cls._tokens_input_flash + cls._tokens_input_pro
+                    + cls._tokens_output_flash + cls._tokens_output_pro
+                ),
                 "tokens_flash_input": cls._tokens_input_flash,
                 "tokens_flash_output": cls._tokens_output_flash,
                 "tokens_pro_input": cls._tokens_input_pro,

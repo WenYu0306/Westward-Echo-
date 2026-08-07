@@ -7,25 +7,28 @@ related entries via vector search.
 """
 
 import logging
-import typing
 import os as _os
+import typing
 from pathlib import Path
 
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
+
+from ..config import CHROMA_PERSIST_PATH
 
 # Redirect Chroma's ONNX model cache to project dir — the sandbox
-# blocks writes to ~/.cache where Chroma defaults.
+# blocks writes to ~/.cache where Chroma defaults. The cache path must
+# exist BEFORE importing chromadb, and DOWNLOAD_PATH must be patched
+# before first use, so the imports below are intentionally deferred (E402).
 _ONNX_CACHE = Path(__file__).resolve().parent.parent.parent / "data" / "onnx_cache"
 _onnx_path = str(_ONNX_CACHE / "all-MiniLM-L6-v2")
 _os.makedirs(_onnx_path, exist_ok=True)
 
-from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
-ONNXMiniLM_L6_V2.DOWNLOAD_PATH = _onnx_path
+from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2  # noqa: E402
 
-import chromadb
-from chromadb.config import Settings
+ONNXMiniLM_L6_V2.DOWNLOAD_PATH = Path(_onnx_path)
 
-from ..config import CHROMA_PERSIST_PATH
+import chromadb  # noqa: E402
+from chromadb.config import Settings  # noqa: E402
 
 logger = logging.getLogger("westward_echo.glossary")
 
@@ -62,7 +65,7 @@ class SemanticGlossary:
         self._ready = False
         self._warned = False  # guard against log spam per instance
         self._persist_path = path
-        self.client: typing.Optional[chromadb.PersistentClient] = None
+        self.client: typing.Any = None
 
         try:
             self.client = self._init_chroma(path)
@@ -105,7 +108,7 @@ class SemanticGlossary:
             return False
 
     @_INIT_RETRY
-    def _init_chroma(self, path: str) -> chromadb.PersistentClient:
+    def _init_chroma(self, path: str) -> typing.Any:
         """Initialise the Chroma persistent client and probe the embedding model.
 
         Wrapped with tenacity retry: up to 3 attempts with exponential backoff
@@ -151,7 +154,8 @@ class SemanticGlossary:
     def get_or_create_collection(self, target_lang: str = "en-US") -> chromadb.Collection:
         """Each target language gets its own collection for isolation."""
         name = f"terms_{target_lang.replace('-', '_')}"
-        return self.client.get_or_create_collection(name=name)
+        assert self.client is not None
+        return self.client.get_or_create_collection(name=name)  # type: ignore[no-any-return]
 
     def add_term(self, term_cn: str, term_en: str, category: str = "culture",
                  context: str = "", target_lang: str = "en-US"):
@@ -178,10 +182,12 @@ class SemanticGlossary:
             if t.get("context"):
                 doc_text += f": {t['context']}"
             docs.append(doc_text)
-            metas.append({"term_cn": cn, "term_en": t["term_en"], "category": t.get("category", "culture")})
+            metas.append(
+                {"term_cn": cn, "term_en": t["term_en"], "category": t.get("category", "culture")}
+            )
             ids.append(cn)
         if ids:
-            collection.upsert(documents=docs, metadatas=metas, ids=ids)
+            collection.upsert(documents=docs, metadatas=metas, ids=ids)  # type: ignore[arg-type]
 
     def search(self, query_text: str, top_k: int = 15,
                target_lang: str = "en-US") -> list[dict]:
@@ -195,7 +201,10 @@ class SemanticGlossary:
         if not results["metadatas"] or not results["metadatas"][0]:
             return []
         return [
-            {"term_cn": m["term_cn"], "term_en": m["term_en"], "category": m.get("category", "culture")}
+            {
+                "term_cn": m["term_cn"], "term_en": m["term_en"],
+                "category": m.get("category", "culture"),
+            }
             for m in results["metadatas"][0]
         ]
 

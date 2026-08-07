@@ -8,28 +8,27 @@ Covers ACCEPTANCE_CRITERIA.md N1.2:
 """
 
 import json
-import time
 import threading
-from unittest.mock import MagicMock, patch, PropertyMock
+import time
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.agent.nodes.write import _parse_write_response
+from src.backpressure import BackpressureGuard, backpressure
 from src.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerOpenError,
-    get_breaker,
     _breakers,
     _breakers_lock,
+    get_breaker,
 )
-from src.backpressure import BackpressureGuard, backpressure
-from src.error_tracker import record_event, get_recent_issues, get_event_summary
+from src.error_tracker import get_event_summary, get_recent_issues, record_event
 from src.output_guard import (
     check_translation_output,
-    sanitize_translation,
     has_untranslated_chinese,
+    sanitize_translation,
 )
-from src.agent.nodes.write import _parse_write_response
-
 
 # ──────────────────────────────────────────────────────────────
 # Helpers
@@ -46,8 +45,7 @@ def _fresh_breaker(name="test", threshold=3, recovery=0.3):
 
 def _flush_error_events():
     """Best-effort clear of recent events between tests."""
-    import sqlite3
-    from src.error_tracker import DB_PATH, _get_conn
+    from src.error_tracker import _get_conn
     try:
         conn = _get_conn()
         conn.execute("DELETE FROM translation_events")
@@ -353,7 +351,10 @@ class TestParseLLMResponseFallbacks:
 
     def test_strips_code_fences(self):
         """Markdown code fences are stripped before parsing."""
-        response = '```json\n{"translated_text": "Clean", "new_terms_found": [], "adaptation_notes": [], "chapter_summary": "ok"}\n```'
+        response = (
+            '```json\n{"translated_text": "Clean", '
+            '"new_terms_found": [], "adaptation_notes": [], "chapter_summary": "ok"}\n```'
+        )
         result = _parse_write_response(response)
         assert result["translated_text"] == "Clean"
 
@@ -529,8 +530,8 @@ class TestWriteNodeUnderFaults:
 
     def test_circuit_breaker_error_propagated(self):
         """When the breaker is OPEN, write_node propagates the error."""
-        from src.agent.state import TranslatorState
         from src.agent.nodes.write import write_node
+        from src.agent.state import TranslatorState
         from src.circuit_breaker import _breakers, _breakers_lock
 
         # Clear any existing "en-US" breaker so we get a fresh one
@@ -590,8 +591,8 @@ class TestWriteNodeUnderFaults:
     def test_garbage_output_falls_back_to_raw_text(self, mock_translate_invoke,
                                                     sample_chapter):
         """LLM returns plain chatter (no JSON) → Layer 4/5 fallback produces output."""
-        from src.agent.state import TranslatorState
         from src.agent.nodes.write import write_node
+        from src.agent.state import TranslatorState
         from src.circuit_breaker import _breakers, _breakers_lock
 
         # Reset the breaker for this test language to avoid poisoning

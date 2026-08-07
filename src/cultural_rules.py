@@ -26,7 +26,6 @@ entries when the same source term appears in both.
 
 import json
 import os
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -40,8 +39,8 @@ def _default_rules_path() -> Path:
 
 def _load_raw_data(path: Optional[str] = None) -> dict:
     file_path = Path(path) if path else _default_rules_path()
-    with open(file_path, "r", encoding="utf-8") as fh:
-        return json.load(fh)
+    with open(file_path, encoding="utf-8") as fh:
+        return json.load(fh)  # type: ignore[no-any-return]
 
 
 def list_known_genres(path: Optional[str] = None) -> list[str]:

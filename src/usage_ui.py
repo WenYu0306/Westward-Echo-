@@ -4,10 +4,10 @@ Served at ``GET /usage`` (no auth).  Auto-refreshes every 30 seconds.
 """
 
 from .error_tracker import (
-    get_event_summary,
-    get_recent_issues,
     get_all_jobs_health,
     get_editor_stats,
+    get_event_summary,
+    get_recent_issues,
 )
 
 USAGE_PAGE = r"""<!DOCTYPE html>

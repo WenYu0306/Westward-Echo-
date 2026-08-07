@@ -1,10 +1,11 @@
 """Tests for the double-layer glossary."""
 
-import pytest
-import tempfile
 import os
+import tempfile
+
+import pytest
+
 from src.glossary.exact_store import ExactGlossary
-from src.glossary.semantic_store import SemanticGlossary
 
 
 class TestExactGlossary:

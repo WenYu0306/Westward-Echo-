@@ -4,19 +4,18 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from fastapi import Request
 
-from .config import VERSION, API_PORT, HOST
-from .web_ui import PAGE, REVIEW_PAGE
-from .editor_ui import EDITOR_PAGE
-from .api.routes import app as api_router
-from .api.review import app as review_api_router
-from .api.editor import app as editor_api_router
 from .api.auth import APIKeyMiddleware
+from .api.editor import app as editor_api_router
 from .api.logging import logger
-from .health import HealthChecker
+from .api.review import app as review_api_router
+from .api.routes import app as api_router
+from .config import API_PORT, HOST, VERSION
 from .dashboard import DASHBOARD_PAGE, get_dashboard_data
+from .editor_ui import EDITOR_PAGE
+from .health import HealthChecker
 from .usage_ui import USAGE_PAGE, get_usage_data
+from .web_ui import PAGE, REVIEW_PAGE
 
 
 def create_app() -> FastAPI:
@@ -117,7 +116,9 @@ def create_app() -> FastAPI:
     app.mount("/api/review", review_api_router)
     app.mount("/api/editor", editor_api_router)
 
-    logger.info(f"Westward Echo v{VERSION} (Celery + Redis + Auth + Logging + Health + CMS + Editor)")
+    logger.info(
+        f"Westward Echo v{VERSION} (Celery + Redis + Auth + Logging + Health + CMS + Editor)"
+    )
 
     return app
 

@@ -138,7 +138,8 @@ context. If one doesn't, flag it — your reading overrides precedent.
 Return a single JSON object — no preamble, no markdown fences:
 
 {
-  "emotional_arc": "One paragraph describing the episode's emotional journey — hook, beats, payoff.",
+  "emotional_arc": "One paragraph describing the episode's emotional journey \
+— hook, beats, payoff.",
   "cultural_gaps": [
     {
       "element": "The Chinese line, beat, concept, or panel text",
@@ -154,10 +155,13 @@ Return a single JSON object — no preamble, no markdown fences:
   "image_gaps": [
     {
       "passage": "The line of dialogue, action beat, or panel text",
-      "cn_reader_sees": "FULL subtext picture — emotion, social meaning, cultural weight. Write this vividly; the SCREENWRITER needs it as raw material.",
-      "en_reader_gets": "The thin, abstract version an American viewer constructs from the same words",
+      "cn_reader_sees": "FULL subtext picture — emotion, social meaning, cultural weight. \
+Write this vividly; the SCREENWRITER needs it as raw material.",
+      "en_reader_gets": "The thin, abstract version \
+an American viewer constructs from the same words",
       "priority": "critical|high|medium",
-      "sensory_anchors": "Universal emotional cues for rebuilding: humiliation, a ring hitting the floor, the silence after a slap. 3-6 vivid phrases."
+      "sensory_anchors": "Universal emotional cues for rebuilding: \
+humiliation, a ring hitting the floor, the silence after a slap. 3-6 vivid phrases."
     }
   ],
   "pacing_notes": "Hook strength, cliffhanger strength, what to compress, what to preserve.",
@@ -166,7 +170,8 @@ Return a single JSON object — no preamble, no markdown fences:
       "term_cn": "Chinese term",
       "proposed_en": "Proposed English rendering",
       "reasoning": "Why this rendering works",
-      "cultural_note": "What the SCREENWRITER needs to know about how this term should feel in English"
+      "cultural_note": "What the SCREENWRITER needs to know \
+about how this term should feel in English"
     }
   ]
 }

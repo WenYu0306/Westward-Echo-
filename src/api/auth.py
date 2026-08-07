@@ -1,6 +1,6 @@
 """API key authentication middleware for FastAPI."""
 
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..config import API_KEY

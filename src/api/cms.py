@@ -6,9 +6,9 @@ Mounted at /api/cms by src/main.py.
 from fastapi import FastAPI, Form
 from fastapi.responses import JSONResponse
 
-from ..config import VERSION
+from ..chapter_splitter import ParagraphTag, split_chapters
 from ..cms import get_connector
-from ..chapter_splitter import split_chapters, ParagraphTag
+from ..config import VERSION
 from ..job_store import job_store
 
 try:

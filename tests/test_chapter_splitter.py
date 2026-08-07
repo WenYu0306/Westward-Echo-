@@ -1,11 +1,10 @@
 """Tests for chapter_splitter.py"""
 
-import pytest
 from src.chapter_splitter import (
-    split_chapters,
-    classify_paragraph,
-    ParagraphTag,
     CHAPTER_PATTERN,
+    ParagraphTag,
+    classify_paragraph,
+    split_chapters,
 )
 
 

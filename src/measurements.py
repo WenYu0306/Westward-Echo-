@@ -137,7 +137,10 @@ def _example_for(phrase: str, unit: str) -> str:
                 f"(not \"{digits} ten thousand\")"
             )
         else:
-            return f"- {phrase} → ~{_format_number(digits * 10000)} (not literally \"{digits} ten thousand\")"
+            return (
+                f"- {phrase} → ~{_format_number(digits * 10000)} "
+                f"(not literally \"{digits} ten thousand\")"
+            )
     elif unit == "亿":
         if digits >= 1:
             billions = digits * 100_000_000 / 1_000_000_000

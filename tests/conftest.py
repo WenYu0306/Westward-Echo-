@@ -1,5 +1,6 @@
 """Shared fixtures for Westward Echo integration tests."""
 import json
+
 import pytest
 
 
@@ -8,7 +9,9 @@ def mock_llm_response():
     """Return a valid translation JSON response that parse_llm_response can handle."""
 
     def _build(
-        translated_text="She stepped into the grand hall, her heels clicking against the marble floor.",
+        translated_text=(
+            "She stepped into the grand hall, her heels clicking against the marble floor."
+        ),
         new_terms_found=None,
         adaptation_notes=None,
         chapter_summary="The heroine enters the grand hall and faces the CEO.",
@@ -112,12 +115,13 @@ def mock_translate_invoke(mock_llm_response):
     """
 
     def _patcher(
-        translated_text="Su Nian opened her eyes and found herself lying on a large, unfamiliar bed.",
+        translated_text=(
+            "Su Nian opened her eyes and found herself lying on a large, unfamiliar bed."
+        ),
         new_terms_found=None,
         target_path="src.agent.nodes.write.ChatOpenAI",
     ):
-        import json as _json
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_response = MagicMock()
         mock_response.content = mock_llm_response(

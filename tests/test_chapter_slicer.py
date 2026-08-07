@@ -1,12 +1,11 @@
 """Tests for chapter_slicer.py — adaptive chapter splitting at paragraph boundaries."""
 
-import pytest
 from src.chapter_slicer import (
-    should_split,
-    split_chapter,
-    build_segment_title,
     MAX_CHARS_PER_SEGMENT,
     SPLIT_THRESHOLD_CHARS,
+    build_segment_title,
+    should_split,
+    split_chapter,
 )
 
 

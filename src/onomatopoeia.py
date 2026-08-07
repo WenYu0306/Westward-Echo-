@@ -5,11 +5,11 @@ can choose context-appropriate translations. Injected as a context hint
 alongside the dialect context during translation.
 """
 
-from typing import Optional
 
 ONOMATOPOEIA_MAP: dict[str, str] = {
     # Nature sounds
-    "哗啦啦": "whoosh / splash / rustle (choose by context: water=splash, wind=whoosh, leaves=rustle)",
+    "哗啦啦": "whoosh / splash / rustle "
+    "(choose by context: water=splash, wind=whoosh, leaves=rustle)",
     "轰隆隆": "rumble / boom (thunder=rumble, explosion=boom)",
     "呼呼": "whoosh / howl (wind=howl, breathing=wheeze)",
     "淅淅沥沥": "pitter-patter (rain)",

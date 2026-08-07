@@ -12,20 +12,20 @@ Each agent is a READER, not a worker:
   FIX      — Editor, repairs based on cold reader feedback
 """
 
-import json
+from __future__ import annotations
+
 import logging
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
-from .state import TranslatorState
-from .nodes.read import read_node
-from .nodes.write import write_node
-from .nodes.readback import readback_node
-from .nodes.fix import fix_node
+from ..chapter_slicer import build_segment_title, should_split, split_chapter
 from ..glossary.exact_store import ExactGlossary
 from ..glossary.semantic_store import SemanticGlossary
-from ..config import MAX_RETRANSLATION_ATTEMPTS
-from ..chapter_slicer import should_split, split_chapter, build_segment_title
+from .nodes.fix import fix_node
+from .nodes.read import read_node
+from .nodes.readback import readback_node
+from .nodes.write import write_node
+from .state import TranslatorState
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _needs_fix(state: TranslatorState) -> str:
 def build_graph(
     exact_store: ExactGlossary,
     semantic_store: SemanticGlossary,
-) -> StateGraph:
+):
     """Build the v0.15 4-node reader-centric graph."""
 
     builder = StateGraph(TranslatorState)
@@ -110,7 +110,7 @@ class TranslationAgent:
         self.semantic_store = SemanticGlossary()
         self.graph = build_graph(self.exact_store, self.semantic_store)
         from ..style_memo import StyleMemoStore
-        self.style_memo: "StyleMemoStore" = StyleMemoStore(book_id)
+        self.style_memo: StyleMemoStore = StyleMemoStore(book_id)
         self._prefetched_exact: dict | None = None
         self._prefetched_semantic: list[dict] | None = None
         self._chapter_context: list[str] = []
@@ -381,7 +381,9 @@ class TranslationAgent:
             # Build bridging context for the next segment
             if not seg["is_last"]:
                 paras = [p for p in tt.split("\n\n") if len(p.strip()) > 50]
-                bridge = "\n\n".join(paras[-2:]) if len(paras) >= 2 else (paras[-1] if paras else "")
+                bridge = (
+                    "\n\n".join(paras[-2:]) if len(paras) >= 2 else (paras[-1] if paras else "")
+                )
                 if bridge:
                     segment_summary = (
                         f"[Continuing from previous segment.]\n"

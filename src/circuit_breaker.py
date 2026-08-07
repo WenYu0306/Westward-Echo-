@@ -7,7 +7,7 @@ One circuit breaker per language — if en-US fails, es-ES, de, and fr continue 
 
 import threading
 import time
-from typing import Callable, Dict, Optional
+from typing import Callable
 
 
 class CircuitBreakerOpenError(Exception):
@@ -134,7 +134,8 @@ class CircuitBreaker:
                     from .error_tracker import record_event
                     record_event(
                         None, None, "circuit_breaker",
-                        f"{self.name} breaker OPEN after {self._failure_count} consecutive failures",
+                        f"{self.name} breaker OPEN after {self._failure_count} "
+                        "consecutive failures",
                         self.name,
                     )
                 except Exception:
@@ -192,7 +193,7 @@ class CircuitBreaker:
 # Per-language singleton registry
 # ═══════════════════════════════════════════════════════════════
 
-_breakers: Dict[str, CircuitBreaker] = {}
+_breakers: dict[str, CircuitBreaker] = {}
 _breakers_lock = threading.Lock()
 _DEFAULT_THRESHOLD = 5
 _DEFAULT_RECOVERY = 30.0

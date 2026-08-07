@@ -4,25 +4,31 @@ import json
 import os
 import re
 import sqlite3
-import asyncio
 import threading
 import time as _time
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import JSONResponse, FileResponse
 
-from ..config import OUTPUT_DIR, CHECKPOINT_DB_PATH, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB, VERSION
-from ..chapter_splitter import split_chapters, ParagraphTag
-from ..script_splitter import split_episodes
-from ..job_store import job_store
-from ..backpressure import backpressure
-from ..stats import TranslationStats
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
+
 from ..api.logging import logger
+from ..backpressure import backpressure
+from ..chapter_splitter import ParagraphTag, split_chapters
+from ..config import (
+    CHECKPOINT_DB_PATH,
+    MAX_UPLOAD_SIZE_BYTES,
+    MAX_UPLOAD_SIZE_MB,
+    OUTPUT_DIR,
+    VERSION,
+)
+from ..job_store import job_store
+from ..script_splitter import split_episodes
+from ..stats import TranslationStats
 
 try:
-    from ..celery_app import translate_novel_task, resume_translate_task
+    from ..celery_app import resume_translate_task, translate_novel_task
     _has_celery = True
     if translate_novel_task is None:
         _has_celery = False
@@ -54,8 +60,8 @@ def _split_by_content_type(text: str, content_type: str):
 def _safe_job_id(job_id: str) -> str:
     """Reject job IDs containing path traversal or illegal characters."""
     if not _VALID_JOB_ID.match(job_id):
-        from fastapi import HTTPException as _HTTPE, status as _S
-        raise _HTTPE(status_code=_S.HTTP_400_BAD_REQUEST, detail="Invalid job_id")
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid job_id")
     return job_id
 
 
@@ -82,7 +88,9 @@ async def _validate_novel_upload(file: UploadFile):
         text = _convert_rtf(content)
 
     # ── DOCX: Word documents ──
-    elif filename.endswith(".docx") or (content[:2] == b"PK" and b"word/document" in content[:2048]):
+    elif (
+        filename.endswith(".docx") or (content[:2] == b"PK" and b"word/document" in content[:2048])
+    ):
         text = _convert_docx(content)
 
     # ── EPUB: extract plain text from packaged novel ──
@@ -158,13 +166,13 @@ async def translate_novel(
             content={"error": "无效的 API Key 格式（应以 sk- 开头）"},
         )
     if not api_key:
-        from ..config import DEEPSEEK_API_KEY as _dk
-        if not _dk:
+        from ..config import DEEPSEEK_API_KEY
+        if not DEEPSEEK_API_KEY:
             return JSONResponse(
                 status_code=400,
                 content={"error": "请提供 DeepSeek API Key，或配置服务器环境变量"},
             )
-        api_key = _dk
+        api_key = DEEPSEEK_API_KEY
 
     if script_mode not in ("full", "dialogue"):
         return JSONResponse(
@@ -236,7 +244,6 @@ async def _translate_accepted(
 
     # Celery not available — run synchronously in background
     from ..agent.graph import TranslationAgent
-    from ..prefetch import ChapterPrefetcher
     from ..circuit_breaker import CircuitBreakerOpenError
 
     def _run_sync():
@@ -265,7 +272,10 @@ async def _translate_accepted(
                     prev_summary = ckpt.get("previous_summary", "")
                     if ckpt.get("glossary_snapshot"):
                         agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
-                    logger.info("Web sync: resuming %s from chapter %d/%d", job_id, start_i + 1, len(chapters_list))
+                    logger.info(
+                        "Web sync: resuming %s from chapter %d/%d",
+                        job_id, start_i + 1, len(chapters_list),
+                    )
                 except Exception:
                     start_i = 0
 
@@ -316,7 +326,10 @@ async def _translate_accepted(
                 src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
                 min_words = max(50, src_chars / 10)
                 if word_count < min_words:
-                    logger.warning("Sync chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
+                    logger.warning(
+                        "Sync chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write",
+                        ch.index, word_count, min_words,
+                    )
                     continue
                 job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
                 display_title = title_en or ch.title[:60]
@@ -461,9 +474,10 @@ async def translate_multi(
             def _run_translation(lang: str, jid: str):
                 """Run translation synchronously in a background thread."""
                 import asyncio as _asyncio
+
                 from ..agent.graph import TranslationAgent
-                from ..prefetch import ChapterPrefetcher
                 from ..circuit_breaker import CircuitBreakerOpenError
+                from ..prefetch import ChapterPrefetcher
 
                 loop = _asyncio.new_event_loop()
                 _asyncio.set_event_loop(loop)
@@ -476,7 +490,9 @@ async def translate_multi(
                         try:
                             preset_terms = json.loads(preset_glossary_json)
                             for term_cn, term_en in preset_terms.items():
-                                agent.exact_store.add(term_cn, term_en, category="culture", target_lang=lang)
+                                agent.exact_store.add(
+                                    term_cn, term_en, category="culture", target_lang=lang
+                                )
                         except (json.JSONDecodeError, Exception):
                             pass
                     output_path = str(OUTPUT_DIR / f"{jid}_full_novel_{lang}.md")
@@ -491,7 +507,10 @@ async def translate_multi(
                             prev_summary = ckpt.get("previous_summary", "")
                             if ckpt.get("glossary_snapshot"):
                                 agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
-                            logger.info("Multi-lang sync: resuming %s from chapter %d/%d", jid, start_i + 1, len(chapters_list))
+                            logger.info(
+                                "Multi-lang sync: resuming %s from chapter %d/%d",
+                                jid, start_i + 1, len(chapters_list),
+                            )
                         except Exception:
                             start_i = 0
 
@@ -524,7 +543,9 @@ async def translate_multi(
                         except Exception as exc:
                             err_msg = str(exc).lower()
                             if "timed out" in err_msg or "timeout" in err_msg:
-                                logger.warning("Multi-lang chapter %d timed out — retrying", ch.index)
+                                logger.warning(
+                                    "Multi-lang chapter %d timed out — retrying", ch.index
+                                )
                                 _time.sleep(3)
                                 try:
                                     result = agent.translate_chapter(
@@ -540,7 +561,10 @@ async def translate_multi(
                                         script_mode=script_mode,
                                     )
                                 except Exception as e2:
-                                    logger.warning("Multi-lang chapter %d failed after retry: %s", ch.index, e2)
+                                    logger.warning(
+                                        "Multi-lang chapter %d failed after retry: %s",
+                                        ch.index, e2,
+                                    )
                                     TranslationStats.record_chapter_failed(lang)
                                     continue
                             else:
@@ -557,7 +581,11 @@ async def translate_multi(
                         src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
                         min_words = max(50, src_chars / 10)
                         if word_count < min_words:
-                            logger.warning("Multi-lang chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
+                            logger.warning(
+                                "Multi-lang chapter %d: TRUNCATED (%dw < %.0fw min) "
+                                "— skipping write",
+                                ch.index, word_count, min_words,
+                            )
                             TranslationStats.record_chapter_failed(lang)
                             continue
                         job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
@@ -671,7 +699,10 @@ def _parse_markdown_chapters(md_text: str) -> list[dict]:
                     "chapter_num": current_num,
                 })
             current_num = int(m.group(1))
-            current_title = f"Chapter {current_num}: {m.group(2)}" if m.group(2).strip() else f"Chapter {current_num}"
+            current_title = (
+                f"Chapter {current_num}: {m.group(2)}"
+                if m.group(2).strip() else f"Chapter {current_num}"
+            )
             current_lines = []
         elif current_title is not None:
             current_lines.append(line)
@@ -899,7 +930,9 @@ def get_project(project_id: str):
     """Get a single project with all its language-variant jobs."""
     jobs = job_store.get_project_jobs(project_id)
     if not jobs:
-        return JSONResponse(status_code=404, content={"error": "Project not found", "project_id": project_id})
+        return JSONResponse(
+            status_code=404, content={"error": "Project not found", "project_id": project_id}
+        )
     return {
         "project_id": project_id,
         "filename": jobs[0].get("filename", ""),
@@ -1016,7 +1049,8 @@ def delete_preset(preset_name: str):
 
 def _convert_rtf(raw: bytes) -> Optional[str]:
     """Convert RTF bytes to plain UTF-8 text via macOS textutil."""
-    import subprocess, tempfile
+    import subprocess
+    import tempfile
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".rtf", delete=False) as tf:
@@ -1042,7 +1076,7 @@ def _convert_rtf(raw: bytes) -> Optional[str]:
 
 def _convert_docx(raw: bytes) -> Optional[str]:
     """Convert DOCX bytes to plain UTF-8 text."""
-    import zipfile, io, tempfile
+    import tempfile
     try:
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf:
             tf.write(raw)
@@ -1058,7 +1092,8 @@ def _convert_docx(raw: bytes) -> Optional[str]:
 
 def _convert_epub(raw: bytes) -> Optional[str]:
     """Extract plain text from EPUB bytes. Strips HTML tags, returns raw text."""
-    import zipfile, io
+    import io
+    import zipfile
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as zf:
             # Find all XHTML/HTML content files in OEBPS/

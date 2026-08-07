@@ -11,7 +11,6 @@ with bridging context from the previous segment, then merged.
 """
 
 import re
-from typing import Optional
 
 # ── Thresholds ────────────────────────────────────────────────
 
@@ -32,7 +31,9 @@ def should_split(chapter_content: str) -> bool:
     return cn_chars > SPLIT_THRESHOLD_CHARS
 
 
-def split_chapter(chapter_content: str, max_segment_chars: int = MAX_CHARS_PER_SEGMENT) -> list[dict]:
+def split_chapter(
+    chapter_content: str, max_segment_chars: int = MAX_CHARS_PER_SEGMENT
+) -> list[dict]:
     """Split a long chapter into segments at natural boundaries.
 
     Priority: paragraph break (\\n\\n) → sentence break (。！？) → character limit.
@@ -43,11 +44,14 @@ def split_chapter(chapter_content: str, max_segment_chars: int = MAX_CHARS_PER_S
     Returns a single segment for empty/whitespace content.
     """
     if not chapter_content or not chapter_content.strip():
-        return [{"index": 1, "total": 1, "content": chapter_content or "", "is_first": True, "is_last": True}]
+        return [{
+            "index": 1, "total": 1, "content": chapter_content or "",
+            "is_first": True, "is_last": True,
+        }]
 
     blocks = [b.strip() for b in chapter_content.split("\n\n") if b.strip()]
     segments = []
-    current_blocks = []  # Full paragraphs accumulated so far
+    current_blocks: list[str] = []  # Full paragraphs accumulated so far
     current_chars = 0
 
     def _flush_segment():

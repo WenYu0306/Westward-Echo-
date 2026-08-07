@@ -3,22 +3,19 @@
 Runs pre-flight checks at startup and provides a detailed health report.
 """
 
-import os
-import time
-import shutil
 import logging
+import os
+import shutil
+import time
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import httpx
 
 from .config import (
-    DEEPSEEK_API_KEY,
-    DEEPSEEK_BASE_URL,
-    CHROMA_PERSIST_PATH,
     CHECKPOINT_DB_PATH,
+    CHROMA_PERSIST_PATH,
     OUTPUT_DIR,
-    ANTHROPIC_API_KEY,
 )
 
 if TYPE_CHECKING:
@@ -93,7 +90,6 @@ class HealthChecker:
 
     def check_disk_space(self, min_free_mb: int = 500) -> dict:
         """Check that the data volume has enough free space."""
-        label = "disk_space"
         start = time.monotonic()
         try:
             path = Path(CHROMA_PERSIST_PATH).parent  # data/ directory
@@ -120,7 +116,6 @@ class HealthChecker:
 
     def check_config(self) -> dict:
         """Verify all required environment variables are present."""
-        label = "config"
         start = time.monotonic()
 
         critical_vars = {
@@ -154,7 +149,6 @@ class HealthChecker:
 
     def check_output_dir_writable(self) -> dict:
         """Verify the output directory exists and is writable."""
-        label = "output_dir"
         start = time.monotonic()
         try:
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -169,7 +163,6 @@ class HealthChecker:
 
     def check_sqlite(self) -> dict:
         """Verify the SQLite checkpoint database is accessible."""
-        label = "sqlite"
         start = time.monotonic()
         try:
             import sqlite3
@@ -185,13 +178,15 @@ class HealthChecker:
 
     def check_deepseek_api(self) -> dict:
         """Test the DeepSeek API with a minimal 1-token call."""
-        label = "deepseek_api"
         start = time.monotonic()
         try:
             api_key = os.getenv("DEEPSEEK_API_KEY", "")
             if not api_key:
                 elapsed = round((time.monotonic() - start) * 1000, 1)
-                return {"status": "error", "message": "DEEPSEEK_API_KEY not set", "latency_ms": elapsed}
+                return {
+                    "status": "error", "message": "DEEPSEEK_API_KEY not set",
+                    "latency_ms": elapsed,
+                }
 
             base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/")
             url = f"{base_url}/v1/chat/completions"
@@ -223,7 +218,9 @@ class HealthChecker:
                 }
         except httpx.TimeoutException:
             elapsed = round((time.monotonic() - start) * 1000, 1)
-            return {"status": "warn", "message": "DeepSeek API timed out (5s)", "latency_ms": elapsed}
+            return {
+                "status": "warn", "message": "DeepSeek API timed out (5s)", "latency_ms": elapsed
+            }
         except Exception as exc:
             elapsed = round((time.monotonic() - start) * 1000, 1)
             return {"status": "warn", "message": str(exc), "latency_ms": elapsed}
@@ -231,7 +228,6 @@ class HealthChecker:
     def check_chroma(self, exact_store=None,
                      semantic_store: Optional["SemanticGlossary"] = None) -> dict:
         """Verify Chroma persistence and (if a semantic store is supplied) embedding health."""
-        label = "chroma"
         start = time.monotonic()
         try:
             # Check Chroma persistence directory is writable
@@ -251,8 +247,11 @@ class HealthChecker:
 
             # Without a live instance, just report that the path is writable
             elapsed = round((time.monotonic() - start) * 1000, 1)
-            return {"status": "ok", "message": f"Chroma persist path writable ({CHROMA_PERSIST_PATH})",
-                    "latency_ms": elapsed}
+            return {
+                "status": "ok",
+                "message": f"Chroma persist path writable ({CHROMA_PERSIST_PATH})",
+                "latency_ms": elapsed,
+            }
         except Exception as exc:
             elapsed = round((time.monotonic() - start) * 1000, 1)
             return {"status": "warn", "message": str(exc), "latency_ms": elapsed}

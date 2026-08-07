@@ -6,7 +6,6 @@ contextual warnings injected into every chapter's translation prompt when
 these terms appear.
 """
 
-import re
 
 # ── Chinese source-text sensitive terms ──────────────────────
 # Terms that need explicit cultural-context warnings in every chapter

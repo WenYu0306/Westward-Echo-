@@ -3,20 +3,18 @@
 Served at ``GET /dashboard`` (no auth).  Auto-refreshes every 5 seconds.
 """
 
-import json
-import os
 
+from .backpressure import backpressure
+from .circuit_breaker import get_all_breakers
+from .config import (
+    API_PORT,
+    CHAPTER_COOLDOWN_SECONDS,
+    HOST,
+    RATE_LIMIT_ENABLED,
+    RATE_LIMIT_RPM,
+)
 from .health import HealthChecker, check_memory
 from .stats import TranslationStats
-from .circuit_breaker import get_all_breakers
-from .backpressure import backpressure
-from .config import (
-    VERSION, HOST,
-    API_PORT,
-    RATE_LIMIT_RPM,
-    RATE_LIMIT_ENABLED,
-    CHAPTER_COOLDOWN_SECONDS,
-)
 
 DASHBOARD_PAGE = r"""<!DOCTYPE html>
 <html lang="en">

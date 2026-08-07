@@ -1,12 +1,11 @@
 """Tests for dialect detection and mapping."""
 
-import pytest
 from src.dialect import (
+    DIALECT_MAPPING,
+    DIALECT_MARKERS,
+    build_dialect_context,
     detect_dialects,
     get_dialect_hint,
-    build_dialect_context,
-    DIALECT_MARKERS,
-    DIALECT_MAPPING,
 )
 
 

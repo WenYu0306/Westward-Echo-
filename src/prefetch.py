@@ -31,8 +31,8 @@ If the prefetch is still running when ``get_if_ready`` is called, it returns
 ``None`` and the normal (blocking) glossary lookup runs as fallback.
 """
 
-from concurrent.futures import ThreadPoolExecutor
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 
 class ChapterPrefetcher:

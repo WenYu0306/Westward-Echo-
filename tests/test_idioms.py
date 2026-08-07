@@ -1,7 +1,6 @@
 """Unit tests for src/idioms.py — Chinese idiom detection and translation hints."""
 
-import pytest
-from src.idioms import detect_idioms, build_idiom_context, COMMON_IDIOMS
+from src.idioms import COMMON_IDIOMS, build_idiom_context, detect_idioms
 
 
 class TestDetectIdioms:

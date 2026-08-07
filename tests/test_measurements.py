@@ -1,7 +1,6 @@
 """Unit tests for src/measurements.py — Chinese unit detection and hint building."""
 
-import pytest
-from src.measurements import detect_measurements, build_measurements_hint
+from src.measurements import build_measurements_hint, detect_measurements
 
 
 class TestDetectMeasurements:

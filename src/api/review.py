@@ -3,7 +3,6 @@
 from typing import Optional
 
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
 
 from ..glossary.exact_store import ExactGlossary
 from ..job_store import job_store
@@ -22,7 +21,11 @@ def _get_store() -> ExactGlossary:
 
 
 @app.get("/terms")
-def list_terms(status: str = Query(default=None, description="Filter: pending_review, confirmed, or omit for all")):
+def list_terms(
+    status: str = Query(
+        default=None, description="Filter: pending_review, confirmed, or omit for all"
+    )
+):
     """List all glossary terms, optionally filtered by status."""
     store = _get_store()
     store.load_from_db()
@@ -40,7 +43,10 @@ def confirm_term(term_cn: str):
 
 
 @app.post("/terms/{term_cn}/reject")
-def reject_term(term_cn: str, rejected_en: str = Query(default="", description="The rejected English translation")):
+def reject_term(
+    term_cn: str,
+    rejected_en: str = Query(default="", description="The rejected English translation"),
+):
     """Reject a term — deletes it from the glossary and records the rejected translation.
 
     Before deleting, we look up the current English translation to record it

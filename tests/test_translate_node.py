@@ -5,15 +5,12 @@ Requires DEEPSEEK_API_KEY in environment. Skip if not available.
 
 import json
 import os
-import re
 
 import pytest
 
-from src.chapter_splitter import split_chapters, ParagraphTag
-from src.glossary.exact_store import ExactGlossary
-from src.glossary.semantic_store import SemanticGlossary
 from src.agent.graph import TranslationAgent
-
+from src.chapter_splitter import ParagraphTag, split_chapters
+from src.glossary.exact_store import ExactGlossary
 
 # Path to the test fixture
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "pei_zong_ch1-3.txt")

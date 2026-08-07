@@ -4,9 +4,21 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP"]
+# UP045 (Optional[X] -> X | None): the runtime is Python 3.9, where PEP 604
+# union syntax is not evaluated — converting would crash at import time.
+ignore = ["UP045"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+# These modules are single-page HTML/CSS/JS templates stored as Python
+# strings. Their lines are markup, not code — wrapping them would break
+# URLs/CSS/JS, so line length is not enforced inside them.
+"src/web_ui.py" = ["E501"]
+"src/editor_ui.py" = ["E501"]
+"src/dashboard.py" = ["E501"]
+"src/usage_ui.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.9"

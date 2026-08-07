@@ -1,7 +1,6 @@
 """Unit tests for src/onomatopoeia.py — Chinese onomatopoeia detection and context hints."""
 
-import pytest
-from src.onomatopoeia import detect_onomatopoeia, build_onomatopoeia_context
+from src.onomatopoeia import build_onomatopoeia_context, detect_onomatopoeia
 
 
 class TestDetectOnomatopoeia:

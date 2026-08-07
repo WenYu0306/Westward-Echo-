@@ -1,11 +1,10 @@
 """Tests for src/error_tracker.py — event recording, summaries, and job health."""
 
-import pytest
 from src.error_tracker import (
-    record_event,
     get_event_summary,
-    get_recent_issues,
     get_job_health,
+    get_recent_issues,
+    record_event,
 )
 
 

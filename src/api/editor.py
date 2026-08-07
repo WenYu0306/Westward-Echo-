@@ -7,15 +7,15 @@ are read from the same OUTPUT_DIR and chapter-splitter pipeline used for transla
 import re
 import sqlite3
 import threading
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from ..config import OUTPUT_DIR, DATA_DIR, VERSION
 from ..chapter_splitter import split_chapters
+from ..config import DATA_DIR, OUTPUT_DIR, VERSION
 from ..job_store import job_store
 
 app = FastAPI(title="Westward Echo Editor API", version=VERSION)
@@ -35,7 +35,7 @@ def _get_conn() -> sqlite3.Connection:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         _local.conn = conn
-    return conn
+    return conn  # type: ignore[no-any-return]
 
 
 def _ensure_table(job_id: str):
@@ -53,7 +53,7 @@ def _ensure_table(job_id: str):
             PRIMARY KEY (chapter_num, paragraph_index)
         )
     """)
-    conn.execute(f"""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS edit_meta (
             job_id TEXT PRIMARY KEY,
             last_edited_at TEXT
@@ -143,10 +143,10 @@ def list_chapters(job_id: str) -> list[dict]:
     """Return all chapter numbers and titles for a completed job."""
     job = job_store.get_job(job_id)
     if job is None:
-        return JSONResponse(status_code=404, content={"error": "Job not found"})
+        return JSONResponse(status_code=404, content={"error": "Job not found"})  # type: ignore[return-value]
 
     if job["status"] != "complete":
-        return JSONResponse(
+        return JSONResponse(  # type: ignore[return-value]
             status_code=400,
             content={"error": "Editing is only available for completed translations"},
         )
@@ -175,11 +175,11 @@ def get_chapter(job_id: str, chapter_num: int) -> dict:
     """
     job = job_store.get_job(job_id)
     if job is None:
-        return JSONResponse(status_code=404, content={"error": "Job not found"})
+        return JSONResponse(status_code=404, content={"error": "Job not found"})  # type: ignore[return-value]
 
     total = job["total_chapters"]
     if chapter_num < 1 or chapter_num > total:
-        return JSONResponse(status_code=404, content={"error": "Chapter out of range"})
+        return JSONResponse(status_code=404, content={"error": "Chapter out of range"})  # type: ignore[return-value]
 
     # Get Chinese original
     cn_text = _get_cn_chapter(job_id, chapter_num, total)
@@ -203,7 +203,8 @@ def get_chapter(job_id: str, chapter_num: int) -> dict:
     table = _ensure_table(job_id)
     conn = _get_conn()
     rows = conn.execute(
-        f'SELECT paragraph_index, edited_text FROM "{table}" WHERE chapter_num = ? ORDER BY paragraph_index',
+        f'SELECT paragraph_index, edited_text FROM "{table}" WHERE chapter_num = ? '
+        "ORDER BY paragraph_index",
         (chapter_num,),
     ).fetchall()
     edits = {row["paragraph_index"]: row["edited_text"] for row in rows}
@@ -232,7 +233,7 @@ def update_chapter(job_id: str, chapter_num: int, data: dict) -> dict:
     """
     job = job_store.get_job(job_id)
     if job is None:
-        return JSONResponse(status_code=404, content={"error": "Job not found"})
+        return JSONResponse(status_code=404, content={"error": "Job not found"})  # type: ignore[return-value]
 
     paragraphs = data.get("paragraphs", [])
     if not paragraphs:
@@ -249,7 +250,8 @@ def update_chapter(job_id: str, chapter_num: int, data: dict) -> dict:
         if idx < 0:
             continue
         conn.execute(
-            f'INSERT OR REPLACE INTO "{table}" (chapter_num, paragraph_index, edited_text, edited_at) '
+            f'INSERT OR REPLACE INTO "{table}" '
+            "(chapter_num, paragraph_index, edited_text, edited_at) "
             "VALUES (?, ?, ?, ?)",
             (chapter_num, idx, text, now),
         )
@@ -276,11 +278,11 @@ def batch_replace(job_id: str, data: dict) -> dict:
     term_new = data.get("term_en_new", "")
 
     if not term_old:
-        return JSONResponse(status_code=400, content={"error": "term_en_old is required"})
+        return JSONResponse(status_code=400, content={"error": "term_en_old is required"})  # type: ignore[return-value]
 
     job = job_store.get_job(job_id)
     if job is None:
-        return JSONResponse(status_code=404, content={"error": "Job not found"})
+        return JSONResponse(status_code=404, content={"error": "Job not found"})  # type: ignore[return-value]
 
     table = _ensure_table(job_id)
     conn = _get_conn()
@@ -310,7 +312,8 @@ def batch_replace(job_id: str, data: dict) -> dict:
                 new_text = current_text.replace(term_old, term_new)
                 now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 conn.execute(
-                    f'INSERT OR REPLACE INTO "{table}" (chapter_num, paragraph_index, edited_text, edited_at) '
+                    f'INSERT OR REPLACE INTO "{table}" '
+                    "(chapter_num, paragraph_index, edited_text, edited_at) "
                     "VALUES (?, ?, ?, ?)",
                     (chapter_num, idx, new_text, now),
                 )
@@ -323,7 +326,9 @@ def batch_replace(job_id: str, data: dict) -> dict:
         )
     conn.commit()
 
-    return {"status": "ok", "replacements": total_replaced, "term_old": term_old, "term_new": term_new}
+    return {
+        "status": "ok", "replacements": total_replaced, "term_old": term_old, "term_new": term_new
+    }
 
 
 @app.get("/editor/{job_id}/stats")
@@ -331,7 +336,7 @@ def get_stats(job_id: str) -> dict:
     """Return {total_chapters, edited_chapters, last_edited_at}."""
     job = job_store.get_job(job_id)
     if job is None:
-        return JSONResponse(status_code=404, content={"error": "Job not found"})
+        return JSONResponse(status_code=404, content={"error": "Job not found"})  # type: ignore[return-value]
 
     total = job["total_chapters"]
     table = _ensure_table(job_id)

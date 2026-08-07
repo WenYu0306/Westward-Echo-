@@ -21,6 +21,10 @@ from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
 
+# ── XML namespaces used by the EPUB package/NCX files ──────────────
+OPF_NS = "http://www.idpf.org/2007/opf"
+DC_NS = "http://purl.org/dc/elements/1.1/"
+NCX_NS = "http://www.daisy.org/z3986/2005/ncx/"
 
 # ── CSS for clean reading ──────────────────────────────────────────
 
@@ -195,21 +199,18 @@ def _build_opf(
     has_glossary: bool,
 ) -> bytes:
     """OEBPS/content.opf — the package file."""
-    OPF = "http://www.idpf.org/2007/opf"
-    DC  = "http://purl.org/dc/elements/1.1/"
-
     package = ET.Element("package", {
-        "xmlns": OPF,
+        "xmlns": OPF_NS,
         "version": "3.0",
         "unique-identifier": "book-id",
     })
 
     # ── Metadata ──
-    metadata = ET.SubElement(package, "metadata", {"xmlns:dc": DC})
-    ET.SubElement(metadata, f"{{{DC}}}identifier", {"id": "book-id"}).text = book_id
-    ET.SubElement(metadata, f"{{{DC}}}title").text = title
-    ET.SubElement(metadata, f"{{{DC}}}creator").text = author
-    ET.SubElement(metadata, f"{{{DC}}}language").text = language
+    metadata = ET.SubElement(package, "metadata", {"xmlns:dc": DC_NS})
+    ET.SubElement(metadata, f"{{{DC_NS}}}identifier", {"id": "book-id"}).text = book_id
+    ET.SubElement(metadata, f"{{{DC_NS}}}title").text = title
+    ET.SubElement(metadata, f"{{{DC_NS}}}creator").text = author
+    ET.SubElement(metadata, f"{{{DC_NS}}}language").text = language
     meta = ET.SubElement(metadata, "meta", {"property": "dcterms:modified"})
     meta.text = "2026-01-01T00:00:00Z"
 
@@ -270,8 +271,6 @@ def _build_ncx(
     has_glossary: bool,
 ) -> bytes:
     """OEBPS/toc.ncx — NCX table of contents (for EPUB 2 compatibility)."""
-    NCX_NS = "http://www.daisy.org/z3986/2005/ncx/"
-
     ncx = ET.Element("ncx", {
         "xmlns": NCX_NS,
         "version": "2005-1",

@@ -17,22 +17,19 @@ import sys
 import tempfile
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.agent.state import TranslatorState
 from src.agent.graph import (
-    build_graph,
-    _should_readback,
-    _needs_fix,
     TranslationAgent,
+    _needs_fix,
+    _should_readback,
+    build_graph,
 )
 from src.agent.parse_utils import parse_llm_json
+from src.agent.state import TranslatorState
+from src.chapter_slicer import should_split, split_chapter
 from src.glossary.exact_store import ExactGlossary
 from src.glossary.semantic_store import SemanticGlossary
-from src.chapter_slicer import should_split, split_chapter
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
@@ -42,7 +39,9 @@ def _make_mock_llm(content: str) -> MagicMock:
     """Return a MagicMock that mimics ChatOpenAI, returning *content* from .invoke()."""
     mock_response = MagicMock()
     mock_response.content = content
-    mock_response.response_metadata = {"token_usage": {"prompt_tokens": 100, "completion_tokens": 50}}
+    mock_response.response_metadata = {
+        "token_usage": {"prompt_tokens": 100, "completion_tokens": 50}
+    }
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = mock_response
     return mock_llm
@@ -175,7 +174,10 @@ class TestBuildGraph:
             "crafted_moments": [],
         }
         write_out = {
-            "translated_text": "She walked into the grand hall, her footsteps echoing against marble. The room was vast and empty, lit only by a single chandelier.",
+            "translated_text": (
+                "She walked into the grand hall, her footsteps echoing against marble. "
+                "The room was vast and empty, lit only by a single chandelier."
+            ),
             "new_terms_found": [],
             "adaptation_notes": [],
             "chapter_summary": "A woman enters.",
@@ -272,7 +274,9 @@ class TestMakeState:
     def test_prefetched_glossary_used(self):
         agent = TranslationAgent(book_id="test_make_state_prefetch")
         agent._prefetched_exact = {"预取词": "PrefetchedTerm"}
-        agent._prefetched_semantic = [{"term_cn": "语义词", "term_en": "SemanticTerm", "category": "culture"}]
+        agent._prefetched_semantic = [
+            {"term_cn": "语义词", "term_en": "SemanticTerm", "category": "culture"}
+        ]
         # Also add a term to the real store — it should NOT be looked up
         agent.exact_store.add("不该出现", "ShouldNotAppear")
         state = agent._make_state("T", "预取词 语义词", 1, "", "en-US", "romance_ceo")
@@ -300,9 +304,18 @@ class TestReadNode:
         agent = TranslationAgent(book_id="test_read_out")
         analysis = {
             "emotional_arc": "Rising tension.",
-            "cultural_gaps": [{"element": "鬼节", "cn_reader_gets": "fear", "en_reader_misses": "context", "bridge_strategy": "bridge", "bridge_guidance": "Use sensory detail."}],
-            "image_gaps": [{"passage": "text", "cn_reader_sees": "full scene", "en_reader_gets": "thin", "priority": "critical", "sensory_anchors": "cold, silence"}],
-            "terminology_decisions": [{"term_cn": "仙", "proposed_en": "Immortal", "reasoning": "fits", "cultural_note": "divine"}],
+            "cultural_gaps": [{
+                "element": "鬼节", "cn_reader_gets": "fear", "en_reader_misses": "context",
+                "bridge_strategy": "bridge", "bridge_guidance": "Use sensory detail.",
+            }],
+            "image_gaps": [{
+                "passage": "text", "cn_reader_sees": "full scene", "en_reader_gets": "thin",
+                "priority": "critical", "sensory_anchors": "cold, silence",
+            }],
+            "terminology_decisions": [{
+                "term_cn": "仙", "proposed_en": "Immortal", "reasoning": "fits",
+                "cultural_note": "divine",
+            }],
             "pacing_notes": "Good.",
             "crafted_moments": ["A reveal."],
         }
@@ -338,7 +351,10 @@ class TestWriteNode:
 
         response = {
             "translated_text": "She entered the grand hall.",
-            "new_terms_found": [{"term_cn": "大殿", "term_en": "grand hall", "category": "location", "context": "...", "note": ""}],
+            "new_terms_found": [{
+                "term_cn": "大殿", "term_en": "grand hall", "category": "location",
+                "context": "...", "note": "",
+            }],
             "adaptation_notes": ["Adapted architecture term."],
             "chapter_summary": "Heroine enters hall.",
         }
@@ -355,8 +371,14 @@ class TestWriteNode:
     def test_empty_output_triggers_retry(self):
         from src.agent.nodes.write import write_node
 
-        empty_resp = {"translated_text": "  ", "new_terms_found": [], "adaptation_notes": [], "chapter_summary": ""}
-        valid_resp = {"translated_text": "Retry succeeded with valid content here.", "new_terms_found": [], "adaptation_notes": [], "chapter_summary": "ok"}
+        empty_resp = {
+            "translated_text": "  ", "new_terms_found": [],
+            "adaptation_notes": [], "chapter_summary": "",
+        }
+        valid_resp = {
+            "translated_text": "Retry succeeded with valid content here.",
+            "new_terms_found": [], "adaptation_notes": [], "chapter_summary": "ok",
+        }
 
         with patch("src.agent.nodes.write.ChatOpenAI") as mock_cls:
             mock_llm = MagicMock()
@@ -374,7 +396,10 @@ class TestWriteNode:
     def test_use_flash_writer_selects_flash_model(self):
         from src.agent.nodes.write import write_node
 
-        response = {"translated_text": "Flash output.", "new_terms_found": [], "adaptation_notes": [], "chapter_summary": "Flash."}
+        response = {
+            "translated_text": "Flash output.", "new_terms_found": [],
+            "adaptation_notes": [], "chapter_summary": "Flash.",
+        }
 
         with patch("src.agent.nodes.write.ChatOpenAI") as mock_cls:
             mock_cls.return_value = _make_mock_llm(json.dumps(response))
@@ -401,7 +426,11 @@ class TestReadbackNode:
     def test_pass_verdict_gives_high_score(self):
         from src.agent.nodes.readback import readback_node
 
-        fb = {"verdict": "PASS", "overall_impression": "Good.", "would_keep_reading": True, "comprehension_issues": [], "engagement_gaps": [], "standout_moments": [], "character_tracking": "", "world_comprehension": ""}
+        fb = {
+            "verdict": "PASS", "overall_impression": "Good.", "would_keep_reading": True,
+            "comprehension_issues": [], "engagement_gaps": [], "standout_moments": [],
+            "character_tracking": "", "world_comprehension": "",
+        }
 
         with patch("src.agent.nodes.readback.ChatOpenAI") as mock_cls:
             mock_cls.return_value = _make_mock_llm(json.dumps(fb))
@@ -414,7 +443,13 @@ class TestReadbackNode:
     def test_needs_fix_verdict_gives_low_score(self):
         from src.agent.nodes.readback import readback_node
 
-        fb = {"verdict": "NEEDS_FIX", "overall_impression": "Confusing.", "would_keep_reading": False, "comprehension_issues": [{"passage": "para 3", "issue": "unclear"}], "engagement_gaps": [], "standout_moments": [], "character_tracking": "", "world_comprehension": ""}
+        fb = {
+            "verdict": "NEEDS_FIX", "overall_impression": "Confusing.",
+            "would_keep_reading": False,
+            "comprehension_issues": [{"passage": "para 3", "issue": "unclear"}],
+            "engagement_gaps": [], "standout_moments": [],
+            "character_tracking": "", "world_comprehension": "",
+        }
 
         with patch("src.agent.nodes.readback.ChatOpenAI") as mock_cls:
             mock_cls.return_value = _make_mock_llm(json.dumps(fb))
@@ -451,13 +486,19 @@ class TestFixNode:
     def test_produces_polished_text(self):
         from src.agent.nodes.fix import fix_node
 
-        fix_resp = {"polished_text": "Fixed version of the chapter.", "changes_made": ["Fixed pronoun in paragraph 2."]}
+        fix_resp = {
+            "polished_text": "Fixed version of the chapter.",
+            "changes_made": ["Fixed pronoun in paragraph 2."],
+        }
 
         with patch("src.agent.nodes.fix.ChatOpenAI") as mock_cls:
             mock_cls.return_value = _make_mock_llm(json.dumps(fix_resp))
             state = _make_state(
                 translated_text="Original version of the chapter.",
-                readback_feedback={"verdict": "NEEDS_FIX", "comprehension_issues": [{"passage": "p2", "issue": "pronoun unclear"}]},
+                readback_feedback={
+                    "verdict": "NEEDS_FIX",
+                    "comprehension_issues": [{"passage": "p2", "issue": "pronoun unclear"}],
+                },
             )
             result = fix_node(state)
 
@@ -542,8 +583,14 @@ class TestPostProcess:
         agent = TranslationAgent(book_id="test_pp_exact")
         agent._post_process({
             "new_terms_found": [
-                {"term_cn": "张三", "term_en": "Zhang San", "category": "character", "context": "...", "note": ""},
-                {"term_cn": "李四", "term_en": "Li Si", "category": "character", "context": "...", "note": ""},
+                {
+                    "term_cn": "张三", "term_en": "Zhang San", "category": "character",
+                    "context": "...", "note": "",
+                },
+                {
+                    "term_cn": "李四", "term_en": "Li Si", "category": "character",
+                    "context": "...", "note": "",
+                },
             ],
             "read_analysis": {},
             "readback_feedback": {},
@@ -585,7 +632,10 @@ class TestPostProcess:
             ],
             "read_analysis": {
                 "terminology_decisions": [
-                    {"term_cn": "仙", "proposed_en": "Immortal", "cultural_note": "A being who transcended mortality through cultivation."},
+                    {
+                        "term_cn": "仙", "proposed_en": "Immortal",
+                        "cultural_note": "A being who transcended mortality through cultivation.",
+                    },
                 ],
             },
             "readback_feedback": {},
@@ -604,7 +654,10 @@ class TestPostProcess:
             "readback_feedback": {
                 "verdict": "PASS",
                 "engagement_gaps": [
-                    {"passage": "long exposition paragraph", "issue": "Too much exposition — got bored."},
+                    {
+                        "passage": "long exposition paragraph",
+                        "issue": "Too much exposition — got bored.",
+                    },
                 ],
             },
             "chapter_number": 5,

@@ -3,7 +3,12 @@
 Run with:  pytest tests/test_e2e.py -v -k "not requires_api_key"
 or:        python3 tests/test_e2e.py
 """
-import sys, os, json, time, tempfile, re
+import json
+import os
+import sys
+import tempfile
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
@@ -68,7 +73,7 @@ def test_upload_and_poll(client, novel_txt):
         r = client.get(f"/api/translate/{job_id}")
         assert r.status_code == 200
         status = r.json()
-        assert status.get("status") != "unknown", f"Expected real status, got unknown"
+        assert status.get("status") != "unknown", "Expected real status, got unknown"
         if status.get("status") == "complete":
             break
         time.sleep(1)
@@ -82,7 +87,7 @@ def test_script_upload_splits_by_episode(client):
 
     LLM calls are mocked so no API quota is consumed.
     """
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
 
     script_content = """第1集 穿书
 

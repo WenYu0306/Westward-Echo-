@@ -5,10 +5,24 @@ Install: pip install celery[redis]
 """
 
 import json
-import time
-import sqlite3
 import logging
+import sqlite3
+import time
 from pathlib import Path
+
+from .agent.graph import TranslationAgent
+from .backpressure import backpressure
+from .chapter_splitter import ParagraphTag, merge_chapters, split_chapters
+from .circuit_breaker import CircuitBreakerOpenError
+from .config import (
+    CHAPTER_COOLDOWN_SECONDS,
+    CHECKPOINT_DB_PATH,
+    OUTPUT_DIR,
+    REDIS_URL,
+)
+from .prefetch import ChapterPrefetcher
+from .script_splitter import split_episodes
+from .stats import TranslationStats
 
 logger = logging.getLogger("westward_echo.celery")
 
@@ -17,21 +31,6 @@ try:
     _celery_ok = True
 except ImportError:
     _celery_ok = False
-
-from .config import (
-    REDIS_URL,
-    CHECKPOINT_DB_PATH,
-    CHAPTER_COOLDOWN_SECONDS,
-    OUTPUT_DIR,
-)
-from .chapter_splitter import split_chapters, merge_chapters, ParagraphTag
-from .script_splitter import split_episodes
-from .agent.graph import TranslationAgent
-from .prefetch import ChapterPrefetcher
-from .backpressure import backpressure
-from .stats import TranslationStats
-from .circuit_breaker import CircuitBreakerOpenError
-
 
 if _celery_ok:
     app = Celery("westward_echo", broker=REDIS_URL, backend=REDIS_URL)
@@ -79,8 +78,13 @@ if _celery_ok:
                 try:
                     preset_terms = json.loads(glossary_preset_glossary)
                     for term_cn, term_en in preset_terms.items():
-                        agent.exact_store.add(term_cn, term_en, category="culture", target_lang=target_lang)
-                    logger.info("Pre-loaded %d glossary terms from preset for job %s", len(preset_terms), job_id)
+                        agent.exact_store.add(
+                            term_cn, term_en, category="culture", target_lang=target_lang
+                        )
+                    logger.info(
+                        "Pre-loaded %d glossary terms from preset for job %s",
+                        len(preset_terms), job_id,
+                    )
                 except (json.JSONDecodeError, Exception) as exc:
                     logger.warning("Failed to pre-load glossary preset for job %s: %s", job_id, exc)
             prev_summary = ""
@@ -133,10 +137,15 @@ if _celery_ok:
             Path(output_path).write_text(full_text, encoding="utf-8")
             glossary = agent.exact_store.to_dict()
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
-            Path(glossary_path).write_text(json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8")
+            Path(glossary_path).write_text(
+                json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             progress.complete(output_path, len(glossary))
             backpressure.release()
-            return {"status": "complete", "output_path": output_path, "total_chapters": total, "glossary_count": len(glossary)}
+            return {
+                "status": "complete", "output_path": output_path, "total_chapters": total,
+                "glossary_count": len(glossary),
+            }
         except Exception as exc:
             progress.error(str(exc))
             TranslationStats.record_chapter_failed(target_lang)
@@ -246,10 +255,15 @@ if _celery_ok:
             Path(output_path).write_text(full_text, encoding="utf-8")
             glossary = agent.exact_store.to_dict()
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
-            Path(glossary_path).write_text(json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8")
+            Path(glossary_path).write_text(
+                json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
             progress.complete(output_path, len(glossary))
             backpressure.release()
-            return {"status": "complete", "output_path": output_path, "total_chapters": total, "glossary_count": len(glossary)}
+            return {
+                "status": "complete", "output_path": output_path, "total_chapters": total,
+                "glossary_count": len(glossary),
+            }
         except Exception as exc:
             progress.error(str(exc))
             TranslationStats.record_chapter_failed(target_lang)
@@ -278,7 +292,10 @@ class TranslationProgress:
             app.backend.set(self.key, json.dumps(data))
 
     def update(self, current: int, total: int, chapter_title: str):
-        self._set({"status": "translating", "current": current, "total": total, "chapter_title": chapter_title})
+        self._set({
+            "status": "translating", "current": current, "total": total,
+            "chapter_title": chapter_title,
+        })
         try:
             from .job_store import job_store
             job_store.update_progress(self.job_id, current, total, chapter_title)
@@ -286,7 +303,9 @@ class TranslationProgress:
             pass  # non-critical
 
     def complete(self, output_path: str, glossary_count: int):
-        self._set({"status": "complete", "output_path": output_path, "glossary_count": glossary_count})
+        self._set({
+            "status": "complete", "output_path": output_path, "glossary_count": glossary_count,
+        })
         try:
             from .job_store import job_store
             job_store.complete_job(self.job_id, output_path, glossary_count)

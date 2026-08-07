@@ -5,7 +5,6 @@ appropriate English dialect equivalents. Injects dialect context into the
 translation prompt so the LLM can preserve each character's unique voice.
 """
 
-import re
 from typing import Optional
 
 # ── Dialect detection patterns ────────────────────────────────
@@ -158,7 +157,10 @@ def build_dialect_context(chapter_text: str) -> str:
                 "shanghai": "上海话",
                 "cantonese": "粤语",
             }.get(dialect_name, dialect_name)
-            parts.append(f"- Characters speaking **{dialect_cn}** ({detected[dialect_name]} markers found): {hint}")
+            parts.append(
+                f"- Characters speaking **{dialect_cn}** ({detected[dialect_name]} markers found): "
+                f"{hint}"
+            )
 
     if not parts:
         return ""

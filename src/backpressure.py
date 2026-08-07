@@ -5,7 +5,6 @@ cannot reasonably complete.
 """
 
 import threading
-from typing import Optional
 
 
 class BackpressureGuard:

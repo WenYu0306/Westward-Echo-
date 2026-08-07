@@ -13,7 +13,6 @@ from typing import Optional
 
 import httpx
 
-
 # ═══════════════════════════════════════════════════════════════
 # Abstract interface
 # ═══════════════════════════════════════════════════════════════
@@ -67,9 +66,9 @@ class FileSystemConnector(CMSConnector):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy the Markdown output if it exists
-        from .config import OUTPUT_DIR as _out
+        from .config import OUTPUT_DIR
 
-        md_path = _out / f"{job_id}_full_novel_en-US.md"
+        md_path = OUTPUT_DIR / f"{job_id}_full_novel_en-US.md"
         if md_path.exists():
             dest = output_dir / f"{job_id}.md"
             shutil.copy2(md_path, dest)
@@ -117,9 +116,9 @@ class WebhookConnector(CMSConnector):
         url = f"{self.webhook_url}/translations/{job_id}"
 
         # Attach the Markdown body
-        from .config import OUTPUT_DIR as _out
+        from .config import OUTPUT_DIR
 
-        md_path = _out / f"{job_id}_full_novel_en-US.md"
+        md_path = OUTPUT_DIR / f"{job_id}_full_novel_en-US.md"
         body = md_path.read_text(encoding="utf-8") if md_path.exists() else ""
 
         try:
@@ -149,10 +148,10 @@ class WebhookConnector(CMSConnector):
 def get_connector() -> CMSConnector:
     """Return the CMS connector configured via environment variables."""
     from .config import (
-        CMS_SOURCE_TYPE,
         CMS_FILE_BASE_DIR,
-        CMS_WEBHOOK_URL,
+        CMS_SOURCE_TYPE,
         CMS_WEBHOOK_API_KEY,
+        CMS_WEBHOOK_URL,
     )
 
     if CMS_SOURCE_TYPE == "file":

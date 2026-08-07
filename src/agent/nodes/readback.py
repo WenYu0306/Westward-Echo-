@@ -6,17 +6,16 @@ original. Does NOT know this is a translation. Reports honest experience.
 Replaces: quality_check
 """
 
-import json
-import re
 import logging
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
-from ..state import TranslatorState
-from ..prompts.registry import get_prompt_set
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+
+from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
-from ...circuit_breaker import get_breaker, CircuitBreakerOpenError
 from ...stats import TranslationStats
+from ..prompts.registry import get_prompt_set
+from ..state import TranslatorState
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +42,9 @@ def readback_node(state: TranslatorState) -> dict:
             "quality_issues": ["EMPTY: Chapter output is empty or too short."],
         }
 
-    llm = ChatOpenAI(
+    llm = ChatOpenAI(  # type: ignore[call-arg]
         model=MODEL_MAP["readback"],
-        api_key=state.get("api_key") or DEEPSEEK_API_KEY,
+        api_key=state.get("api_key") or DEEPSEEK_API_KEY,  # type: ignore[arg-type]
         base_url=DEEPSEEK_BASE_URL,
         temperature=0.1,
         max_tokens=2048,
