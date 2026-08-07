@@ -52,12 +52,16 @@ if _celery_ok:
                               translate_mode: str = "flash", qa_interval: int = 20,
                               genre: str = "romance_ceo",
                               glossary_preset_glossary: str = "",
-                              content_type: str = "novel"):
+                              content_type: str = "novel",
+                              script_mode: str = "full"):
         """Main translation Celery task — durable, retryable, checkpointed.
 
         content_type selects the splitting + prompt branch:
         "novel" (chapter splitter, web-novel prompts) or "script"
         (episode splitter, short-drama prompts).
+
+        script_mode ("full" | "dialogue") applies to the script branch:
+        "dialogue" post-filters output down to spoken lines for dubbing.
         """
         progress = TranslationProgress(job_id)
         try:
@@ -100,6 +104,7 @@ if _celery_ok:
                         chapter_number=chapter.index, previous_summary=prev_summary,
                         target_lang=target_lang, genre=genre,
                         content_type=content_type,
+                        script_mode=script_mode,
                     )
                 except CircuitBreakerOpenError:
                     # Circuit is open for this language — skip remaining chapters
@@ -135,14 +140,20 @@ if _celery_ok:
         except Exception as exc:
             progress.error(str(exc))
             TranslationStats.record_chapter_failed(target_lang)
+            # Keep the backpressure slot held while a retry is pending;
+            # release exactly once when no retry remains. (Releasing before
+            # self.retry() would double-release when the retry finishes.)
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc)
             backpressure.release()
-            raise self.retry(exc=exc)
+            raise
 
     @app.task(bind=True, max_retries=1, default_retry_delay=30)
     def resume_translate_task(self, job_id: str, start_chapter: int, glossary_snapshot: str,
                                text: str = "", target_lang: str = "en-US",
                                translate_mode: str = "flash", qa_interval: int = 20,
-                               genre: str = "romance_ceo", content_type: str = "novel"):
+                               genre: str = "romance_ceo", content_type: str = "novel",
+                               script_mode: str = "full"):
         """Resume a crashed translation from the given starting chapter number.
 
         Accepts a glossary snapshot (JSON) and a start_chapter index so the
@@ -204,6 +215,7 @@ if _celery_ok:
                         chapter_number=chapter.index, previous_summary=prev_summary,
                         target_lang=target_lang, genre=genre,
                         content_type=content_type,
+                        script_mode=script_mode,
                     )
                 except CircuitBreakerOpenError:
                     logger.warning(
@@ -241,8 +253,13 @@ if _celery_ok:
         except Exception as exc:
             progress.error(str(exc))
             TranslationStats.record_chapter_failed(target_lang)
+            # Keep the backpressure slot held while a retry is pending;
+            # release exactly once when no retry remains. (Releasing before
+            # self.retry() would double-release when the retry finishes.)
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc)
             backpressure.release()
-            raise self.retry(exc=exc)
+            raise
 
 else:
     app = None  # type: ignore

@@ -129,6 +129,7 @@ async def translate_novel(
     qa_interval: int = Form(20),
     genre: str = Form("romance_ceo"),
     content_type: str = Form("novel"),
+    script_mode: str = Form("full"),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
 ):
@@ -137,20 +138,14 @@ async def translate_novel(
     If ``glossary_preset`` is provided, the named preset's glossary is
     pre-loaded into the translation agent before the first chapter, giving
     the translation a warm start with known terminology.
-    """
-    # ── Backpressure: reject new work if queue is full ──
-    if not backpressure.try_accept():
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "service_overloaded",
-                "message": "Too many translations in progress. Try again later.",
-                "queue_depth": backpressure.queue_depth,
-            },
-            headers={"Retry-After": "30"},
-        )
 
-    # ── File validation ──
+    ``script_mode`` applies to ``content_type="script"`` only:
+    "full" (default) compiles the complete shooting script; "dialogue"
+    compiles the same validated pipeline but delivers only spoken lines
+    (dialogue + OS) for dubbing/ADR workflows.
+    """
+    # ── Validate BEFORE accepting work — rejected requests must not
+    #    consume a backpressure slot ──
     text, error = await _validate_novel_upload(file)
     if error:
         status_code = 413 if "too large" in error.lower() else 400
@@ -171,12 +166,55 @@ async def translate_novel(
             )
         api_key = _dk
 
+    if script_mode not in ("full", "dialogue"):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "script_mode 必须是 'full' 或 'dialogue'"},
+        )
+
+    # ── Backpressure: reject new work if queue is full ──
+    if not backpressure.try_accept():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "service_overloaded",
+                "message": "Too many translations in progress. Try again later.",
+                "queue_depth": backpressure.queue_depth,
+            },
+            headers={"Retry-After": "30"},
+        )
+
+    try:
+        return await _translate_accepted(
+            text=text, file=file, target_lang=target_lang,
+            translate_mode=translate_mode, qa_interval=qa_interval,
+            genre=genre, content_type=content_type, script_mode=script_mode,
+            glossary_preset=glossary_preset, api_key=api_key,
+        )
+    except Exception:
+        backpressure.release()
+        raise
+
+
+async def _translate_accepted(
+    text: str, file: UploadFile, target_lang: str, translate_mode: str,
+    qa_interval: int, genre: str, content_type: str, script_mode: str,
+    glossary_preset: str, api_key: str,
+):
+    """Start a translation job after validation + backpressure accept.
+
+    The caller owns the accepted backpressure slot: on any exception here
+    the caller must release it. On success the slot is released by the
+    worker (Celery task or sync thread) when the job finishes.
+    """
     chapters = _split_by_content_type(text, content_type)
     total = len(chapters)
 
     # Create persistent job record
     filename = file.filename or "unknown.txt"
-    job_id = job_store.create_job(filename, target_lang, total, content_type=content_type)
+    job_id = job_store.create_job(filename, target_lang, total,
+                                  content_type=content_type,
+                                  script_mode=script_mode)
 
     # ── Pre-load glossary preset if requested ──
     preset_glossary_json = ""
@@ -192,6 +230,7 @@ async def translate_novel(
             genre=genre,
             glossary_preset_glossary=preset_glossary_json,
             content_type=content_type,
+            script_mode=script_mode,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
 
@@ -241,6 +280,7 @@ async def translate_novel(
                         skip_readback=flash_mode,
                         use_flash_writer=flash_mode,
                         content_type=content_type,
+                        script_mode=script_mode,
                     )
                 except CircuitBreakerOpenError:
                     job_store.fail_job(job_id, "Circuit breaker opened")
@@ -258,6 +298,7 @@ async def translate_novel(
                                 skip_readback=flash_mode,
                                 use_flash_writer=flash_mode,
                                 content_type=content_type,
+                                script_mode=script_mode,
                             )
                         except Exception as e2:
                             logger.warning("Sync chapter %d failed after retry: %s", ch.index, e2)
@@ -268,7 +309,10 @@ async def translate_novel(
                 tt = result.get("translated_text", "")
                 title_en = result.get("chapter_title_en", "")
                 prev_summary = result.get("chapter_summary", "")
-                word_count = len(tt.split())
+                # Truncation guard judges the UNFILTERED text: dialogue-mode
+                # deliverables are legitimately much shorter than the source.
+                guard_text = result.get("pre_filter_text", tt)
+                word_count = len(guard_text.split())
                 src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
                 min_words = max(50, src_chars / 10)
                 if word_count < min_words:
@@ -320,6 +364,7 @@ async def translate_multi(
     translate_mode: str = Form("flash"),
     genre: str = Form("romance_ceo"),
     content_type: str = Form("novel"),
+    script_mode: str = Form("full"),
     qa_interval: int = Form(20),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
@@ -331,8 +376,35 @@ async def translate_multi(
 
     Returns ``{project_id, filename, jobs: [{lang, job_id, status}]}``.
     """
-    # ── Backpressure: reject new work if queue is full ──
-    if not backpressure.try_accept():
+    # ── Validate BEFORE accepting work ──
+    text, error = await _validate_novel_upload(file)
+    if error:
+        status_code = 413 if "too large" in error.lower() else 400
+        return JSONResponse(status_code=status_code, content={"error": error})
+
+    if script_mode not in ("full", "dialogue"):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "script_mode 必须是 'full' 或 'dialogue'"},
+        )
+
+    langs = [lang.strip() for lang in target_langs.split(",") if lang.strip()]
+    if not langs:
+        return JSONResponse(
+            status_code=400, content={"error": "target_langs 不能为空"},
+        )
+
+    # ── Backpressure: each language job takes one queue slot.
+    #    All-or-nothing: roll back if we cannot slot every language. ──
+    accepted = 0
+    for _ in langs:
+        if backpressure.try_accept():
+            accepted += 1
+        else:
+            break
+    if accepted < len(langs):
+        for _ in range(accepted):
+            backpressure.release()
         return JSONResponse(
             status_code=503,
             content={
@@ -343,182 +415,190 @@ async def translate_multi(
             headers={"Retry-After": "30"},
         )
 
-    # ── Map content_type → default genre ──
-    if content_type != "novel" and genre == "romance_ceo":
-        genre = {"script": "urban", "game": "scifi"}.get(content_type, genre)
+    try:
+        # ── Map content_type → default genre ──
+        if content_type != "novel" and genre == "romance_ceo":
+            genre = {"script": "urban", "game": "scifi"}.get(content_type, genre)
 
-    # ── File validation ──
-    text, error = await _validate_novel_upload(file)
-    if error:
-        status_code = 413 if "too large" in error.lower() else 400
-        return JSONResponse(status_code=status_code, content={"error": error})
+        chapters = _split_by_content_type(text, content_type)
+        total = len(chapters)
+        filename = file.filename or "unknown.txt"
 
-    chapters = _split_by_content_type(text, content_type)
-    total = len(chapters)
-    filename = file.filename or "unknown.txt"
+        # Create a project to group all language variants
+        project_id = job_store.create_project(filename)
 
-    # Create a project to group all language variants
-    project_id = job_store.create_project(filename)
+        # ── Pre-load glossary preset if requested ──
+        preset_glossary_json = ""
+        if glossary_preset:
+            preset_glossary = job_store.load_glossary_preset(glossary_preset)
+            if preset_glossary:
+                preset_glossary_json = json.dumps(preset_glossary, ensure_ascii=False)
 
-    # ── Pre-load glossary preset if requested ──
-    preset_glossary_json = ""
-    if glossary_preset:
-        preset_glossary = job_store.load_glossary_preset(glossary_preset)
-        if preset_glossary:
-            preset_glossary_json = json.dumps(preset_glossary, ensure_ascii=False)
+        results = []
 
-    langs = [lang.strip() for lang in target_langs.split(",") if lang.strip()]
-    results = []
+        for lang in langs:
+            job_id = job_store.add_language_job(project_id, lang, filename, total,
+                                                content_type=content_type,
+                                                script_mode=script_mode)
 
-    for lang in langs:
-        job_id = job_store.add_language_job(project_id, lang, filename, total, content_type=content_type)
+            if _has_celery:
+                task = translate_novel_task.delay(
+                    job_id=job_id, text=text, target_lang=lang,
+                    translate_mode=translate_mode, qa_interval=qa_interval,
+                    genre=genre,
+                    glossary_preset_glossary=preset_glossary_json,
+                    content_type=content_type,
+                    script_mode=script_mode,
+                )
+                results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
+            else:
+                # Fallback: run in a background thread (no task_id)
+                results.append({"lang": lang, "job_id": job_id})
 
-        if _has_celery:
-            task = translate_novel_task.delay(
-                job_id=job_id, text=text, target_lang=lang,
-                translate_mode=translate_mode, qa_interval=qa_interval,
-                genre=genre,
-                glossary_preset_glossary=preset_glossary_json,
-                content_type=content_type,
-            )
-            results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
-        else:
-            # Fallback: run in a background thread (no task_id)
-            results.append({"lang": lang, "job_id": job_id})
+        # If Celery is not available, spawn background threads.
+        # Each thread releases exactly one slot (its own) in its finally.
+        if not _has_celery:
+            def _run_translation(lang: str, jid: str):
+                """Run translation synchronously in a background thread."""
+                import asyncio as _asyncio
+                from ..agent.graph import TranslationAgent
+                from ..prefetch import ChapterPrefetcher
+                from ..circuit_breaker import CircuitBreakerOpenError
 
-    # If Celery is not available, spawn background threads
-    if not _has_celery:
-        def _run_translation(lang: str, jid: str):
-            """Run translation synchronously in a background thread."""
-            import asyncio as _asyncio
-            from ..agent.graph import TranslationAgent
-            from ..prefetch import ChapterPrefetcher
-            from ..circuit_breaker import CircuitBreakerOpenError
+                loop = _asyncio.new_event_loop()
+                _asyncio.set_event_loop(loop)
+                try:
+                    chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
+                    agent = TranslationAgent(api_key=api_key)
+                    prev_summary = ""
 
-            loop = _asyncio.new_event_loop()
-            _asyncio.set_event_loop(loop)
-            try:
-                chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-                agent = TranslationAgent(api_key=api_key)
-                prev_summary = ""
+                    if preset_glossary_json:
+                        try:
+                            preset_terms = json.loads(preset_glossary_json)
+                            for term_cn, term_en in preset_terms.items():
+                                agent.exact_store.add(term_cn, term_en, category="culture", target_lang=lang)
+                        except (json.JSONDecodeError, Exception):
+                            pass
+                    output_path = str(OUTPUT_DIR / f"{jid}_full_novel_{lang}.md")
+                    ckpt_path = str(OUTPUT_DIR / f"{jid}_checkpoint.json")
 
-                if preset_glossary_json:
-                    try:
-                        preset_terms = json.loads(preset_glossary_json)
-                        for term_cn, term_en in preset_terms.items():
-                            agent.exact_store.add(term_cn, term_en, category="culture", target_lang=lang)
-                    except (json.JSONDecodeError, Exception):
-                        pass
-                output_path = str(OUTPUT_DIR / f"{jid}_full_novel_{lang}.md")
-                ckpt_path = str(OUTPUT_DIR / f"{jid}_checkpoint.json")
+                    # ── Resume from checkpoint if available ──
+                    start_i = 0
+                    if os.path.exists(ckpt_path):
+                        try:
+                            ckpt = json.loads(Path(ckpt_path).read_text("utf-8"))
+                            start_i = ckpt.get("last_idx", -1) + 1
+                            prev_summary = ckpt.get("previous_summary", "")
+                            if ckpt.get("glossary_snapshot"):
+                                agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
+                            logger.info("Multi-lang sync: resuming %s from chapter %d/%d", jid, start_i + 1, len(chapters_list))
+                        except Exception:
+                            start_i = 0
 
-                # ── Resume from checkpoint if available ──
-                start_i = 0
-                if os.path.exists(ckpt_path):
-                    try:
-                        ckpt = json.loads(Path(ckpt_path).read_text("utf-8"))
-                        start_i = ckpt.get("last_idx", -1) + 1
-                        prev_summary = ckpt.get("previous_summary", "")
-                        if ckpt.get("glossary_snapshot"):
-                            agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
-                        logger.info("Multi-lang sync: resuming %s from chapter %d/%d", jid, start_i + 1, len(chapters_list))
-                    except Exception:
-                        start_i = 0
+                    prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
+                    if len(chapters_list) > 1:
+                        try:
+                            prefetcher.submit_next(chapters_list[1].content, lang)
+                        except Exception:
+                            pass
 
-                prefetcher = ChapterPrefetcher(agent.exact_store, agent.semantic_store)
-                if len(chapters_list) > 1:
-                    try:
-                        prefetcher.submit_next(chapters_list[1].content, lang)
-                    except Exception:
-                        pass
-
-                flash_mode = translate_mode == "flash"
-                for i in range(start_i, len(chapters_list)):
-                    ch = chapters_list[i]
-                    try:
-                        result = agent.translate_chapter(
-                            chapter_title=ch.title,
-                            chapter_content=ch.content,
-                            chapter_number=ch.index,
-                            previous_summary=prev_summary,
-                            target_lang=lang,
-                            genre=genre,
-                            skip_readback=flash_mode,
-                            use_flash_writer=flash_mode,
-                            content_type=content_type,
-                        )
-                    except CircuitBreakerOpenError:
-                        TranslationStats.record_chapter_failed(lang)
-                        break
-                    except Exception as exc:
-                        err_msg = str(exc).lower()
-                        if "timed out" in err_msg or "timeout" in err_msg:
-                            logger.warning("Multi-lang chapter %d timed out — retrying", ch.index)
-                            _time.sleep(3)
-                            try:
-                                result = agent.translate_chapter(
-                                    chapter_title=ch.title,
-                                    chapter_content=ch.content,
-                                    chapter_number=ch.index,
-                                    previous_summary=prev_summary,
-                                    target_lang=lang,
-                                    genre=genre,
-                                    skip_readback=flash_mode,
-                                    use_flash_writer=flash_mode,
-                                    content_type=content_type,
-                                )
-                            except Exception as e2:
-                                logger.warning("Multi-lang chapter %d failed after retry: %s", ch.index, e2)
+                    flash_mode = translate_mode == "flash"
+                    for i in range(start_i, len(chapters_list)):
+                        ch = chapters_list[i]
+                        try:
+                            result = agent.translate_chapter(
+                                chapter_title=ch.title,
+                                chapter_content=ch.content,
+                                chapter_number=ch.index,
+                                previous_summary=prev_summary,
+                                target_lang=lang,
+                                genre=genre,
+                                skip_readback=flash_mode,
+                                use_flash_writer=flash_mode,
+                                content_type=content_type,
+                                script_mode=script_mode,
+                            )
+                        except CircuitBreakerOpenError:
+                            TranslationStats.record_chapter_failed(lang)
+                            break
+                        except Exception as exc:
+                            err_msg = str(exc).lower()
+                            if "timed out" in err_msg or "timeout" in err_msg:
+                                logger.warning("Multi-lang chapter %d timed out — retrying", ch.index)
+                                _time.sleep(3)
+                                try:
+                                    result = agent.translate_chapter(
+                                        chapter_title=ch.title,
+                                        chapter_content=ch.content,
+                                        chapter_number=ch.index,
+                                        previous_summary=prev_summary,
+                                        target_lang=lang,
+                                        genre=genre,
+                                        skip_readback=flash_mode,
+                                        use_flash_writer=flash_mode,
+                                        content_type=content_type,
+                                        script_mode=script_mode,
+                                    )
+                                except Exception as e2:
+                                    logger.warning("Multi-lang chapter %d failed after retry: %s", ch.index, e2)
+                                    TranslationStats.record_chapter_failed(lang)
+                                    continue
+                            else:
+                                logger.warning("Multi-lang chapter %d failed: %s", ch.index, exc)
                                 TranslationStats.record_chapter_failed(lang)
                                 continue
-                        else:
-                            logger.warning("Multi-lang chapter %d failed: %s", ch.index, exc)
+                        tt = result.get("translated_text", "")
+                        title_en = result.get("chapter_title_en", "")
+                        prev_summary = result.get("chapter_summary", "")
+                        # Guard judges the UNFILTERED text (dialogue-mode
+                        # deliverables are legitimately shorter).
+                        guard_text = result.get("pre_filter_text", tt)
+                        word_count = len(guard_text.split())
+                        src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
+                        min_words = max(50, src_chars / 10)
+                        if word_count < min_words:
+                            logger.warning("Multi-lang chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
                             TranslationStats.record_chapter_failed(lang)
                             continue
-                    tt = result.get("translated_text", "")
-                    title_en = result.get("chapter_title_en", "")
-                    prev_summary = result.get("chapter_summary", "")
-                    word_count = len(tt.split())
-                    src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
-                    min_words = max(50, src_chars / 10)
-                    if word_count < min_words:
-                        logger.warning("Multi-lang chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write", ch.index, word_count, min_words)
-                        TranslationStats.record_chapter_failed(lang)
-                        continue
-                    job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
-                    TranslationStats.record_chapter_complete(lang)
-                    display_title = title_en or ch.title[:60]
-                    exists = os.path.exists(output_path)
-                    with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
-                        if not exists:
-                            fh.write(f"# {jid} — English Translation\n\n")
-                        fh.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
-                        fh.flush()
-                        os.fsync(fh.fileno())
-                    # ── Save checkpoint after every chapter ──
-                    json.dump({
-                        "last_idx": i,
-                        "glossary_snapshot": agent.exact_store.snapshot(),
-                        "previous_summary": prev_summary,
-                    }, Path(ckpt_path).open("w"), ensure_ascii=False)
-                job_store.complete_job(jid, output_path, 0)
-            except Exception as exc:
-                logger.error("Multi-lang sync translation failed for job %s: %s", jid, exc)
-                job_store.fail_job(jid, str(exc))
-            finally:
-                backpressure.release()
+                        job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
+                        TranslationStats.record_chapter_complete(lang)
+                        display_title = title_en or ch.title[:60]
+                        exists = os.path.exists(output_path)
+                        with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
+                            if not exists:
+                                fh.write(f"# {jid} — English Translation\n\n")
+                            fh.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
+                            fh.flush()
+                            os.fsync(fh.fileno())
+                        # ── Save checkpoint after every chapter ──
+                        json.dump({
+                            "last_idx": i,
+                            "glossary_snapshot": agent.exact_store.snapshot(),
+                            "previous_summary": prev_summary,
+                        }, Path(ckpt_path).open("w"), ensure_ascii=False)
+                    job_store.complete_job(jid, output_path, 0)
+                except Exception as exc:
+                    logger.error("Multi-lang sync translation failed for job %s: %s", jid, exc)
+                    job_store.fail_job(jid, str(exc))
+                finally:
+                    backpressure.release()
 
-        with ThreadPoolExecutor(max_workers=len(langs)) as executor:
-            for entry in results:
-                executor.submit(_run_translation, entry["lang"], entry["job_id"])
-            executor.shutdown(wait=False)  # fire-and-forget, backpressure gates cleanup
+            with ThreadPoolExecutor(max_workers=len(langs)) as executor:
+                for entry in results:
+                    executor.submit(_run_translation, entry["lang"], entry["job_id"])
+                executor.shutdown(wait=False)  # fire-and-forget, backpressure gates cleanup
 
-    return {
-        "project_id": project_id,
-        "filename": filename,
-        "total_chapters": total,
-        "jobs": results,
-    }
+        return {
+            "project_id": project_id,
+            "filename": filename,
+            "total_chapters": total,
+            "jobs": results,
+        }
+    except Exception:
+        # Job setup failed after slots were accepted — give them all back.
+        for _ in langs:
+            backpressure.release()
+        raise
 
 
 @app.get("/translate/{job_id}")
@@ -721,58 +801,76 @@ async def resume_translation(
             "job_id": job_id,
         })
 
-    # 2. Read the checkpoint table to find the last completed chapter
-    last_chapter = 0
-    glossary_snapshot = "{}"
+    # Resume starts new work — take a queue slot. The resume task releases
+    # it on completion/failure, so accept and release stay paired.
+    if not backpressure.try_accept():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "service_overloaded",
+                "message": "Too many translations in progress. Try again later.",
+                "queue_depth": backpressure.queue_depth,
+            },
+            headers={"Retry-After": "30"},
+        )
+
     try:
-        conn = sqlite3.connect(CHECKPOINT_DB_PATH)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT chapter_number, glossary_snapshot "
-            "FROM translation_checkpoint "
-            "WHERE job_id = ? "
-            "ORDER BY chapter_number DESC LIMIT 1",
-            (job_id,),
-        ).fetchone()
-        if row:
-            last_chapter = row["chapter_number"]
-            glossary_snapshot = row["glossary_snapshot"] or "{}"
-        conn.close()
-    except sqlite3.OperationalError:
-        # No checkpoint table yet — start from chapter 0
-        pass
+        # 2. Read the checkpoint table to find the last completed chapter
+        last_chapter = 0
+        glossary_snapshot = "{}"
+        try:
+            conn = sqlite3.connect(CHECKPOINT_DB_PATH)
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT chapter_number, glossary_snapshot "
+                "FROM translation_checkpoint "
+                "WHERE job_id = ? "
+                "ORDER BY chapter_number DESC LIMIT 1",
+                (job_id,),
+            ).fetchone()
+            if row:
+                last_chapter = row["chapter_number"]
+                glossary_snapshot = row["glossary_snapshot"] or "{}"
+            conn.close()
+        except sqlite3.OperationalError:
+            # No checkpoint table yet — start from chapter 0
+            pass
 
-    # 4. Re-split to verify total chapters (content type comes from the job record)
-    content_type = job.get("content_type", "novel")
-    chapters = _split_by_content_type(text, content_type)
-    total = len(chapters)
+        # 4. Re-split to verify total chapters (content type comes from the job record)
+        content_type = job.get("content_type", "novel")
+        chapters = _split_by_content_type(text, content_type)
+        total = len(chapters)
 
-    # 5. Start the resume task from chapter N+1
-    start_chapter = last_chapter + 1
-    target_lang = job.get("target_lang", "en-US")
-    task = resume_translate_task.delay(
-        job_id=job_id,
-        start_chapter=start_chapter,
-        glossary_snapshot=glossary_snapshot,
-        text=text,
-        target_lang=target_lang,
-        translate_mode=translate_mode,
-        qa_interval=qa_interval,
-        genre=genre,
-        content_type=content_type,
-    )
+        # 5. Start the resume task from chapter N+1
+        start_chapter = last_chapter + 1
+        target_lang = job.get("target_lang", "en-US")
+        task = resume_translate_task.delay(
+            job_id=job_id,
+            start_chapter=start_chapter,
+            glossary_snapshot=glossary_snapshot,
+            text=text,
+            target_lang=target_lang,
+            translate_mode=translate_mode,
+            qa_interval=qa_interval,
+            genre=genre,
+            content_type=content_type,
+            script_mode=job.get("script_mode", "full"),
+        )
 
-    # 6. Update job status back to translating
-    job_store.update_progress(job_id, last_chapter, total, "")
+        # 6. Update job status back to translating
+        job_store.update_progress(job_id, last_chapter, total, "")
 
-    return {
-        "job_id": job_id,
-        "task_id": task.id,
-        "resumed_from_chapter": last_chapter,
-        "next_chapter": start_chapter,
-        "total_chapters": total,
-        "status": "resuming",
-    }
+        return {
+            "job_id": job_id,
+            "task_id": task.id,
+            "resumed_from_chapter": last_chapter,
+            "next_chapter": start_chapter,
+            "total_chapters": total,
+            "status": "resuming",
+        }
+    except Exception:
+        backpressure.release()
+        raise
 
 
 @app.get("/jobs")

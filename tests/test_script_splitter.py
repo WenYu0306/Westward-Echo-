@@ -8,6 +8,7 @@ from src.script_splitter import (
     Scene,
     SCENE_PATTERN,
     classify_episode,
+    extract_dialogue,
     merge_episodes,
     parse_scenes,
     split_episodes,
@@ -148,3 +149,118 @@ class TestMergeEpisodes:
 
     def test_merge(self):
         assert merge_episodes(["Ep one.", "Ep two."]) == "Ep one.\n\nEp two."
+
+
+# Sample shaped like real pipeline output (see pilots/output/pei_zong_script)
+_SAMPLE_EPISODE = """Episode 1: Transmigrated
+
+Scene 1: PEI PENTHOUSE - MASTER BEDROOM / MORNING
+
+Su Nian's eyes snap open. She sits up in a bed so vast she looks tiny in it.
+
+SU NIAN (OS): This bed is bigger than my entire rental apartment.
+
+A smart speaker chimes in with a gentle female voice.
+
+SMART SPEAKER (V.O.): Pei Group's stock rose 2.3% today.
+
+【Ding — You are now bound to the CEO Capture System.】
+【Current Affection: -50】
+
+SU NIAN: Impossible. Absolutely impossible.
+
+She throws back the sheets. Her eyes go cold.
+
+Scene 2: PEI GROUP - LOBBY / DAY
+
+SU NIAN: I'm not afraid of you anymore.
+"""
+
+
+class TestExtractDialogue:
+    """Dialogue-only deliverable for the script branch (dubbing/ADR)."""
+
+    def test_keeps_dialogue_and_os(self):
+        out = extract_dialogue(_SAMPLE_EPISODE)
+        assert "SU NIAN: Impossible. Absolutely impossible." in out
+        assert "SU NIAN (OS): This bed is bigger" in out
+        assert "SMART SPEAKER (V.O.):" in out
+        assert "I'm not afraid of you anymore." in out
+
+    def test_keeps_structural_headers(self):
+        out = extract_dialogue(_SAMPLE_EPISODE)
+        assert "Episode 1: Transmigrated" in out
+        assert "Scene 1: PEI PENTHOUSE - MASTER BEDROOM / MORNING" in out
+        assert "Scene 2: PEI GROUP - LOBBY / DAY" in out
+
+    def test_drops_action_lines(self):
+        out = extract_dialogue(_SAMPLE_EPISODE)
+        assert "eyes snap open" not in out
+        assert "smart speaker chimes" not in out
+        assert "throws back the sheets" not in out
+
+    def test_drops_panels(self):
+        out = extract_dialogue(_SAMPLE_EPISODE)
+        assert "【" not in out
+        assert "Affection" not in out
+
+    def test_scene_header_not_dialogue(self):
+        # "Scene 1:" matches the label-colon shape but is not a speaker.
+        out = extract_dialogue("Episode 1: T\n\nScene 1: LOBBY / DAY\n\nSU NIAN: Hi.\n")
+        lines = [line for line in out.split("\n") if line.strip()]
+        assert sum(1 for line in lines if line.startswith("Scene")) == 1
+        assert "SU NIAN: Hi." in out
+
+    def test_fallback_when_no_dialogue_found(self):
+        broken = "Some prose with no speaker lines at all.\n\nMore prose."
+        assert extract_dialogue(broken) == broken
+
+    def test_empty_input(self):
+        assert extract_dialogue("") == ""
+
+    def test_continuation_of_wrapped_dialogue(self):
+        text = "SU NIAN: First part of the line\nsecond part of the line\n\nShe turns away.\n"
+        out = extract_dialogue(text)
+        assert "second part of the line" in out
+        assert "She turns away." not in out
+
+    # --- Shapes observed in live LLM output ---
+
+    def test_stacked_cue_shape(self):
+        # Hollywood convention: speaker cue alone, parenthetical note,
+        # then the line below — no colon anywhere.
+        text = (
+            "Scene 1: LIN CORP - BOARDROOM / DAY\n\n"
+            "Lin Zhao slides the document across the table.\n\n"
+            "LIN ZHAO\n(Cold, flat)\nWe're done. The engagement's off.\n\n"
+            "He reaches into his jacket and pulls out a jade box.\n\n"
+            "SU WAN\nKeep it.\n\n"
+            "FADE OUT.\n"
+        )
+        out = extract_dialogue(text)
+        assert "LIN ZHAO" in out
+        assert "(Cold, flat)" in out            # acting note kept
+        assert "We're done. The engagement's off." in out
+        assert "SU WAN" in out
+        assert "Keep it." in out
+        assert "slides the document" not in out  # action dropped
+        assert "jade box" not in out
+        assert "FADE OUT." not in out            # transition dropped
+
+    def test_colon_dialogue_below_shape(self):
+        # Colon after the cue, dialogue on the following line.
+        text = (
+            "SU WAN (OS):\nThree years of being the joke. Tonight, that ends.\n\n"
+            "The golden light intensifies around her.\n"
+        )
+        out = extract_dialogue(text)
+        assert "SU WAN (OS):" in out
+        assert "Three years of being the joke." in out
+        assert "golden light" not in out
+
+    def test_stacked_uppercase_action_not_cue(self):
+        # Mixed-case action sentences must never be mistaken for cues.
+        text = "She freezes. Something is wrong.\n\nSU WAN: Run.\n"
+        out = extract_dialogue(text)
+        assert "She freezes." not in out
+        assert "SU WAN: Run." in out

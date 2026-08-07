@@ -47,6 +47,7 @@ def test_health(client):
     assert r.json()["status"] in ("healthy", "degraded")
 
 
+@pytest.mark.requires_api_key
 def test_upload_and_poll(client, novel_txt):
     with open(novel_txt, "rb") as f:
         r = client.post(
@@ -155,6 +156,140 @@ def test_script_upload_splits_by_episode(client):
         assert status.get("status") == "complete", f"Job did not complete: {status}"
 
         client.delete(f"/api/jobs/{job_id}")
+
+
+def test_script_dialogue_mode_filters_output(client):
+    """content_type=script + script_mode=dialogue delivers spoken lines only.
+
+    The full pipeline runs (mocked LLM returns a complete script with
+    action lines and panels); the deliverable must be dialogue-only.
+    """
+    from unittest.mock import MagicMock, patch
+
+    script_content = """第1集 测试
+
+场景1：裴家客厅/夜
+
+苏念走进客厅，灯光昏暗。裴衍舟坐在沙发上，手里转着一支钢笔。
+
+苏念：我们谈谈。
+
+裴衍舟：谈什么？
+
+苏念：谈谈我们的婚姻。
+
+裴衍舟冷笑一声，把钢笔拍在茶几上。
+
+【系统提示：好感度 +10】
+
+苏念（内心OS）：他生气了。很好，这正是我要的。
+"""
+    read_out = json.dumps({
+        "emotional_arc": "Confrontation.",
+        "cultural_gaps": [],
+        "crafted_moments": [],
+        "image_gaps": [],
+        "pacing_notes": "",
+        "terminology_decisions": [],
+    })
+    full_script_out = json.dumps({
+        "translated_text": (
+            "Episode 1: The Talk\n\n"
+            "Scene 1: PEI LIVING ROOM / NIGHT\n\n"
+            "Su Nian walks in. The lights are low. Pei Yanzhou sits on the sofa, "
+            "turning a fountain pen between his fingers.\n\n"
+            "SU NIAN: We need to talk.\n\n"
+            "PEI YANZHOU: About what?\n\n"
+            "SU NIAN: About our marriage.\n\n"
+            "Pei Yanzhou gives a cold laugh and slaps the pen down on the table.\n\n"
+            "【System: Affection +10】\n\n"
+            "SU NIAN (OS): He's angry. Good. That's exactly what I wanted.\n"
+        ),
+        "chapter_title_en": "The Talk",
+        "new_terms_found": [],
+        "adaptation_notes": [],
+        "chapter_summary": "Su Nian confronts him.",
+    })
+
+    def _mock_llm(out):
+        resp = MagicMock()
+        resp.content = out
+        resp.response_metadata = {}
+        llm = MagicMock()
+        llm.invoke.return_value = resp
+        return llm
+
+    with patch("src.agent.nodes.read.ChatOpenAI", return_value=_mock_llm(read_out)), \
+         patch("src.agent.nodes.write.ChatOpenAI", return_value=_mock_llm(full_script_out)), \
+         patch("src.agent.nodes.readback.ChatOpenAI", return_value=_mock_llm(read_out)), \
+         patch("src.agent.nodes.fix.ChatOpenAI", return_value=_mock_llm(full_script_out)):
+
+        r = client.post(
+            "/api/translate",
+            files={"file": ("script.txt", script_content.encode("utf-8"), "text/plain")},
+            data={
+                "target_lang": "en-US", "genre": "romance_ceo",
+                "content_type": "script", "script_mode": "dialogue",
+            },
+        )
+        assert r.status_code == 200, r.text
+        j = r.json()
+        job_id = j["job_id"]
+
+        from src.job_store import job_store
+        job = job_store.get_job(job_id)
+        assert job["script_mode"] == "dialogue"
+
+        for _ in range(40):
+            r = client.get(f"/api/translate/{job_id}")
+            assert r.status_code == 200
+            status = r.json()
+            if status.get("status") in ("complete", "error", "failed"):
+                break
+            time.sleep(0.5)
+        assert status.get("status") == "complete", f"Job did not complete: {status}"
+
+        # The deliverable must be dialogue-only (re-fetch: output_path is
+        # only set when the job completes)
+        job = job_store.get_job(job_id)
+        out_md = job["output_path"]
+        text = open(out_md, encoding="utf-8").read()
+        assert "SU NIAN: We need to talk." in text
+        assert "Scene 1: PEI LIVING ROOM / NIGHT" in text
+        assert "walks in" not in text          # action line dropped
+        assert "【" not in text                 # panel dropped
+
+        client.delete(f"/api/jobs/{job_id}")
+
+
+def test_bad_requests_do_not_leak_backpressure(client):
+    """Rejected requests (400) must not consume a queue slot.
+
+    Regression: try_accept() used to run before validation, so every bad
+    upload permanently leaked one slot; 100 bad requests bricked the service.
+    """
+    from src.backpressure import backpressure
+
+    before = backpressure.queue_depth
+    novel_bytes = "第一章 测试\n\n内容。\n".encode()
+
+    # Bad API key format → 400
+    r = client.post(
+        "/api/translate",
+        files={"file": ("t.txt", novel_bytes, "text/plain")},
+        data={"target_lang": "en-US", "api_key": "not-a-valid-key"},
+    )
+    assert r.status_code == 400
+    assert backpressure.queue_depth == before
+
+    # Invalid script_mode → 400
+    r = client.post(
+        "/api/translate",
+        files={"file": ("t.txt", novel_bytes, "text/plain")},
+        data={"target_lang": "en-US", "script_mode": "bogus"},
+    )
+    assert r.status_code == 400
+    assert backpressure.queue_depth == before
 
 
 def test_job_not_found(client):

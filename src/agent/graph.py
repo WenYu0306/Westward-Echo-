@@ -198,6 +198,7 @@ class TranslationAgent:
         skip_readback: bool = False,
         use_flash_writer: bool = False,
         content_type: str = "novel",
+        script_mode: str = "full",
     ) -> dict:
         """Translate a single chapter through the 4-node reader-centric pipeline.
 
@@ -208,6 +209,13 @@ class TranslationAgent:
         content_type selects the parallel prompt branch ("novel" default,
         "script" for short drama scripts); the novel path is unchanged.
 
+        script_mode only applies when content_type == "script":
+        "full" (default) returns the complete shooting script; "dialogue"
+        runs the identical validated pipeline but post-filters the output
+        down to speaker dialogue + OS lines (dubbing/ADR deliverable).
+        The full pipeline always runs because dialogue quality depends on
+        the action-line context (who speaks, how, why).
+
         Returns:
             {translated_text, new_terms_found, adaptation_notes,
              chapter_summary, quality_score, quality_issues,
@@ -215,17 +223,30 @@ class TranslationAgent:
         """
         # ── Auto-split for long chapters ──────────────────────────
         if should_split(chapter_content):
-            return self._translate_split(
+            result = self._translate_split(
+                chapter_title, chapter_content, chapter_number,
+                previous_summary, target_lang, genre, skip_readback,
+                content_type=content_type,
+            )
+        else:
+            result = self._translate_once(
                 chapter_title, chapter_content, chapter_number,
                 previous_summary, target_lang, genre, skip_readback,
                 content_type=content_type,
             )
 
-        return self._translate_once(
-            chapter_title, chapter_content, chapter_number,
-            previous_summary, target_lang, genre, skip_readback,
-            content_type=content_type,
-        )
+        # ── Dialogue-only deliverable (script branch) ─────────────
+        # The full pipeline always runs (dialogue quality depends on the
+        # action-line context); the deliverable is filtered afterwards.
+        # pre_filter_text carries the complete script so downstream
+        # truncation guards can judge against the unfiltered word count.
+        if content_type == "script" and script_mode == "dialogue":
+            from ..script_splitter import extract_dialogue
+            full_text = result.get("translated_text", "")
+            result["translated_text"] = extract_dialogue(full_text)
+            result["pre_filter_text"] = full_text
+
+        return result
 
     def _make_state(
         self, title, content, number, prev_summary, lang, genre,

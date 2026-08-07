@@ -165,3 +165,151 @@ def split_episodes(text: str) -> list[Episode]:
 def merge_episodes(translations: list[str]) -> str:
     """Merge translated episode strings into a single script file."""
     return "\n\n".join(translations)
+
+
+# --- Dialogue extraction (script_mode="dialogue") -------------------------
+#
+# The WRITE agent emits English screenplay format, but LLMs use more than
+# one legal convention for speaker lines. All three occur in real outputs:
+#
+#   1. Colon, same line      SU NIAN: I'm not Su Nian.
+#   2. Colon, dialogue below SU WAN (OS):\n  Three years. That ends tonight.
+#   3. Stacked cue (no colon) LIN ZHAO\n  (Cold, flat)\n  We're done.
+#
+# The extractor is a small state machine that understands all three.
+
+_DELIVERY_MARKER = r'(\s*\((?:OS|V\.?O\.?|VO|CONT\'?D)\))?'
+
+# Shape 1+2: UPPERCASE speaker label, optional delivery marker, colon.
+_SPEAKER_COLON_RE = re.compile(
+    r'^\s*([A-Z][A-Z0-9 .\']*?)' + _DELIVERY_MARKER + r'\s*:\s*(.*)$'
+)
+
+# Shape 3: UPPERCASE cue standing alone on its line (dialogue follows below).
+_SPEAKER_CUE_RE = re.compile(
+    r'^\s*([A-Z][A-Z0-9 .\']*?)' + _DELIVERY_MARKER + r'\s*$'
+)
+
+# Labels that are structural headers, not characters.
+_NON_SPEAKER_LABELS = frozenset({"SCENE", "EPISODE"})
+
+# Camera/editing transitions that also print in uppercase.
+_TRANSITIONS = frozenset({
+    "FADE OUT", "FADE IN", "FADE TO BLACK", "CUT TO", "CUT TO BLACK",
+    "SMASH CUT TO", "DISSOLVE TO", "THE END", "TITLE CARD", "CONTINUED",
+})
+
+_EPISODE_HEADER_RE = re.compile(r'^\s*Episode\s+\d+', re.IGNORECASE)
+_SCENE_HEADER_RE = re.compile(r'^\s*Scene\s+\d+', re.IGNORECASE)
+_PANEL_RE = re.compile(r'^\s*【.*】\s*$')
+# (Cold, flat) — a parenthetical acting note between cue and line.
+_PAREN_NOTE_RE = re.compile(r'^\s*\(.*\)\s*$')
+
+
+def _valid_speaker(label: str) -> bool:
+    """Screenplay speaker-label sanity: no digits, short, not a header."""
+    label = label.strip()
+    if not label or label in _NON_SPEAKER_LABELS or label in _TRANSITIONS:
+        return False
+    if any(ch.isdigit() for ch in label):
+        return False
+    # Speaker cues never end in sentence punctuation ("FADE OUT." is a
+    # transition, not a character).
+    if label.endswith((".", "!", "?", ",")):
+        return False
+    return len(label.split()) <= 5
+
+
+def extract_dialogue(translated_text: str) -> str:
+    """Reduce a translated episode to dialogue only (dubbing/ADR deliverable).
+
+    Keeps, in order of appearance:
+      - Episode headers ("Episode N: Title")
+      - Scene headers ("Scene N: LOCATION / TIME") — dubbing sessions are
+        organized by scene
+      - Speaker dialogue: all three speaker-line conventions above,
+        including (OS) inner monologue and (V.O.), plus parenthetical
+        acting notes attached to a cue
+
+    Drops: action/direction lines, 【】 on-screen panels (not spoken),
+    camera transitions (FADE OUT etc.).
+
+    Deterministic by design: the validated full-script pipeline runs
+    unchanged (dialogue quality depends on action-line context — who is
+    speaking, how); this filter shapes the deliverable afterwards.
+
+    Safety: if the extractor recognizes no dialogue at all (total format
+    drift), the original text is returned unchanged — an unfiltered script
+    is always more useful than an empty one.
+    """
+    kept: list[str] = []
+    dialogue_found = False
+    in_dialogue = False   # inside a speaker's dialogue block
+
+    for raw_line in translated_text.split("\n"):
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if not stripped:
+            kept.append("")          # preserve blank-line rhythm
+            in_dialogue = False
+            continue
+
+        if _EPISODE_HEADER_RE.match(stripped) or _SCENE_HEADER_RE.match(stripped):
+            kept.append(line)
+            in_dialogue = False
+            continue
+
+        if _PANEL_RE.match(stripped):
+            in_dialogue = False
+            continue
+
+        # Shape 1: SPEAKER: line on the same line
+        m = _SPEAKER_COLON_RE.match(line)
+        if m and m.group(3).strip() and _valid_speaker(m.group(1)):
+            kept.append(line)
+            dialogue_found = True
+            in_dialogue = True
+            continue
+
+        # Shape 2: SPEAKER: with the dialogue on following lines
+        if m and not m.group(3).strip() and _valid_speaker(m.group(1)):
+            kept.append(line)
+            dialogue_found = True
+            in_dialogue = True
+            continue
+
+        # Shape 3: standalone uppercase cue — dialogue follows below
+        mc = _SPEAKER_CUE_RE.match(line)
+        if mc and _valid_speaker(mc.group(1)):
+            kept.append(line)
+            dialogue_found = True
+            in_dialogue = True
+            continue
+
+        # Inside a dialogue block: acting notes, wrapped/continued lines.
+        if in_dialogue:
+            if _PAREN_NOTE_RE.match(stripped):
+                kept.append(line)    # (Cold, flat) belongs to the cue
+                continue
+            kept.append(line)
+            continue
+
+        # Action/direction line outside any dialogue block — drop.
+
+    if not dialogue_found:
+        return translated_text
+
+    # Collapse blank-line runs left behind by dropped action blocks.
+    collapsed: list[str] = []
+    for line in kept:
+        if not line.strip() and collapsed and not collapsed[-1].strip():
+            continue
+        collapsed.append(line)
+
+    # Trim leading/trailing blanks.
+    while collapsed and not collapsed[0].strip():
+        collapsed.pop(0)
+    while collapsed and not collapsed[-1].strip():
+        collapsed.pop()
+    return "\n".join(collapsed)

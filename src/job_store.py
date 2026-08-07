@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     target_lang         TEXT NOT NULL,
     content_type        TEXT NOT NULL DEFAULT 'novel'
                         CHECK(content_type IN ('novel','script','game')),
+    script_mode         TEXT NOT NULL DEFAULT 'full'
+                        CHECK(script_mode IN ('full','dialogue')),
     total_chapters      INTEGER NOT NULL,
     completed_chapters  INTEGER NOT NULL DEFAULT 0,
     current_chapter_title TEXT,
@@ -83,6 +85,9 @@ class JobStore:
         self._migrate_add_column(conn, "jobs", "tokens_input", "INTEGER NOT NULL DEFAULT 0")
         self._migrate_add_column(conn, "jobs", "tokens_output", "INTEGER NOT NULL DEFAULT 0")
         self._migrate_add_column(conn, "jobs", "content_type", "TEXT NOT NULL DEFAULT 'novel'")
+        self._migrate_add_column(
+            conn, "jobs", "script_mode", "TEXT NOT NULL DEFAULT 'full'"
+        )
         conn.commit()
 
     @staticmethod
@@ -111,14 +116,16 @@ class JobStore:
         total_chapters: int,
         content_type: str = "novel",
         project_id: Optional[str] = None,
+        script_mode: str = "full",
     ) -> str:
         """Create a new job record and return its job_id."""
         job_id = str(uuid.uuid4())[:8]
         conn = _get_conn()
         conn.execute(
-            """INSERT INTO jobs (job_id, project_id, filename, target_lang, content_type, total_chapters, status)
-               VALUES (?, ?, ?, ?, ?, ?, 'queued')""",
-            (job_id, project_id, filename, target_lang, content_type, total_chapters),
+            """INSERT INTO jobs (job_id, project_id, filename, target_lang, content_type, script_mode, total_chapters, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'queued')""",
+            (job_id, project_id, filename, target_lang, content_type,
+             script_mode if content_type == "script" else "full", total_chapters),
         )
         conn.commit()
         return job_id
@@ -311,10 +318,12 @@ class JobStore:
 
     def add_language_job(self, project_id: str, target_lang: str,
                         filename: str, total_chapters: int,
-                        content_type: str = "novel") -> str:
+                        content_type: str = "novel",
+                        script_mode: str = "full") -> str:
         """Create a job within a project for a specific target language."""
         return self.create_job(filename, target_lang, total_chapters,
-                              content_type=content_type, project_id=project_id)
+                              content_type=content_type, project_id=project_id,
+                              script_mode=script_mode)
 
     def get_project_jobs(self, project_id: str) -> list[dict]:
         """Return all jobs (language variants) belonging to a project."""
