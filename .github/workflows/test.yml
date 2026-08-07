@@ -35,4 +35,5 @@ jobs:
 
       - name: Run tests
         run: |
+          pip install pytest
           pytest -m "not requires_api_key" -v
