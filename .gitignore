@@ -65,6 +65,7 @@ novels/test_*.txt
 .claude/
 DESIGN_BRIEF.md
 Echo_Series_Maimai.md
+QWEN_PROMPT.md
 docs/*.html
 \!docs/anchor-v4.html
 novels/实验文本.txt
