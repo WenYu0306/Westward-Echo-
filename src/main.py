@@ -66,12 +66,16 @@ def create_app() -> FastAPI:
 
     from pathlib import Path
 
-    # Anchor-v4 as the main page
+    # Anchor-v5 as the main page (v4 kept as fallback)
     @app.get("/", response_class=HTMLResponse)
     async def index():
-        landing = Path(__file__).resolve().parent.parent / "docs" / "anchor-v4.html"
+        docs_dir = Path(__file__).resolve().parent.parent / "docs"
+        landing = docs_dir / "anchor-v5.html"
         if landing.exists():
             return landing.read_text(encoding="utf-8")
+        legacy = docs_dir / "anchor-v4.html"
+        if legacy.exists():
+            return legacy.read_text(encoding="utf-8")
         return PAGE
 
     # Glossary review page at /review

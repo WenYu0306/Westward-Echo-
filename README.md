@@ -2,13 +2,13 @@
 
 **A reader-centric multi-agent translation engine for Chinese web novels.**
 
-`209 tests` · `775-chapter validated` · `3 independent audits` · `MIT`
+`263 tests` · `3,076 chapters validated` · `3 independent audits` · `MIT`
 
 ---
 
 ## What This Is
 
-Westward Echo doesn't translate. Four LLM agents — a reader, a writer, a cold reader, and an editor — each approach the text from a different reader's perspective. The pipeline was validated by translating a complete 775-chapter Chinese web novel (*Infinite Horror* by zhttty) end-to-end: 34 hours, 2.57 million Chinese characters → 1.13 million English words, 16 cold-read quality checks, 0 crashes.
+Westward Echo doesn't translate. Four LLM agents — a reader, a writer, a cold reader, and an editor — each approach the text from a different reader's perspective. The pipeline was validated by translating two complete Chinese web novels end-to-end: *Infinite Horror* by zhttty (775 chapters) and *The Netherworld Calls Me Little Mister* by Jie Yu (2,301 chapters) — 5.35 million Chinese characters → 3.58 million English words, 83 cold-read quality checks all PASS, 0 crashes.
 
 Three rounds of independent audit (native English reader, bilingual accuracy auditor, professional editor) confirmed the translation is structurally coherent across the full span, with prose quality holding steady from chapter 2 to chapter 770. The serial reader's final verdict: "I would read the sequel."
 
@@ -66,9 +66,11 @@ Dialect mapping (5 Chinese → English dialect equivalents), LitRPG system UI ma
 
 ---
 
-## Validation: 775-Chapter Ground Truth Translation
+## Validation: Two Full-Length Ground Truth Translations
 
-*Infinite Horror* (无限恐怖) by zhttty — 2.57 million Chinese characters, 775 chapters, translated end-to-end.
+### Book 1 — *Infinite Horror* (无限恐怖) by zhttty
+
+2.57 million Chinese characters, 775 chapters, translated end-to-end.
 
 ```
 Duration:     ~34 hours
@@ -79,6 +81,17 @@ Comprehension: 10/10 (from chapter 25 onward)
 Cost:         ~$4 (DeepSeek V4 Flash + Pro mixed)
 Crashes:      0
 Circuit breaker trips: 0
+```
+
+### Book 2 — *The Netherworld Calls Me Little Mister* (地府叫我小先生) by Jie Yu
+
+2.78 million Chinese characters, 2,301 chapters, folk_religion genre, translated end-to-end (completed 2026-08-03).
+
+```
+Output:       2.45 million English words
+Cold reads:   59/59 PASS (every ~40 chapters + milestones)
+Failed chapters after retry: 0
+Crashes:      0
 ```
 
 ### Independent Audit Results (Round 2, Chapter 149)
