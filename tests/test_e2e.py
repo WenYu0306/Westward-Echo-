@@ -14,15 +14,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 from fastapi.testclient import TestClient
 
+from src.api import routes as _api_routes  # noqa: I001
+
+# Force sync path in CI — Celery imports but no Redis available
+_api_routes._has_celery = False
+
 
 @pytest.fixture
 def client():
-    # CI has no real API key or Redis — dummy key + force sync path
     if not os.environ.get("DEEPSEEK_API_KEY"):
         os.environ["DEEPSEEK_API_KEY"] = "ci-test-key"
     from src.main import create_app
-    from src.api import routes as _api_routes
-    _api_routes._has_celery = False  # no Redis in CI, force sync fallback
+
     return TestClient(create_app())
 
 
