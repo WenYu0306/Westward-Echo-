@@ -120,7 +120,10 @@ if _celery_ok:
                     TranslationStats.record_chapter_failed(target_lang)
                     break
 
-                all_translations.append(result["translated_text"])
+                all_translations.append(_chapter_md(
+                    chapter.index, chapter.title, result["translated_text"],
+                    result.get("chapter_title_en", ""),
+                ))
                 prev_summary = result.get("chapter_summary", "")
                 TranslationStats.record_chapter_complete(target_lang)
                 _save_checkpoint(job_id, chapter.index, result["translated_text"],
@@ -191,7 +194,9 @@ if _celery_ok:
                 # completed is a dict {chapter_index: translated_text}
                 for ch in translatable:
                     if ch.index in completed:
-                        all_translations.append(completed[ch.index])
+                        all_translations.append(_chapter_md(
+                            ch.index, ch.title, completed[ch.index],
+                        ))
                     elif ch.index >= start_chapter:
                         break
                 if completed:
@@ -235,7 +240,10 @@ if _celery_ok:
                     TranslationStats.record_chapter_failed(target_lang)
                     break
 
-                all_translations.append(result["translated_text"])
+                all_translations.append(_chapter_md(
+                    chapter.index, chapter.title, result["translated_text"],
+                    result.get("chapter_title_en", ""),
+                ))
                 prev_summary = result.get("chapter_summary", "")
                 TranslationStats.record_chapter_complete(target_lang)
                 _save_checkpoint(job_id, chapter.index, result["translated_text"],
@@ -279,6 +287,19 @@ else:
     app = None  # type: ignore
     translate_novel_task = None  # type: ignore
     resume_translate_task = None  # type: ignore
+
+
+def _chapter_md(chapter_num: int, chapter_title: str, translated_text: str,
+                title_en: str = "") -> str:
+    """Format one chapter as a Markdown block with a parseable header.
+
+    The EPUB endpoint (_parse_markdown_chapters in routes.py) requires
+    '## Chapter N:' headers — merging raw translations without headers
+    makes EPUB generation return 422 for every Celery job. Format matches
+    the sync path in routes.py.
+    """
+    display = title_en or chapter_title[:60]
+    return f"## Chapter {chapter_num}: {display}\n\n{translated_text}\n\n---"
 
 
 class TranslationProgress:
