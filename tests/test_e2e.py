@@ -17,7 +17,12 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client():
+    # CI has no real API key or Redis — dummy key + force sync path
+    if not os.environ.get("DEEPSEEK_API_KEY"):
+        os.environ["DEEPSEEK_API_KEY"] = "ci-test-key"
     from src.main import create_app
+    from src.api import routes as _api_routes
+    _api_routes._has_celery = False  # no Redis in CI, force sync fallback
     return TestClient(create_app())
 
 

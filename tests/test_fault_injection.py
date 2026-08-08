@@ -581,7 +581,10 @@ class TestWriteNodeUnderFaults:
 
         assert breaker.is_open()
 
-        with mock_translate_invoke():
+        with patch("src.agent.nodes.write.job_store") as mock_js, \
+             mock_translate_invoke():
+            mock_js.get_confirmed_terms.return_value = {}
+            mock_js.get_rejected_terms.return_value = []
             with pytest.raises(CircuitBreakerOpenError):
                 write_node(state)
 

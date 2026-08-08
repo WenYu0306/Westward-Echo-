@@ -34,8 +34,6 @@ jobs:
           mypy src/agent/ --ignore-missing-imports --no-strict-optional
 
       - name: Run tests
-        env:
-          DEEPSEEK_API_KEY: "ci-dummy-key"
         run: |
           pip install pytest
           pytest -m "not requires_api_key" -v
