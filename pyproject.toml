@@ -45,6 +45,7 @@ module = [
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 markers = [
     "requires_api_key: tests that need a real DEEPSEEK_API_KEY",
 ]
