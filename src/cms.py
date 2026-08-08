@@ -6,12 +6,35 @@ not production integrations. Extend by adding new Connector subclasses.
 
 from __future__ import annotations
 
+import re
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
 import httpx
+
+# ═══════════════════════════════════════════════════════════════
+# source_id validation (path traversal defense)
+# ═══════════════════════════════════════════════════════════════
+
+# A source_id must be a plain filename stem: no path separators, no
+# traversal sequences, no null bytes. CJK characters, spaces, and book
+# title punctuation (《》 etc.) are allowed — novel filenames use them.
+_BAD_SOURCE_ID = re.compile(r'[\x00/\\]|\.\.')
+_MAX_SOURCE_ID_LEN = 200
+
+
+def _validate_source_id(source_id: str) -> None:
+    """Reject source_ids that could escape the connector's scope.
+
+    Raises ValueError on empty/too-long input, path separators, traversal
+    sequences, or null bytes. Enforced by every connector's pull_novel.
+    """
+    if not source_id or len(source_id) > _MAX_SOURCE_ID_LEN:
+        raise ValueError("Invalid source_id")
+    if _BAD_SOURCE_ID.search(source_id):
+        raise ValueError("Invalid source_id")
 
 # ═══════════════════════════════════════════════════════════════
 # Abstract interface
@@ -56,9 +79,17 @@ class FileSystemConnector(CMSConnector):
         self.base_dir = Path(base_dir).resolve()
 
     def pull_novel(self, source_id: str) -> str:
+        _validate_source_id(source_id)
         path = self.base_dir / f"{source_id}.txt"
+        # Containment check after resolve(): even a well-formed id could
+        # land outside base_dir via a symlink placed inside the directory.
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(self.base_dir)
+        except (OSError, ValueError):
+            raise ValueError("Invalid source_id")
         if not path.exists():
-            raise FileNotFoundError(f"Novel source not found: {path}")
+            raise FileNotFoundError(f"Novel source not found: {source_id}")
         return path.read_text(encoding="utf-8")
 
     def push_translation(self, job_id: str, platform: str, /) -> dict:
@@ -107,6 +138,7 @@ class WebhookConnector(CMSConnector):
         return self._client
 
     def pull_novel(self, source_id: str) -> str:
+        _validate_source_id(source_id)
         url = f"{self.webhook_url}/novels/{source_id}"
         resp = self.client.get(url)
         resp.raise_for_status()

@@ -13,7 +13,10 @@ from ..job_store import job_store
 
 try:
     from ..celery_app import translate_novel_task
-    _has_celery = True
+    # celery_app sets the task to None when celery is not installed;
+    # the import itself still succeeds, so check the value too
+    # (same guard as routes.py).
+    _has_celery = translate_novel_task is not None
 except Exception:
     _has_celery = False
 
@@ -36,6 +39,9 @@ def import_from_cms(
 
     try:
         text = connector.pull_novel(source_id)
+    except ValueError as exc:
+        # source_id failed validation (traversal attempt, bad chars, etc.)
+        return JSONResponse(status_code=400, content={"error": str(exc)})
     except FileNotFoundError as exc:
         return JSONResponse(status_code=404, content={"error": str(exc)})
     except Exception as exc:
