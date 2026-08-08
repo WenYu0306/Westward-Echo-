@@ -534,9 +534,6 @@ class TestWriteNodeUnderFaults:
         from src.agent.state import TranslatorState
         from src.circuit_breaker import _breakers, _breakers_lock
 
-        # Patch ChatOpenAI so its constructor doesn't fail in CI (no API key)
-        mock_translate_invoke()
-
         # Clear any existing "en-US" breaker so we get a fresh one
         # with failure_threshold=1 (the singleton may have threshold=5
         # from a prior test).
@@ -584,8 +581,9 @@ class TestWriteNodeUnderFaults:
 
         assert breaker.is_open()
 
-        with pytest.raises(CircuitBreakerOpenError):
-            write_node(state)
+        with mock_translate_invoke():
+            with pytest.raises(CircuitBreakerOpenError):
+                write_node(state)
 
         # Reset breaker so other tests using "en-US" aren't poisoned
         breaker._state = CircuitBreaker.CLOSED
