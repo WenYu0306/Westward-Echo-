@@ -528,11 +528,14 @@ class TestErrorTrackerUnderFaults:
 class TestWriteNodeUnderFaults:
     """Integration-level: write_node handles API failures and garbage output."""
 
-    def test_circuit_breaker_error_propagated(self):
+    def test_circuit_breaker_error_propagated(self, mock_translate_invoke):
         """When the breaker is OPEN, write_node propagates the error."""
         from src.agent.nodes.write import write_node
         from src.agent.state import TranslatorState
         from src.circuit_breaker import _breakers, _breakers_lock
+
+        # Patch ChatOpenAI so its constructor doesn't fail in CI (no API key)
+        mock_translate_invoke()
 
         # Clear any existing "en-US" breaker so we get a fresh one
         # with failure_threshold=1 (the singleton may have threshold=5
@@ -646,7 +649,10 @@ class TestWriteNodeUnderFaults:
             "neon lights flickering in the darkness."
         )
 
-        with patch("src.agent.nodes.write.ChatOpenAI") as mock_llm_class:
+        with patch("src.agent.nodes.write.ChatOpenAI") as mock_llm_class, \
+             patch("src.agent.nodes.write.job_store") as mock_job_store:
+            mock_job_store.get_confirmed_terms.return_value = {}
+            mock_job_store.get_rejected_terms.return_value = []
             mock_llm = MagicMock()
             mock_response = MagicMock()
             mock_response.content = chatter_text

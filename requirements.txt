@@ -12,3 +12,4 @@ tenacity>=9.0
 celery[redis]>=5.4.0
 redis>=5.2.0
 httpx>=0.28.0
+python-multipart>=0.0.20
