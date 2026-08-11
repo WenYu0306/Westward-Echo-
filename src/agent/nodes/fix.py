@@ -81,11 +81,15 @@ def fix_node(state: TranslatorState) -> dict:
         len(polished),
     )
 
-    # Reset quality issues so READBACK gets a clean slate on re-check
+    # Reset quality issues so READBACK gets a clean slate on re-check.
+    # Increment retranslation_count so _needs_fix can terminate the
+    # FIX→READBACK→FIX loop after _MAX_FIX_ATTEMPTS.
+    retries = state.get("retranslation_count", 0) + 1
     return {
         "translated_text": polished,
         "adaptation_notes": changes,
         "quality_issues": [],
+        "retranslation_count": retries,
     }
 
 

@@ -4,6 +4,19 @@ import json
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_backpressure():
+    """Reset the module-level backpressure singleton before each test.
+
+    Without this, tests that use backpressure.try_accept() without a matching
+    release() (e.g. due to an exception in the async path) pollute the singleton
+    and cause spurious failures in downstream assertions.
+    """
+    from src.backpressure import backpressure
+    backpressure.reset()
+    yield
+
+
 @pytest.fixture
 def mock_llm_response():
     """Return a valid translation JSON response that parse_llm_response can handle."""

@@ -1,6 +1,7 @@
 """API key authentication middleware for FastAPI."""
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..config import API_KEY
@@ -32,9 +33,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         # Everything else requires API key
         client_key = request.headers.get("X-API-Key", "")
         if client_key != API_KEY:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or missing API key. Provide X-API-Key header.",
+                content={"detail": "Invalid or missing API key. Provide X-API-Key header."},
             )
 
         return await call_next(request)

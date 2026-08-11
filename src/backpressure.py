@@ -59,6 +59,11 @@ class BackpressureGuard:
     def max_queue_depth(self) -> int:
         return self._max_queue_depth
 
+    def reset(self):
+        """Reset the pending count to zero. For use in test teardown only."""
+        with self._lock:
+            self._pending_count = 0
+
     def snapshot(self) -> dict:
         with self._lock:
             return {
