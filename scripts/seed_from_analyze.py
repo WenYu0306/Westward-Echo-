@@ -38,6 +38,11 @@ ANALYZE_OUTPUT = os.path.join(
     "..", "Analyze Echo（析）", "output",
 )
 
+ANALYZE_DATA = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "..", "Analyze Echo（析）", "data",
+)
+
 BATCH_SIZE = 200  # terms per LLM translation batch
 
 
@@ -149,6 +154,135 @@ def batch_translate_terms(terms: list[dict], book_id: str) -> dict[str, str]:
 
     print(f"  Translated: {len(translated)}/{total} terms")
     return translated
+
+
+def _seed_sentiment(extraction: dict, memo: StyleMemoStore):
+    """Seed pacing.md with per-chapter sentiment data from Analyze Echo.
+
+    Sentiment scores are normalized floats [-1, +1] keyed by paragraph ID
+    ({book_id}_{chapter}_{paragraph}). We aggregate by chapter to produce a
+    per-chapter emotional tone hint that the READ agent sees automatically
+    through read_relevant() — no prompt changes needed.
+    """
+    sentiment_scores = extraction.get("sentiment_scores", {})
+    if not sentiment_scores:
+        print("  No sentiment_scores in extraction — skipping.")
+        return
+
+    # Aggregate by chapter: {chapter_num: [score, ...]}
+    chapter_scores: dict[int, list[float]] = {}
+    for para_id, score in sentiment_scores.items():
+        parts = para_id.rsplit("_", 2)  # {book}_{chapter}_{paragraph}
+        if len(parts) >= 2:
+            try:
+                ch = int(parts[-2])
+                chapter_scores.setdefault(ch, []).append(float(score))
+            except (ValueError, IndexError):
+                continue
+
+    if not chapter_scores:
+        return
+
+    top_chapters = sorted(chapter_scores.items())[:50]  # first 50 chapters
+    mood_lines = []
+    for ch, scores in top_chapters:
+        avg = sum(scores) / len(scores)
+        if avg > 0.5:
+            tone = "高昂/乐观基调"
+        elif avg > 0.15:
+            tone = "偏暖"
+        elif avg < -0.5:
+            tone = "压抑/悲观基调"
+        elif avg < -0.15:
+            tone = "偏低沉"
+        else:
+            tone = "中性"
+        mood_lines.append(f"Ch{ch}: {tone} (avg={avg:+.2f}, n={len(scores)})")
+
+    if mood_lines:
+        memo.record_lesson(
+            "pacing",
+            "[析情绪数据] Per-chapter sentiment from Analyze Echo: "
+            + "; ".join(mood_lines[:15])
+            + (f"... +{len(mood_lines)-15} more" if len(mood_lines) > 15 else ""),
+            0,
+        )
+
+    # Global stats
+    stats = extraction.get("stats", {})
+    avg = stats.get("sentiment_avg")
+    if avg is not None:
+        if avg > 0.1:
+            gist = "整体偏暖，情感波动在正区间。WRITE 可适当保留中文原文的温情底色。"
+        elif avg < -0.1:
+            gist = "整体偏冷，压抑和紧张是文本主调。WRITE 不应强行加暖色调。"
+        else:
+            gist = "情绪分布均衡，冷暖交替。WRITE 跟随原文的情绪节奏即可。"
+        memo.record_lesson(
+            "pacing",
+            f"[析情绪数据] 全书情绪均值={avg:+.4f}。{gist}",
+            0,
+        )
+        print(f"  pacing.md: sentiment data for {len(mood_lines)} chapters")
+
+
+def _seed_relations(book_id: str, memo: StyleMemoStore):
+    """Seed characters.md with relationship data from Analyze Echo's knowledge graph.
+
+    Consumes relations.json produced by Analyze Echo (data/{book_id}/relations.json).
+    Extracts two relation types:
+      APPEARS_WITH (≥10 co-appearances) → characters.md
+      BELONGS_TO (character → faction)   → characters.md
+    """
+    relations_path = os.path.join(ANALYZE_DATA, book_id, "relations.json")
+    if not os.path.exists(relations_path):
+        print("  No relations.json found — skipping.")
+        return
+
+    try:
+        with open(relations_path) as f:
+            kg = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"  Failed to load relations.json: {exc}")
+        return
+
+    relations = kg.get("relations", [])
+    if not relations:
+        print("  relations.json is empty — skipping.")
+        return
+
+    # ── APPEARS_WITH: frequent character-pair co-appearances ──
+    appears_with = [r for r in relations
+                    if r.get("type") == "APPEARS_WITH" and r.get("frequency", 0) >= 10]
+    appears_with.sort(key=lambda r: r.get("frequency", 0), reverse=True)
+    seeded_pairs = 0
+    for r in appears_with[:20]:
+        src = r.get("source", "?")
+        tgt = r.get("target", "?")
+        freq = r.get("frequency", 0)
+        memo.record_lesson(
+            "characters",
+            f"[析关系] {src} ↔ {tgt} 同场 {freq} 次。对话语气应反映熟悉度。",
+            0,
+        )
+        seeded_pairs += 1
+
+    # ── BELONGS_TO: character → faction affiliation ──
+    belongs_to = [r for r in relations if r.get("type") == "BELONGS_TO"]
+    seeded_factions = 0
+    for r in belongs_to[:15]:
+        char = r.get("source", "?")
+        faction = r.get("target", "?")
+        memo.record_lesson(
+            "characters",
+            f"[析关系] {char} 属于 [{faction}]。翻译时注意该角色的自称、敬称和"
+            f"语气应符合其势力层级。",
+            0,
+        )
+        seeded_factions += 1
+
+    print(f"  characters.md: {seeded_pairs} high-frequency pairs + "
+          f"{seeded_factions} faction affiliations")
 
 
 def seed_glossary(extraction: dict, book_id: str):
@@ -293,6 +427,16 @@ def seed_style_memo(extraction: dict, book_id: str):
         print(f"  characters.md: {len(chars)} names")
 
     print("  StyleMemo seeded.")
+
+    # ── v0.17: Analyze Echo sentiment + knowledge graph ──
+    verbose = "--verbose" in sys.argv
+    print(f"\n--- v0.17: Analyze Echo data integration ---")
+
+    print(f"  Sentiment...", end=" " if not verbose else "\n")
+    _seed_sentiment(extraction, memo)
+
+    print(f"  Relations...", end=" " if not verbose else "\n")
+    _seed_relations(book_id, memo)
 
 
 def main():
