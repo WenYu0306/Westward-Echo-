@@ -17,7 +17,7 @@ Drawers:
 
 from pathlib import Path
 
-from .config import DATA_DIR
+from .config import DATA_DIR, STYLE_MEMO_ENHANCED
 
 
 class StyleMemoStore:
@@ -202,6 +202,26 @@ class StyleMemoStore:
                     entry += f" ({reasoning[:120]})"
                 self.record_lesson("terms", entry, chapter_number)
 
+        if STYLE_MEMO_ENHANCED:
+            # ── Characters: route character-name decisions ──────
+            # Terminology decisions tagged as character names (2-4 char CN
+            # with reasoning or cultural_note) are routed to characters.md
+            # so the WRITE agent can maintain consistent character voice.
+            for td in ra.get("terminology_decisions", []):
+                cn = td.get("term_cn", "")
+                reasoning = td.get("reasoning", "")
+                cultural_note = td.get("cultural_note", "")
+                if cn and 2 <= len(cn) <= 4 and (reasoning or cultural_note):
+                    entry = f"{cn} → {td.get('proposed_en', '?')}"
+                    if cultural_note:
+                        entry += f" // {cultural_note[:120]}"
+                    self.record_lesson("characters", entry, chapter_number)
+
+            # ── Characters: crafted moments with character focus ──
+            for m in ra.get("crafted_moments", []):
+                if isinstance(m, str) and len(m) > 20:
+                    self.record_lesson("characters", m[:200], chapter_number)
+
         # ── Bridges: every cultural gap flagged ────────────────
         for cg in ra.get("cultural_gaps", []):
             element = cg.get("element", "")[:60]
@@ -218,6 +238,13 @@ class StyleMemoStore:
         pacing = ra.get("pacing_notes", "")
         if pacing and len(pacing.strip()) > 10:
             self.record_lesson("pacing", pacing.strip()[:300], chapter_number)
+
+        if STYLE_MEMO_ENHANCED and pacing and len(pacing.strip()) > 10:
+            # ── Prose: sentence/paragraph rhythm from READ analysis ──
+            rhythm_keywords = ["句", "段", "节奏", "密度", "描写", "叙述",
+                               "sentence", "paragraph", "rhythm", "density"]
+            if any(kw in pacing.lower() for kw in rhythm_keywords):
+                self.record_lesson("prose", pacing.strip()[:300], chapter_number)
 
         # ── Image gaps: record count + priority breakdown ──────
         image_gaps = ra.get("image_gaps", [])
@@ -276,6 +303,16 @@ class StyleMemoStore:
                 f"Test: would a one-sentence analogy to Western equivalent fix this?",
                 chapter_number,
             )
+
+        if STYLE_MEMO_ENHANCED:
+            # ── Prose: cold reader standout moments (positive signal) ──
+            for sm in fb.get("standout_moments", []):
+                if isinstance(sm, str) and len(sm) > 20:
+                    self.record_lesson(
+                        "prose",
+                        f"Standout: {sm[:200]}",
+                        chapter_number,
+                    )
 
         # ── Prose: translation-ish patterns found ───────────────
         if fb.get("overall_impression", ""):

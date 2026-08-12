@@ -45,6 +45,12 @@ LOG_FILE = os.getenv("LOG_FILE", str(DATA_DIR / "app.log"))
 HOST = os.getenv("HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
+# --- v0.17 Style Memo enhancement ---
+# When True (default), the full 6-drawer memo is active: characters + prose
+# drawers receive data from READ analysis and cold-reader feedback.
+# Set to "false" to revert to v0.16 behaviour (terms/bridges/pacing only).
+STYLE_MEMO_ENHANCED = os.getenv("STYLE_MEMO_ENHANCED", "true").lower() == "true"
+
 # --- Rate limiting ---
 RATE_LIMIT_RPM = int(os.getenv("RATE_LIMIT_RPM", "30"))
 RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"

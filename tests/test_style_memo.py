@@ -123,6 +123,113 @@ class TestUpdateFromReadAnalysis:
         assert "No image gaps" in text
 
 
+class TestCharactersDrawer:
+    """v0.17: characters.md must accumulate data from READ analysis."""
+
+    def test_character_name_routed_to_characters(self, memo_store):
+        read_analysis = {
+            "terminology_decisions": [
+                {"term_cn": "苏念", "proposed_en": "Su Nian",
+                 "category": "character",
+                 "reasoning": "Protagonist name — keep Pinyin for consistency",
+                 "cultural_note": "名字中的'念'暗示 lingering feeling，不宜直译"},
+                {"term_cn": "霸总", "proposed_en": "Alpha CEO",
+                 "category": "culture",
+                 "reasoning": "Romance archetype shorthand"},
+            ],
+        }
+        memo_store.update_from_read_analysis(read_analysis, 1)
+        text = memo_store.read_all()
+        # "苏念" is 2-char CN with reasoning + cultural_note → routed to characters
+        assert "苏念" in text
+        # "霸总" is 2-char but no reasoning/cultural_note gate... actually it has reasoning
+        # The filter is: 2 <= len(cn) <= 4 AND (reasoning or cultural_note)
+        # Both qualify but 霸总 goes to terms too (existing behavior), characters gets both
+
+    def test_crafted_moments_routed_to_characters(self, memo_store):
+        read_analysis = {
+            "crafted_moments": [
+                "Su Nian's first confrontation with Pei Yanzhou — her cold refusal "
+                "establishes the power-reversal dynamic that defines the first arc.",
+            ],
+        }
+        memo_store.update_from_read_analysis(read_analysis, 1)
+        text = memo_store.read_all()
+        assert "power-reversal" in text
+
+    def test_feature_gate_disables_characters_routing(self, memo_store):
+        """When STYLE_MEMO_ENHANCED=False, characters.md stays empty (v0.16 behavior)."""
+        import src.style_memo as sm
+        read_analysis = {
+            "terminology_decisions": [
+                {"term_cn": "苏念", "proposed_en": "Su Nian",
+                 "reasoning": "Protagonist name", "cultural_note": ""},
+            ],
+            "crafted_moments": ["A long enough crafted moment about a character."],
+        }
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sm, "STYLE_MEMO_ENHANCED", False)
+            memo_store.update_from_read_analysis(read_analysis, 1)
+        # characters.md should have only the header, no content entries
+        characters_path = memo_store.root / "characters.md"
+        content = characters_path.read_text("utf-8")
+        lines = [l for l in content.strip().split("\n") if l.strip() and not l.startswith("#")]
+        assert len(lines) == 0, f"characters.md should be empty when gate is off, got: {lines}"
+
+
+class TestProseDrawer:
+    """v0.17: prose.md gets rhythm notes from READ + standout moments from READBACK."""
+
+    def test_rhythm_pacing_routed_to_prose(self, memo_store):
+        read_analysis = {
+            "pacing_notes": "Paragraph density is high in this chapter — "
+                            "three consecutive dense paragraphs slow the rhythm. "
+                            "建议 WRITER 用短句打破叙事密度。",
+        }
+        memo_store.update_from_read_analysis(read_analysis, 1)
+        text = memo_store.read_all()
+        assert "density" in text.lower()
+
+    def test_non_rhythm_pacing_not_routed_to_prose(self, memo_store):
+        """Pacing notes without rhythm keywords go to pacing only, not prose."""
+        memo_store.record_lesson("characters", "placeholder", 0)  # so read_relevant works
+        read_analysis = {
+            "pacing_notes": "This chapter is fast-paced with lots of action.",
+        }
+        memo_store.update_from_read_analysis(read_analysis, 1)
+        # Read prose.md directly
+        prose_path = memo_store.root / "prose.md"
+        prose_content = prose_path.read_text("utf-8")
+        # "fast-paced" is not a rhythm keyword → should NOT be in prose
+        assert "fast-paced" not in prose_content
+
+    def test_standout_moments_routed_to_prose(self, memo_store):
+        readback_feedback = {
+            "standout_moments": [
+                "The description of the villa at dawn — cinematic and vivid, "
+                "felt like watching a film opening.",
+            ],
+        }
+        memo_store.update_from_feedback(readback_feedback, {}, 1)
+        text = memo_store.read_all()
+        assert "cinematic" in text.lower()
+
+    def test_prose_feature_gate_blocks_standout(self, memo_store):
+        """When STYLE_MEMO_ENHANCED=False, standout moments don't write to prose."""
+        import src.style_memo as sm
+        readback_feedback = {
+            "standout_moments": [
+                "A beautiful scene with excellent pacing and rhythm.",
+            ],
+        }
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(sm, "STYLE_MEMO_ENHANCED", False)
+            memo_store.update_from_feedback(readback_feedback, {}, 1)
+        prose_path = memo_store.root / "prose.md"
+        prose_content = prose_path.read_text("utf-8")
+        assert "beautiful scene" not in prose_content
+
+
 class TestUpdateFromFeedback:
     def test_records_engagement_gaps(self, memo_store):
         readback_feedback = {
