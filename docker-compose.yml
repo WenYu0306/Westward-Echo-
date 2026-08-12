@@ -16,8 +16,6 @@ services:
 
   api:
     build: .
-    ports:
-      - "8000:8000"
     environment:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - DEEPSEEK_FLASH_MODEL=${DEEPSEEK_FLASH_MODEL:-deepseek-v4-flash}
@@ -54,5 +52,20 @@ services:
     deploy:
       replicas: 1
 
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   redis_data:
+  caddy_data:
+  caddy_config:

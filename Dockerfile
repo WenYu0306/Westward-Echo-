@@ -10,9 +10,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
+COPY docs/ ./docs/
+COPY cultural_rules.json ./
+COPY scripts/ ./scripts/
 COPY tests/ ./tests/
 
-RUN mkdir -p /app/data /app/output
+RUN mkdir -p /app/data /app/output /app/novels
 
 EXPOSE 8000
 
