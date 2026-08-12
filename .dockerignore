@@ -1,0 +1,60 @@
+# ── Python build artifacts ──
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# ── Git ──
+.git/
+.gitignore
+
+# ── Tests (not needed at runtime) ──
+tests/
+
+# ── Scripts (dev/Mac only, not used in container) ──
+scripts/
+
+# ── Runtime data (created fresh in container) ──
+data/
+output/
+novels/
+
+# ── Docs not needed at runtime ──
+docs/anchor-v3.html
+docs/index.html
+docs/review.html
+docs/editor.html
+docs/dashboard.html
+docs/usage.html
+
+# ── OS junk ──
+.DS_Store
+Thumbs.db
+
+# ── IDE ──
+.vscode/
+.idea/
+.claude/
+
+# ── Docs / design files ──
+*.md
+LICENSE
+*.png
+*.pptx
+*.docx
+*.pdf
+
+# ── Dev tooling ──
+pyproject.toml
+.pre-commit-config.yaml
+check_source.py
+deploy.sh
+start.sh
+RESTART.md
+
+# ── Local env ──
+.env
+.env.example
