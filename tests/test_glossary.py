@@ -170,3 +170,47 @@ class TestBookIsolation:
         conn.close()
         assert "exact_glossary_legacy" in tables
         assert "exact_glossary" in tables
+
+
+class TestWalConcurrency:
+    """WAL-pragma race: multiple instances init the same fresh DB at once."""
+
+    def test_concurrent_init_same_fresh_db(self):
+        import threading
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
+        errors = []
+
+        def worker(book_id):
+            try:
+                s = ExactGlossary(db_path=db, book_id=book_id)
+                s.add("苏念", f"Su Nian ({book_id})", category="character")
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(f"book_{i}",)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"concurrent init raised: {errors}"
+
+    def test_concurrent_init_no_term_loss(self):
+        import threading
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
+
+        def worker(book_id):
+            s = ExactGlossary(db_path=db, book_id=book_id)
+            s.add("苏念", f"Su Nian ({book_id})", category="character")
+
+        threads = [threading.Thread(target=worker, args=(f"book_{i}",)) for i in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 每个 book 独立读回自己的术语
+        for i in range(6):
+            s = ExactGlossary(db_path=db, book_id=f"book_{i}")
+            s.load_from_db()
+            assert s.get("苏念") == f"Su Nian (book_{i})", f"book_{i} 术语丢失或串"

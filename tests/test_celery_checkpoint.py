@@ -270,3 +270,54 @@ class TestResumeCheckpointFlow:
         max_idx = max(loaded.keys())  # This is how resume_translate_task works
         assert max_idx == 3
         assert loaded[3] == "Ch3 en."
+
+
+# ═══════════════════════════════════════════════════════════════════
+# WAL concurrency — multi-worker simultaneous init must not raise
+# ═══════════════════════════════════════════════════════════════════
+
+class TestWalConcurrency:
+    def test_concurrent_save_checkpoint_same_fresh_db(self, temp_checkpoint_db):
+        """Multiple workers init + write the same fresh checkpoint DB at once.
+
+        Regression: PRAGMA journal_mode=WAL races when several processes
+        initialise the same fresh DB simultaneously and one raised
+        "database is locked". The fix tolerates the transient lock.
+        """
+        import threading
+        from src.celery_app import _save_checkpoint
+
+        errors = []
+
+        def worker(n):
+            try:
+                _save_checkpoint("job-x", n, f"text {n}", "{}", f"summary {n}")
+            except Exception as e:  # pragma: no cover - assertion below
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"concurrent init raised: {errors}"
+
+    def test_concurrent_save_checkpoint_preserves_all_rows(self, temp_checkpoint_db):
+        """All concurrent writes must land (no lost update under WAL)."""
+        import threading
+        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+
+        def worker(n):
+            _save_checkpoint("job-y", n, f"text {n}", "{}", f"summary {n}")
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        loaded = _load_checkpoint_translations("job-y")
+        assert len(loaded) == 6, f"expected 6 chapters, got {len(loaded)}: {loaded}"
+        assert loaded[0] == "text 0"
+        assert loaded[5] == "text 5"
