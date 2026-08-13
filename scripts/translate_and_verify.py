@@ -138,7 +138,10 @@ def _is_term_consistent(expected: str, translated_text: str) -> tuple:
     expected_words = expected_lower.split()
     if len(expected_words) >= 2:
         tt_words = tt_lower.split()
-        required = max(1, int(len(expected_words) * 0.7))
+        # 2-word proper nouns ("Su Mucheng") must match BOTH words — matching
+        # only the surname "Su" would falsely flag "Su Muqiu" (a different
+        # character) as a variant of "Su Mucheng".
+        required = len(expected_words) if len(expected_words) == 2 else max(1, int(len(expected_words) * 0.7))
         window = 5
 
         # Slide a window over the translation words
@@ -186,6 +189,11 @@ def _extract_candidate_term(expected: str, translated_text: str) -> str:
     """
     When a term is NOT FOUND, try to extract what the LLM actually used
     by looking for words near where the expected term might be.
+
+    Only returns a candidate when EVERY word of the term appears in the
+    translation (exact match, singular/plural tolerant). This avoids the
+    previous false positive where "sweep" (ordinary verb) was mistaken for
+    "Sweeping Incense", or "Su Muqiu" was mistaken for "Su Mucheng".
     """
     expected_words = expected.lower().split()
     tt_words = translated_text.lower().split()
@@ -193,13 +201,18 @@ def _extract_candidate_term(expected: str, translated_text: str) -> str:
     if len(expected_words) == 0:
         return "[NOT FOUND]"
 
-    # Look for any word from the expected term in the translation
-    # and extract a window around it
+    normalized_expected = [ew.rstrip("s") for ew in expected_words]
+
+    # Require all expected words to appear (plural-tolerant exact match).
+    def _word_present(ew: str) -> bool:
+        return any(tw.rstrip("s") == ew for tw in tt_words)
+
+    if not all(_word_present(ew) for ew in normalized_expected):
+        return "[NOT FOUND]"
+
+    # All words present — extract a window around the first match.
     for i, tw in enumerate(tt_words):
-        if tw in [ew.rstrip("s") for ew in expected_words] or any(
-            ew.rstrip("s")[:4] == tw[:4] and len(ew.rstrip("s")) >= 4
-            for ew in expected_words
-        ):
+        if tw.rstrip("s") in normalized_expected:
             start = max(0, i - 3)
             end = min(len(tt_words), i + 4)
             snippet = " ".join(tt_words[start:end])

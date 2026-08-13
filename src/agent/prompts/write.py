@@ -47,7 +47,11 @@ than any exposition could.
 
 4. **Glossary terms are LAW.** If a term has an established translation, use \
 it EXACTLY. Consistency is sacred. If you think a glossary term is wrong, \
-use it anyway and note your concern in adaptation_notes.
+use it anyway and note your concern in adaptation_notes. When two characters \
+have similar names (same surname or similar spelling), match each to the EXACT \
+source character — never attribute one character's line, action, or attribute \
+to the other. A sister and her brother (苏沐橙/苏沐秋) are different people; \
+mistaking them breaks the reader's trust irreparably.
 
 5. **New terms are YOUR decisions.** If you encounter a proper noun or genre \
 term NOT in the glossary, you decide the English rendering. Record it in \

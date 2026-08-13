@@ -85,3 +85,36 @@ class TestExactGlossary:
         matches = store.match_in_text(text)
         assert "林小满" not in matches
 
+
+
+class TestConfusablePairs:
+    """v0.17: detect near-identical terms the LLM would confuse."""
+
+    def test_shared_chinese_prefix(self):
+        terms = {"苏沐橙": "Su Mucheng", "苏沐秋": "Su Muqiu"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert ("苏沐橙", "Su Mucheng", "苏沐秋", "Su Muqiu") in pairs
+
+    def test_shared_english_first_word(self):
+        terms = {"微草战队": "Wei Cao", "魏琛": "Wei Chen"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert ("微草战队", "Wei Cao", "魏琛", "Wei Chen") in pairs
+
+    def test_stopword_first_word_ignored(self):
+        """English terms starting with 'the'/'a' should not match on stopwords."""
+        terms = {"孤独的城主": "the Lonely Lord", "魔术师": "the Magician"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert pairs == []
+
+    def test_distinct_terms_not_flagged(self):
+        terms = {"苏念": "Su Nian", "裴衍舟": "Pei Yanzhou", "霸总": "Alpha CEO"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert pairs == []
+
+    def test_formatted_text_includes_warning(self):
+        store = ExactGlossary(db_path=tempfile.NamedTemporaryFile(suffix=".db").name)
+        store.add("苏沐橙", "Su Mucheng", category="character")
+        store.add("苏沐秋", "Su Muqiu", category="character")
+        text = store.to_formatted_text_with_notes()
+        assert "DO NOT CONFUSE" in text
+        assert "Su Mucheng" in text and "Su Muqiu" in text

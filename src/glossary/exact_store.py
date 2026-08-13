@@ -188,6 +188,11 @@ target_lang)
         This gives future WRITE agents not just the WHAT but the WHY.
 
         If matched_terms is provided, only those terms are listed.
+
+        Confusable pairs (terms sharing a Chinese prefix or an English first
+        word, e.g. 苏沐橙/苏沐秋 or Wei Cao/Wei Chen) get an explicit
+        "do not confuse" warning appended — the LLM otherwise misattributes
+        one character's name to the other when both appear in a chapter.
         """
         terms = matched_terms or self._dict
         if not terms:
@@ -216,7 +221,47 @@ target_lang)
                 lines.append(f"| {cn} | {en} | {note} |")
             else:
                 lines.append(f"| {cn} | {en} | (see prior chapters) |")
+
+        # ── Confusable-pair warnings ──
+        confusable = self._detect_confusable_pairs(terms)
+        if confusable:
+            lines.append("")
+            lines.append("**DO NOT CONFUSE — these are DIFFERENT entities.** "
+                         "Match each name to the exact source character:")
+            for cn1, en1, cn2, en2 in confusable:
+                lines.append(f"- {cn1} = {en1}  ≠  {cn2} = {en2}")
+
         return "\n".join(lines)
+
+    @staticmethod
+    def _detect_confusable_pairs(terms: dict[str, str]) -> list[tuple[str, str, str, str]]:
+        """Find term pairs the LLM is likely to confuse.
+
+        Two heuristics, kept conservative:
+          1. Shared 2-char Chinese prefix (苏沐橙/苏沐秋 → "苏沐",
+             百花战队/百花缭乱 → "百花")
+          2. Same English first word, excluding stopwords
+             (微草战队 "Wei Cao" / 魏琛 "Wei Chen" → "Wei")
+
+        Returns [(cn1, en1, cn2, en2), ...] sorted by Chinese.
+        """
+        _STOPWORDS = frozenset({"the", "a", "an"})
+        items = sorted(terms.items())
+        pairs: list[tuple[str, str, str, str]] = []
+        for i in range(len(items)):
+            cn1, en1 = items[i]
+            for j in range(i + 1, len(items)):
+                cn2, en2 = items[j]
+                # Shared 2-char Chinese prefix
+                if len(cn1) >= 2 and len(cn2) >= 2 and cn1[:2] == cn2[:2]:
+                    pairs.append((cn1, en1, cn2, en2))
+                    continue
+                # Same English first word (excluding stopwords)
+                w1 = en1.split()[0].lower() if en1.split() else ""
+                w2 = en2.split()[0].lower() if en2.split() else ""
+                if w1 and w1 == w2 and w1 not in _STOPWORDS:
+                    pairs.append((cn1, en1, cn2, en2))
+        return pairs
 
     def snapshot(self) -> str:
         """JSON snapshot for checkpoint persistence."""
