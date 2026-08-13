@@ -72,3 +72,7 @@ docs/*.html
 novels/实验文本.txt
 scripts/com.westwardecho.tunnel.plist
 *.png
+
+# Pilot data (finished scripts from 铸文 + compilation output — not code)
+pilots/
+V0.17_ENHANCEMENT_PLAN.md
