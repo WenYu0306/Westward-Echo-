@@ -347,6 +347,9 @@ def _save_checkpoint(job_id: str, chapter_number: int, translated_text: str,
     db_path = CHECKPOINT_DB_PATH
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
+        # WAL allows multiple worker processes to read/write concurrently
+        # without SQLite "database is locked" errors.
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS translation_checkpoint (
                 job_id TEXT, chapter_number INTEGER, translated_text TEXT,

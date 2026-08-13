@@ -118,3 +118,55 @@ class TestConfusablePairs:
         text = store.to_formatted_text_with_notes()
         assert "DO NOT CONFUSE" in text
         assert "Su Mucheng" in text and "Su Muqiu" in text
+
+
+class TestBookIsolation:
+    """book_id isolation: same term in two books must not overwrite each other."""
+
+    def _db(self):
+        return tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
+
+    def test_same_term_two_books_do_not_clobber(self):
+        db = self._db()
+        book_a = ExactGlossary(db_path=db, book_id="book_a")
+        book_b = ExactGlossary(db_path=db, book_id="book_b")
+
+        book_a.add("苏念", "Su Nian (A)", category="character")
+        book_b.add("苏念", "Su Nian (B)", category="character")
+
+        # Each book's in-memory dict is independent
+        assert book_a.get("苏念") == "Su Nian (A)"
+        assert book_b.get("苏念") == "Su Nian (B)"
+
+        # On reload from DB, each book still sees its own term
+        book_a2 = ExactGlossary(db_path=db, book_id="book_a")
+        book_a2.load_from_db()
+        book_b2 = ExactGlossary(db_path=db, book_id="book_b")
+        book_b2.load_from_db()
+        assert book_a2.get("苏念") == "Su Nian (A)"
+        assert book_b2.get("苏念") == "Su Nian (B)"
+
+    def test_legacy_table_renamed(self):
+        """The pre-book_id table (term_cn PRIMARY KEY) is renamed on migration."""
+        import sqlite3
+        db = self._db()
+        # Simulate a legacy table
+        conn = sqlite3.connect(db)
+        conn.execute("""CREATE TABLE exact_glossary (
+            term_cn TEXT PRIMARY KEY, term_en TEXT NOT NULL,
+            category TEXT DEFAULT 'culture', context TEXT DEFAULT '',
+            chapter_first_seen INTEGER DEFAULT 0, note TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending_review', target_lang TEXT DEFAULT 'en-US'
+        )""")
+        conn.execute("INSERT INTO exact_glossary (term_cn, term_en) VALUES ('旧词','old term')")
+        conn.commit()
+        conn.close()
+
+        # Initializing a new store should rename legacy → legacy, create new schema
+        ExactGlossary(db_path=db, book_id="book_x")
+
+        conn = sqlite3.connect(db)
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        conn.close()
+        assert "exact_glossary_legacy" in tables
+        assert "exact_glossary" in tables

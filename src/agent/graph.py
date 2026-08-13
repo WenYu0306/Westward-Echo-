@@ -106,8 +106,8 @@ class TranslationAgent:
     """High-level wrapper around the v0.15 reader-centric LangGraph pipeline."""
 
     def __init__(self, book_id: str = "default", api_key: str = ""):
-        self.exact_store = ExactGlossary()
-        self.semantic_store = SemanticGlossary()
+        self.exact_store = ExactGlossary(book_id=book_id)
+        self.semantic_store = SemanticGlossary(book_id=book_id)
         self.graph = build_graph(self.exact_store, self.semantic_store)
         from ..style_memo import StyleMemoStore
         self.style_memo: StyleMemoStore = StyleMemoStore(book_id)

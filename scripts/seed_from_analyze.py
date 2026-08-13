@@ -294,8 +294,8 @@ def seed_glossary(extraction: dict, book_id: str):
 
     print(f"\n=== Step 1: Seed Glossary ({len(terms)} terms) ===")
 
-    # Check how many are already in the glossary
-    store = ExactGlossary()
+    # Check how many are already in the glossary (scoped to this book)
+    store = ExactGlossary(book_id=book_id)
     store.load_from_db("en-US")
     existing = store.to_dict()
     new_terms = [t for t in terms if t.get("term", "") not in existing]

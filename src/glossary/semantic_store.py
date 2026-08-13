@@ -57,7 +57,7 @@ class SemanticGlossary:
     # at most once per process lifecycle (or after a 60s cooldown).
     _last_retry_time: float = 0.0
 
-    def __init__(self, persist_path: typing.Optional[str] = None):
+    def __init__(self, persist_path: typing.Optional[str] = None, book_id: str = "default"):
         path = persist_path or CHROMA_PERSIST_PATH
         import os
         os.makedirs(path, exist_ok=True)
@@ -65,6 +65,7 @@ class SemanticGlossary:
         self._ready = False
         self._warned = False  # guard against log spam per instance
         self._persist_path = path
+        self._book_id = book_id
         self.client: typing.Any = None
 
         try:
@@ -109,18 +110,35 @@ class SemanticGlossary:
 
     @_INIT_RETRY
     def _init_chroma(self, path: str) -> typing.Any:
-        """Initialise the Chroma persistent client and probe the embedding model.
+        """Initialise the Chroma client and probe the embedding model.
+
+        Two modes, selected by CHROMA_HOST env var:
+          - CHROMA_HOST set → HTTP client (production, standalone Chroma server
+            so multiple worker processes share one Chroma safely)
+          - CHROMA_HOST unset → PersistentClient (local dev / tests fallback)
 
         Wrapped with tenacity retry: up to 3 attempts with exponential backoff
         (2s, 4s, 8s) to survive transient ONNX download failures.
         """
-        client = chromadb.PersistentClient(
-            path=path,
-            settings=Settings(
-                anonymized_telemetry=False,
-                persist_directory=path,
-            ),
-        )
+        import os as _os
+        host = _os.getenv("CHROMA_HOST", "")
+        port = _os.getenv("CHROMA_PORT", "8000")
+
+        if host:
+            client = chromadb.HttpClient(
+                host=host,
+                port=int(port),
+                settings=Settings(anonymized_telemetry=False),
+            )
+        else:
+            client = chromadb.PersistentClient(
+                path=path,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    persist_directory=path,
+                ),
+            )
+
         # Probe embedding to trigger model download early
         coll = client.get_or_create_collection("probe_init")
         coll.upsert(documents=["test"], ids=["test"])
@@ -152,8 +170,9 @@ class SemanticGlossary:
             self._warned = True
 
     def get_or_create_collection(self, target_lang: str = "en-US") -> chromadb.Collection:
-        """Each target language gets its own collection for isolation."""
-        name = f"terms_{target_lang.replace('-', '_')}"
+        """Each book + target language gets its own collection for isolation."""
+        safe_book = self._book_id.replace('-', '_').replace('.', '_')
+        name = f"terms_{safe_book}_{target_lang.replace('-', '_')}"
         assert self.client is not None
         return self.client.get_or_create_collection(name=name)  # type: ignore[no-any-return]
 

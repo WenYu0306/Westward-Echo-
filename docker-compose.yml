@@ -14,6 +14,13 @@ services:
       timeout: 3s
       retries: 5
 
+  chroma:
+    image: chromadb/chroma:latest
+    volumes:
+      - ./data/chroma:/chroma/chroma
+      - ./data/onnx_cache:/chroma/onnx_cache
+    restart: unless-stopped
+
   api:
     build: .
     environment:
@@ -22,6 +29,8 @@ services:
       - DEEPSEEK_PRO_MODEL=${DEEPSEEK_PRO_MODEL:-deepseek-v4-pro}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - REDIS_URL=redis://redis:6379/0
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
       - API_KEY=${API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
@@ -30,6 +39,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      chroma:
+        condition: service_started
     restart: unless-stopped
 
   worker:
@@ -41,6 +52,8 @@ services:
       - DEEPSEEK_PRO_MODEL=${DEEPSEEK_PRO_MODEL:-deepseek-v4-pro}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - REDIS_URL=redis://redis:6379/0
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./data:/app/data
@@ -48,6 +61,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      chroma:
+        condition: service_started
     restart: unless-stopped
     deploy:
       replicas: 1

@@ -134,7 +134,7 @@ class TestGlossaryAccumulation:
 
     def test_character_names_propagate_to_next_chapter(self):
         """Su Nian + Pei Yanzhou from ch1 must appear in ch2's _make_state."""
-        agent = TranslationAgent()
+        agent = TranslationAgent(book_id="test_character_names_propagate")
 
         ch1 = {
             "title": "第一章 穿书",
@@ -202,7 +202,7 @@ class TestGlossaryAccumulation:
 
     def test_exact_matches_text_injected_into_ch2_state(self):
         """_make_state for ch2 must include ch1's exact matches in the prompt text."""
-        agent = TranslationAgent()
+        agent = TranslationAgent(book_id="test_exact_matches_injected")
 
         # Seed the exact store as if chapter 1 already ran
         agent.exact_store.add("苏念", "Su Nian", category="character")
@@ -234,7 +234,10 @@ class TestGlossaryAccumulation:
         The style memo is injected into _make_state via style_memo.read_relevant(),
         so ch2's READ agent sees ch1's accumulated translation wisdom.
         """
-        agent = TranslationAgent()
+        # Use an isolated book_id so style_memo doesn't collide with other
+        # tests sharing the default book directory (fingerprint dedup would
+        # otherwise skip entries written by an earlier test).
+        agent = TranslationAgent(book_id="test_style_memo_accumulation")
 
         ch1 = {
             "title": "第一章", "number": 1,
@@ -265,7 +268,7 @@ class TestGlossaryAccumulation:
 
     def test_cold_read_context_accumulates_summaries(self):
         """After ch1, ch2's cold_read_context must reference ch1's summary."""
-        agent = TranslationAgent()
+        agent = TranslationAgent(book_id="test_cold_read_context")
 
         ch1 = {
             "title": "第一章", "number": 1,
@@ -295,7 +298,7 @@ class TestGlossaryAccumulation:
 
     def test_prefetched_glossary_used_for_ch2(self):
         """When prefetched results exist, _make_state uses them (skips blocking lookup)."""
-        agent = TranslationAgent()
+        agent = TranslationAgent(book_id="test_prefetched_glossary")
         # Set prefetched data as if ChapterPrefetcher already ran
         agent.set_prefetched_glossary(
             {"苏念": "Su Nian", "裴衍舟": "Pei Yanzhou"},
@@ -318,7 +321,7 @@ class TestGlossaryAccumulation:
 
     def test_forced_accept_logged_when_readback_fails_after_max_retries(self, caplog):
         """FORCED_ACCEPT must log a warning when NEEDS_FIX persists after 2 retries."""
-        agent = TranslationAgent()
+        agent = TranslationAgent(book_id="test_forced_accept")
 
         ch1 = {
             "title": "第一章", "number": 1,

@@ -25,9 +25,10 @@ class ExactGlossary:
       text, it is injected into the LLM prompt as a mandatory constraint.
     """
 
-    def __init__(self, db_path: typing.Optional[str] = None):
+    def __init__(self, db_path: typing.Optional[str] = None, book_id: str = "default"):
         self._dict: dict[str, str] = {}          # {term_cn: term_en}
         self._db_path = db_path or CHECKPOINT_DB_PATH
+        self._book_id = book_id
         self._init_db()
 
     # ------------------------------------------------------------------
@@ -37,16 +38,30 @@ class ExactGlossary:
     def _init_db(self):
         os.makedirs(Path(self._db_path).parent, exist_ok=True)
         with sqlite3.connect(self._db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            # ── Migration: the pre-book_id table used term_cn as PRIMARY KEY.
+            #    Rename it out of the way (it holds undifferentiated test data
+            #    from before books were isolated). New schema uses a composite
+            #    key (book_id, term_cn, target_lang).
+            existing = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='exact_glossary'"
+            ).fetchone()
+            if existing:
+                cols = [c[1] for c in conn.execute("PRAGMA table_info(exact_glossary)").fetchall()]
+                if "book_id" not in cols:
+                    conn.execute("ALTER TABLE exact_glossary RENAME TO exact_glossary_legacy")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS exact_glossary (
-                    term_cn TEXT PRIMARY KEY,
+                    book_id TEXT NOT NULL DEFAULT 'default',
+                    term_cn TEXT NOT NULL,
                     term_en TEXT NOT NULL,
                     category TEXT DEFAULT 'culture',
                     context TEXT DEFAULT '',
                     chapter_first_seen INTEGER DEFAULT 0,
                     note TEXT DEFAULT '',
                     status TEXT DEFAULT 'pending_review',
-                    target_lang TEXT DEFAULT 'en-US'
+                    target_lang TEXT DEFAULT 'en-US',
+                    PRIMARY KEY (book_id, term_cn, target_lang)
                 )
             """)
             conn.commit()
@@ -55,8 +70,9 @@ class ExactGlossary:
         """Restore in-memory dict from SQLite on startup / resume."""
         with sqlite3.connect(self._db_path) as conn:
             rows = conn.execute(
-                "SELECT term_cn, term_en FROM exact_glossary WHERE target_lang = ?",
-                (target_lang,),
+                "SELECT term_cn, term_en FROM exact_glossary "
+                "WHERE book_id = ? AND target_lang = ?",
+                (self._book_id, target_lang),
             ).fetchall()
         self._dict = {row[0]: row[1] for row in rows}
 
@@ -66,10 +82,11 @@ class ExactGlossary:
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO exact_glossary
-                   (term_cn, term_en, category, context, chapter_first_seen, note, status, \
+                   (book_id, term_cn, term_en, category, context, chapter_first_seen, note, status, \
 target_lang)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (term_cn, term_en, category, context, chapter, note, status, target_lang),
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (self._book_id, term_cn, term_en, category, context, chapter, note, status,
+                 target_lang),
             )
             conn.commit()
 
@@ -123,8 +140,8 @@ target_lang)
                 """SELECT term_cn, term_en, category, context, chapter_first_seen,
                           note, status, target_lang
                    FROM exact_glossary
-                   WHERE term_cn = ? AND target_lang = ?""",
-                (term_cn, target_lang),
+                   WHERE book_id = ? AND term_cn = ? AND target_lang = ?""",
+                (self._book_id, term_cn, target_lang),
             ).fetchone()
         if row is None:
             return None
@@ -134,8 +151,9 @@ target_lang)
         """Return the status of a term ('confirmed', 'pending_review', or None if absent)."""
         with sqlite3.connect(self._db_path) as conn:
             row = conn.execute(
-                "SELECT status FROM exact_glossary WHERE term_cn = ? AND target_lang = ?",
-                (term_cn, target_lang),
+                "SELECT status FROM exact_glossary "
+                "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
+                (self._book_id, term_cn, target_lang),
             ).fetchone()
         if row is None:
             return None
@@ -152,8 +170,8 @@ target_lang)
         with sqlite3.connect(self._db_path) as conn:
             row = conn.execute(
                 "SELECT chapter_first_seen FROM exact_glossary "
-                "WHERE term_cn = ? AND target_lang = ?",
-                (term_cn, target_lang),
+                "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
+                (self._book_id, term_cn, target_lang),
             ).fetchone()
         if row is None:
             return []
@@ -205,8 +223,8 @@ target_lang)
             for cn in terms:
                 row = conn.execute(
                     "SELECT note FROM exact_glossary "
-                    "WHERE term_cn = ? AND target_lang = ?",
-                    (cn, target_lang),
+                    "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
+                    (self._book_id, cn, target_lang),
                 ).fetchone()
                 if row and row["note"]:
                     notes_map[cn] = row["note"]
@@ -285,18 +303,18 @@ target_lang)
                     """SELECT term_cn, term_en, category, context, chapter_first_seen,
                               note, status, target_lang
                        FROM exact_glossary
-                       WHERE status = ? AND target_lang = ?
+                       WHERE book_id = ? AND status = ? AND target_lang = ?
                        ORDER BY term_cn""",
-                    (status_filter, target_lang),
+                    (self._book_id, status_filter, target_lang),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     """SELECT term_cn, term_en, category, context, chapter_first_seen,
                               note, status, target_lang
                        FROM exact_glossary
-                       WHERE target_lang = ?
+                       WHERE book_id = ? AND target_lang = ?
                        ORDER BY status, term_cn""",
-                    (target_lang,),
+                    (self._book_id, target_lang),
                 ).fetchall()
         return [dict(row) for row in rows]
 
@@ -305,8 +323,8 @@ target_lang)
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
                 "UPDATE exact_glossary SET status = 'confirmed' "
-                "WHERE term_cn = ? AND target_lang = ?",
-                (term_cn, target_lang),
+                "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
+                (self._book_id, term_cn, target_lang),
             )
             conn.commit()
 
@@ -315,8 +333,9 @@ target_lang)
         self._dict.pop(term_cn, None)
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
-                "DELETE FROM exact_glossary WHERE term_cn = ? AND target_lang = ?",
-                (term_cn, target_lang),
+                "DELETE FROM exact_glossary "
+                "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
+                (self._book_id, term_cn, target_lang),
             )
             conn.commit()
 
