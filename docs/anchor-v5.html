@@ -1122,8 +1122,8 @@ input:focus, select:focus, textarea:focus {
           </select>
         </div>
         <div class="setting-item">
-          <label for="api-key">API Key（可选）</label>
-          <input type="password" id="api-key" placeholder="留空使用默认">
+          <label for="auth-key">访问密钥</label>
+          <input type="password" id="auth-key" placeholder="输入访问密钥">
         </div>
         <button class="btn-compile" id="btn-compile" disabled>开始编译</button>
       </div>
@@ -1226,6 +1226,20 @@ input:focus, select:focus, textarea:focus {
 
   const $ = (sel) => document.querySelector(sel);
 
+  /* —— 访问密钥（西渡鉴权，非 DeepSeek key）—— */
+  const AUTH_KEY_STORAGE = 'westward_auth_key';
+  let authKey = localStorage.getItem(AUTH_KEY_STORAGE) || '';
+  function authHeaders() {
+    const h = {};
+    if (authKey) h['X-API-Key'] = authKey;
+    return h;
+  }
+  function authFetch(url, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers, authHeaders());
+    return fetch(url, opts);
+  }
+
   const uploadZone    = $('#upload-zone');
   const fileInput     = $('#file-input');
   const btnCompile    = $('#btn-compile');
@@ -1243,6 +1257,16 @@ input:focus, select:focus, textarea:focus {
   contentTypeSel.addEventListener('change', () => {
     scriptModeItem.style.display = contentTypeSel.value === 'script' ? '' : 'none';
   });
+
+  /* —— 访问密钥：填入即保存，后续请求自动携带 —— */
+  const authKeyInput = $('#auth-key');
+  if (authKeyInput) {
+    if (authKey) authKeyInput.value = authKey;
+    authKeyInput.addEventListener('input', () => {
+      authKey = authKeyInput.value.trim();
+      localStorage.setItem(AUTH_KEY_STORAGE, authKey);
+    });
+  }
 
   /* —— 拖拽上传 —— */
   uploadZone.addEventListener('click', () => fileInput.click());
@@ -1288,11 +1312,9 @@ input:focus, select:focus, textarea:focus {
     if (contentTypeSel.value === 'script') {
       fd.append('script_mode', $('#script-mode').value);
     }
-    const key = $('#api-key').value.trim();
-    if (key) fd.append('api_key', key);
 
     try {
-      const res = await fetch(API.upload, { method: 'POST', body: fd });
+      const res = await authFetch(API.upload, { method: 'POST', body: fd });
       const data = await res.json();
       if (data.job_id) {
         currentJobId = data.job_id;
@@ -1321,7 +1343,7 @@ input:focus, select:focus, textarea:focus {
   async function pollStatus() {
     if (!currentJobId) return;
     try {
-      const res = await fetch(API.poll + currentJobId);
+      const res = await authFetch(API.poll + currentJobId);
       const data = await res.json();
       const status = data.status;
 
@@ -1378,7 +1400,7 @@ input:focus, select:focus, textarea:focus {
     else if (fmt === 'glossary') url = API.glossary + currentJobId;
     if (!url) return;
 
-    fetch(url)
+    authFetch(url)
       .then(r => {
         if (fmt === 'epub') return r.blob();
         return r.json().then(data => {
@@ -1417,7 +1439,7 @@ input:focus, select:focus, textarea:focus {
   /* —— 侧边栏记录 —— */
   async function refreshJobs() {
     try {
-      const res = await fetch(API.jobs);
+      const res = await authFetch(API.jobs);
       const jobs = await res.json();
       renderJobs(jobs);
     } catch (e) {}
@@ -1462,7 +1484,7 @@ input:focus, select:focus, textarea:focus {
         const jid = btn.dataset.deleteId;
         if (!confirm('确定要删除此编译记录吗？')) return;
         try {
-          await fetch('/api/jobs/' + jid, { method: 'DELETE' });
+          await authFetch('/api/jobs/' + jid, { method: 'DELETE' });
           if (jid === currentJobId) { currentJobId = null; stopPolling(); switchStatus('empty'); }
           refreshJobs();
         } catch (e) { showToast('删除失败'); }
