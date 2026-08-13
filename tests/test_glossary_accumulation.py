@@ -359,3 +359,48 @@ class TestGlossaryAccumulation:
 
         forced_accept_logs = [r for r in caplog.records if "FORCED_ACCEPT" in r.message]
         assert len(forced_accept_logs) >= 1, "FORCED_ACCEPT must be logged when FIX can't satisfy READBACK"
+
+
+class TestBookIdPropagation:
+    """graph.TranslationAgent must pass book_id down to the glossary stores.
+
+    This is the end-to-end check: two agents with different book_id must NOT
+    see each other's terms; two agents with the same book_id must share.
+    Uses a temp SQLite DB so tests never touch production data.
+    """
+
+    @pytest.fixture
+    def temp_db(self, tmp_path):
+        from src.glossary import exact_store as es
+        db = str(tmp_path / "test.db")
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(es, "CHECKPOINT_DB_PATH", db)
+            yield db
+
+    def test_different_book_ids_isolate_terms(self, temp_db):
+        from src.agent.graph import TranslationAgent
+        a = TranslationAgent(book_id="iso_a")
+        b = TranslationAgent(book_id="iso_b")
+
+        a.exact_store.add("苏念", "Su Nian A", category="character")
+        b.exact_store.add("苏念", "Su Nian B", category="character")
+
+        assert a.exact_store.get("苏念") == "Su Nian A"
+        assert b.exact_store.get("苏念") == "Su Nian B"
+
+    def test_same_book_id_shares_terms(self, temp_db):
+        from src.agent.graph import TranslationAgent
+        a1 = TranslationAgent(book_id="shared_book")
+        a1.exact_store.add("苏念", "Su Nian", category="character")
+
+        a2 = TranslationAgent(book_id="shared_book")
+        a2.exact_store.load_from_db("en-US")
+        assert a2.exact_store.get("苏念") == "Su Nian"
+
+    def test_semantic_collection_differs_by_book(self, temp_db):
+        from src.agent.graph import TranslationAgent
+        a = TranslationAgent(book_id="sem_a")
+        b = TranslationAgent(book_id="sem_b")
+        assert a.semantic_store._book_id == "sem_a"
+        assert b.semantic_store._book_id == "sem_b"
+        assert a.semantic_store._book_id != b.semantic_store._book_id
