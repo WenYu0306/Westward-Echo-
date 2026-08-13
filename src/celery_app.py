@@ -346,10 +346,15 @@ def _save_checkpoint(job_id: str, chapter_number: int, translated_text: str,
                      glossary_snapshot: str, previous_summary: str):
     db_path = CHECKPOINT_DB_PATH
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=30) as conn:
         # WAL allows multiple worker processes to read/write concurrently
-        # without SQLite "database is locked" errors.
-        conn.execute("PRAGMA journal_mode=WAL")
+        # without SQLite "database is locked" errors. Setting WAL races when
+        # multiple workers init the same fresh DB at once — ignore a transient
+        # lock (WAL is persistent once set).
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS translation_checkpoint (
                 job_id TEXT, chapter_number INTEGER, translated_text TEXT,

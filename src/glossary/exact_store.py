@@ -37,8 +37,17 @@ class ExactGlossary:
 
     def _init_db(self):
         os.makedirs(Path(self._db_path).parent, exist_ok=True)
-        with sqlite3.connect(self._db_path) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
+        with sqlite3.connect(self._db_path, timeout=30) as conn:
+            # WAL allows concurrent readers/writers across worker processes.
+            # Setting it is NOT idempotent: multiple processes initialising
+            # the same fresh DB at once can race on this pragma and raise
+            # "database is locked". Retry-safe: if it's already WAL, or the
+            # DB is momentarily locked, fall through — WAL is persistent
+            # once set, so a later connection inherits it.
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.OperationalError:
+                pass  # already WAL (persistent) or transient lock — retry later
             # ── Migration: the pre-book_id table used term_cn as PRIMARY KEY.
             #    Rename it out of the way (it holds undifferentiated test data
             #    from before books were isolated). New schema uses a composite
