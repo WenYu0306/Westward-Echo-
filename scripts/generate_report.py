@@ -166,6 +166,7 @@ def generate_report(novel_key: str) -> dict:
         "grade": grade,
         "passed": passed,
         "issues": issues,
+        "_quality": quality,
         "summary": {
             "chapters_total": len(cn_chapters),
             "chapters_translated": len(en_chapters),
@@ -204,36 +205,65 @@ def generate_report(novel_key: str) -> dict:
 def _write_report_md(report: dict, path: Path):
     s = report["summary"]
     lines = [
-        f"# 西渡编译质检报告",
+        f"# 西渡编译成果报告",
         "",
-        f"**作品**：{report['book']}",
+        f"**作品**：《{report['book']}》",
         f"**体裁**：{report['genre']}",
-        f"**总体评级**：{report['grade']}",
         "",
-        "## 摘要",
+        "---",
         "",
-        f"- 章节：{s['chapters_translated']}/{s['chapters_total']}",
-        f"- 术语库规模：{s['glossary_size']} 条",
-        f"- 术语一致率：{s['term_consistency_rate']}%",
-        f"- 中英字数比：{s['zh_en_ratio']}x",
-        f"- 冷读抽检：{s['cold_read_samples']} 章（{s['cold_read_pass']} PASS / {s['cold_read_needs_fix']} NEEDS_FIX）",
-        "",
-        "## 检查明细",
+        "## 编译质量（核心）",
         "",
     ]
-    for p in report["passed"]:
-        lines.append(f"- ✅ {p}")
-    if report["issues"]:
+    # Cold-read impressions are the star — a native English reader's
+    # verbatim reaction is the strongest evidence the compilation worked.
+    quality = report.get("_quality", [])
+    if quality:
+        for q in quality:
+            verdict = q.get("verdict", "?")
+            keep = q.get("would_keep_reading", False)
+            imp = (q.get("impression") or "").strip()
+            ch = q.get("ch_number", "?")
+            if verdict == "PASS" and imp:
+                lines.append(f"### 第 {ch} 章 · 冷读通过")
+                lines.append("")
+                lines.append(f"> {imp}")
+                lines.append("")
+                if keep:
+                    lines.append("**读者表态：愿意继续追读。**")
+                    lines.append("")
+            elif verdict == "NEEDS_FIX":
+                lines.append(f"### 第 {ch} 章 · 需返修")
+                lines.append("")
+                lines.append(f"> {imp}")
+                lines.append("")
+    else:
+        lines.append("（未执行冷读抽检）")
         lines.append("")
-        lines.append("## 问题清单")
+
+    lines += [
+        "---",
+        "",
+        "## 交付内容",
+        "",
+        f"- 英文译稿：{s['chapters_translated']} 章完整编译（Markdown + EPUB）",
+        f"- 术语表：{s['glossary_size']} 条中英对照",
+        f"- 本报告",
+        "",
+        "---",
+        "",
+        "## 专业指标（工程背书）",
+        "",
+        f"- 术语一致率：{s['term_consistency_rate']}%",
+        f"- 中英字数比：{s['zh_en_ratio']}x（健康区间 2.0–4.0x）",
+        f"- 章节完整度：{s['chapters_translated']}/{s['chapters_total']}",
+        "",
+    ]
+    if report["issues"]:
+        lines.append("## 待改进项")
         lines.append("")
         for i in report["issues"]:
-            lines.append(f"- ❌ {i}")
-    else:
-        lines.append("")
-        lines.append("## 结论")
-        lines.append("")
-        lines.append("全部检查通过，术语全程一致。")
+            lines.append(f"- {i}")
     lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
 
