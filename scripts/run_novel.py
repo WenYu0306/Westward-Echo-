@@ -63,6 +63,19 @@ NOVELS = {
                if n <= total}
         ),
     },
+    "quanzhi_fanwai": {
+        "name": "全职高手番外之巅峰荣耀",
+        "path": "tests/fixtures/《全职高手番外之巅峰荣耀》作者：蝴蝶蓝.txt",
+        "genre": "urban",
+        "book_id": "quanzhi_fanwai",
+        "output_dir": "novels/output/quanzhi_fanwai_segmented",
+        "output_file": "quanzhi_fanwai_en.md",
+        "expected_chapters": 25,
+        "sample_points_fn": lambda total: (
+            frozenset(range(5, min(total, 50) + 1, 5))
+            | {total if total > 0 else 1}
+        ),
+    },
 }
 
 SEGMENT = 15  # chapters per checkpoint segment

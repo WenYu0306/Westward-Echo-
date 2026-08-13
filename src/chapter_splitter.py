@@ -113,11 +113,16 @@ def split_chapters(text: str) -> list[Chapter]:
     if matches[0].start() > 0:
         preamble = text[:matches[0].start()].strip()
         if preamble:
-            tag, action = classify_paragraph("楔子", preamble)
-            chapters.append(
-                Chapter(index=0, title="楔子", content=preamble, tag=tag, action=action)
-            )
-            index = 1
+            # Skip volume separators / non-prose front matter (e.g.
+            # "------------ 正文卷 ------------"): fewer than 50 CJK
+            # characters means it is not a real prologue, just a divider.
+            cn_chars = sum(1 for c in preamble if '一' <= c <= '鿿')
+            if cn_chars >= 50:
+                tag, action = classify_paragraph("楔子", preamble)
+                chapters.append(
+                    Chapter(index=0, title="楔子", content=preamble, tag=tag, action=action)
+                )
+                index = 1
 
     # Extract chapters between headers
     for i, match in enumerate(matches):
