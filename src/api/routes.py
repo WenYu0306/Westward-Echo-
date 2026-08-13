@@ -341,11 +341,12 @@ async def _translate_accepted(
                     f.flush()
                     os.fsync(f.fileno())
                 # ── Save checkpoint after every chapter ──
-                json.dump({
-                    "last_idx": i,
-                    "glossary_snapshot": agent.exact_store.snapshot(),
-                    "previous_summary": prev_summary,
-                }, Path(ckpt_path).open("w"), ensure_ascii=False)
+                with Path(ckpt_path).open("w", encoding="utf-8") as ckpt_f:
+                    json.dump({
+                        "last_idx": i,
+                        "glossary_snapshot": agent.exact_store.snapshot(),
+                        "previous_summary": prev_summary,
+                    }, ckpt_f, ensure_ascii=False)
             glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
@@ -599,11 +600,12 @@ async def translate_multi(
                             fh.flush()
                             os.fsync(fh.fileno())
                         # ── Save checkpoint after every chapter ──
-                        json.dump({
-                            "last_idx": i,
-                            "glossary_snapshot": agent.exact_store.snapshot(),
-                            "previous_summary": prev_summary,
-                        }, Path(ckpt_path).open("w"), ensure_ascii=False)
+                        with Path(ckpt_path).open("w", encoding="utf-8") as ckpt_f:
+                            json.dump({
+                                "last_idx": i,
+                                "glossary_snapshot": agent.exact_store.snapshot(),
+                                "previous_summary": prev_summary,
+                            }, ckpt_f, ensure_ascii=False)
                     job_store.complete_job(jid, output_path, 0)
                 except Exception as exc:
                     logger.error("Multi-lang sync translation failed for job %s: %s", jid, exc)
@@ -661,6 +663,7 @@ def get_glossary(job_id: str):
 @app.get("/translation/{job_id}")
 def get_translation(job_id: str):
     """Download the translated novel markdown."""
+    job_id = _safe_job_id(job_id)
     for lang in ["en-US", "es-ES", "de", "fr", "en"]:
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
@@ -721,6 +724,7 @@ def _parse_markdown_chapters(md_text: str) -> list[dict]:
 @app.get("/epub/{job_id}")
 def download_epub(job_id: str):
     """Build and return an EPUB file for a completed translation."""
+    job_id = _safe_job_id(job_id)
     from ..epub_builder import build_epub
 
     # ── Locate the translated Markdown file ──
