@@ -455,9 +455,14 @@ def main():
     print(f"=== Seed Westward Echo from Analyze Echo ===")
     print(f"Novel: {novel_key}")
 
+    # ── book_id 单一事实来源：run_novel.py 的 NOVELS 注册表 ──
+    # 翻译（TranslationAgent）和播种（这里）必须用同一个 book_id，否则
+    # 术语存进中文 book_id 分区、翻译去英文 book_id 分区读，播种白做。
+    from scripts.run_novel import NOVELS as _NOVELS
+    book_id = _NOVELS.get(novel_key, {}).get("book_id", novel_key)
+
     # Load extraction
     extraction = load_extraction(novel_key)
-    book_id = extraction.get("book_id", novel_key)
     stats = extraction.get("stats", {})
     print(f"Book: {book_id}")
     print(f"Stats: {stats.get('terms', '?')} terms, "
