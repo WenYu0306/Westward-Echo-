@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+from ...config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
 from ...stats import TranslationStats
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
@@ -44,8 +44,8 @@ def readback_node(state: TranslatorState) -> dict:
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
         model=MODEL_MAP["readback"],
-        api_key=state.get("api_key") or DEEPSEEK_API_KEY,  # type: ignore[arg-type]
-        base_url=DEEPSEEK_BASE_URL,
+        api_key=state.get("api_key") or LLM_API_KEY,  # type: ignore[arg-type]
+        base_url=LLM_BASE_URL,
         temperature=0.1,
         max_tokens=2048,
         request_timeout=120,

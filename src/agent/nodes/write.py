@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+from ...config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, MODEL_MAP
 from ...job_store import job_store
 from ...stats import TranslationStats
 from ..prompts.registry import get_prompt_set
@@ -36,13 +36,13 @@ def write_node(state: TranslatorState) -> dict:
     """
     chapter_number = state["chapter_number"]
     flash = state.get("use_flash_writer", False)
-    model_id = "deepseek-chat" if flash else MODEL_MAP["translate"]
-    api_key = state.get("api_key") or DEEPSEEK_API_KEY
+    model_id = LLM_MODEL if flash else MODEL_MAP["translate"]
+    api_key = state.get("api_key") or LLM_API_KEY
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
         model=model_id,
         api_key=api_key,  # type: ignore[arg-type]
-        base_url=DEEPSEEK_BASE_URL,
+        base_url=LLM_BASE_URL,
         temperature=0.3,
         max_tokens=8192,
         request_timeout=120,

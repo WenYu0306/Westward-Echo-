@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+from ...config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
 from ...cultural_rules import format_rules_as_bullets, load_rules
 from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
@@ -84,11 +84,11 @@ def read_node(
         - read_analysis: the READ agent's structured analysis (JSON)
         - context_signals: aggregated context signal text
     """
-    api_key = state.get("api_key") or DEEPSEEK_API_KEY
+    api_key = state.get("api_key") or LLM_API_KEY
     llm = ChatOpenAI(  # type: ignore[call-arg]
         model=MODEL_MAP.get("read", MODEL_MAP["translate"]),
         api_key=api_key,  # type: ignore[arg-type]
-        base_url=DEEPSEEK_BASE_URL,
+        base_url=LLM_BASE_URL,
         temperature=0.3,
         max_tokens=4096,
         request_timeout=120,

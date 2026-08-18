@@ -14,13 +14,22 @@ OUTPUT_DIR = ROOT_DIR / "output"
 
 VERSION = "0.16.0"
 
-# --- DeepSeek V4 (primary LLM) ---
+# --- LLM provider (pluggable) ---
+# Default provider is DeepSeek. Override LLM_BASE_URL / LLM_API_KEY /
+# LLM_MODEL to switch the whole pipeline to another OpenAI-compatible
+# provider (e.g. Qwen: https://dashscope.aliyuncs.com/compatible-mode/v1,
+# model "qwen-plus"). Leave unset to fall back to DeepSeek.
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
 DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro")
 DEEPSEEK_CHAT_MODEL = os.getenv("DEEPSEEK_CHAT_MODEL", "deepseek-chat")
+
+# Unified LLM override (takes precedence over DeepSeek defaults)
+LLM_API_KEY = os.getenv("LLM_API_KEY", "") or DEEPSEEK_API_KEY
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "") or DEEPSEEK_BASE_URL
+LLM_MODEL = os.getenv("LLM_MODEL", "") or DEEPSEEK_CHAT_MODEL
 
 # --- Anthropic Claude (optional arbitration) ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -86,9 +95,9 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # reasoning_content (burning ~1000+ tokens of "thinking" per call) and do not
 # reliably honor response_format json_object. Verified 2026-08-18.
 MODEL_MAP = {
-    "translate":              DEEPSEEK_CHAT_MODEL,  # WRITE agent
-    "translate_critical":     DEEPSEEK_CHAT_MODEL,  # Reserved (same tier as translate)
-    "read":                   DEEPSEEK_CHAT_MODEL,  # READ agent
-    "readback":               DEEPSEEK_CHAT_MODEL,  # Cold reader
-    "fix":                    DEEPSEEK_CHAT_MODEL,  # Editor
+    "translate":              LLM_MODEL,  # WRITE agent
+    "translate_critical":     LLM_MODEL,  # Reserved (same tier as translate)
+    "read":                   LLM_MODEL,  # READ agent
+    "readback":               LLM_MODEL,  # Cold reader
+    "fix":                    LLM_MODEL,  # Editor
 }
