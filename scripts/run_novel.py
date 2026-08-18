@@ -76,6 +76,19 @@ NOVELS = {
             | {total if total > 0 else 1}
         ),
     },
+    "yuannicanlanruyang": {
+        "name": "愿你灿烂如阳",
+        "path": "/Users/wenyudemac/Downloads/《愿你灿烂如阳》作者：花毛白.txt",
+        "genre": "urban",
+        "book_id": "yuannicanlanruyang",
+        "output_dir": "novels/output/yuannicanlanruyang_segmented",
+        "output_file": "yuannicanlanruyang_en.md",
+        "expected_chapters": 680,
+        "sample_points_fn": lambda total: (
+            frozenset(range(3, min(total, 30) + 1, 3))
+            | {total if total > 0 else 1}
+        ),
+    },
 }
 
 SEGMENT = 15  # chapters per checkpoint segment
@@ -83,11 +96,17 @@ SEGMENT = 15  # chapters per checkpoint segment
 
 def main():
     do_seed = "--seed" in sys.argv
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    # --limit N: compile only the first N chapters (for quick validation runs)
+    limit = None
+    for i, a in enumerate(sys.argv):
+        if a == "--limit" and i + 1 < len(sys.argv):
+            limit = int(sys.argv[i + 1])
+    args = [a for a in sys.argv[1:] if not a.startswith("--") and a != str(limit)]
 
     if len(args) < 1:
-        print("Usage: python3 scripts/run_novel.py <novel_key> [--seed]")
+        print("Usage: python3 scripts/run_novel.py <novel_key> [--seed] [--limit N]")
         print("  --seed  Pre-fill glossary and style memo from Analyze Echo before translating")
+        print("  --limit N  Compile only the first N chapters (validation)")
         print("Available novels:")
         for key, cfg in NOVELS.items():
             print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
@@ -112,6 +131,8 @@ def main():
     text, enc = detect_and_read(cfg["path"])
     chapters = split_chapters(text)
     chapters = [c for c in chapters if c.action != ParagraphTag.SKIP]
+    if limit:
+        chapters = chapters[:limit]
     total_chapters = len(chapters)
     expected = cfg.get("expected_chapters")
 
