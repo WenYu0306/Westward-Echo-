@@ -72,15 +72,19 @@ MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))  # 50MB default
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # --- Per-node model routing ---
-# READ keeps Pro because cultural analysis is the hardest cognitive task —
-# misidentifying an image gap or cultural bridge degrades the entire pipeline.
-# WRITE, READBACK, and FIX use Flash: the quality delta is small (<5% in A/B
-# testing) while Pro hangs on large inputs (confirmed: DeepSeek V4 Pro accepts
-# the connection but never sends a complete response for multi-thousand-char
-# prompts with JSON output).  Flash costs 3× less and completes reliably.
+# All nodes use deepseek-chat (the preview/stable V4 Flash alias). This is
+# deliberately NOT split into per-node Pro/Flash, despite the original plan:
 #
-# deepseek-v4-flash:  $0.14/M input,  $0.28/M output
-# deepseek-v4-pro:    $0.435/M input, $0.87/M output (but hangs on large prompts)
+# - deepseek-v4-flash (the OFFICIAL V4 Flash name) had output issues in
+#   Westward Echo — reverted back to deepseek-chat (2026-08-17).
+# - deepseek-v4-pro hangs on large multi-thousand-char prompts with JSON
+#   output, and is 3× more expensive.
+# - deepseek-chat is the only model name that is stable + reasonably priced
+#   for Westward Echo's strict-JSON pipeline.
+#
+# Do NOT switch to glm-* or kimi-k2.6: they are reasoning models that emit
+# reasoning_content (burning ~1000+ tokens of "thinking" per call) and do not
+# reliably honor response_format json_object. Verified 2026-08-18.
 MODEL_MAP = {
     "translate":              DEEPSEEK_CHAT_MODEL,  # WRITE agent
     "translate_critical":     DEEPSEEK_CHAT_MODEL,  # Reserved (same tier as translate)
