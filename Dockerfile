@@ -2,8 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl \
+# 换清华源：国内服务器直连 deb.debian.org 会卡死（实测 apt update 单步超 10 分钟）
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+    && echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ trixie main" > /etc/apt/sources.list \
+    && echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ trixie-updates main" >> /etc/apt/sources.list \
+    && echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian-security/ trixie-security main" >> /etc/apt/sources.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Layer 1: pip install (cached unless requirements.txt changes)
