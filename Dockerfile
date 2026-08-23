@@ -7,8 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Layer 1: pip install (cached unless requirements.txt changes)
+# 阿里云 pip 源：服务器在国内，直连 PyPI 会卡死
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 # Layer 2: source code (changes most often)
 COPY src/ ./src/
