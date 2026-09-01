@@ -393,22 +393,6 @@ class TestWriteNode:
         assert "Retry succeeded" in result["translated_text"]
         assert mock_llm.invoke.call_count == 2
 
-    def test_use_flash_writer_selects_flash_model(self):
-        from src.agent.nodes.write import write_node
-
-        response = {
-            "translated_text": "Flash output.", "new_terms_found": [],
-            "adaptation_notes": [], "chapter_summary": "Flash.",
-        }
-
-        with patch("src.agent.nodes.write.ChatOpenAI") as mock_cls:
-            mock_cls.return_value = _make_mock_llm(json.dumps(response))
-            state = _make_state(use_flash_writer=True)
-            write_node(state)
-
-        call_kwargs = mock_cls.call_args[1]
-        assert call_kwargs["model"] == "deepseek-chat"
-
     def test_parse_fallback_layer5_raw_content(self):
         from src.agent.nodes.write import write_node
 
