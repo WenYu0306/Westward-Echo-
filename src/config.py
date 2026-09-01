@@ -31,6 +31,14 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "") or DEEPSEEK_API_KEY
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "") or DEEPSEEK_BASE_URL
 LLM_MODEL = os.getenv("LLM_MODEL", "") or DEEPSEEK_CHAT_MODEL
 
+# READ node provider — DeepSeek for stronger Chinese cultural understanding
+# (catch puns, understand birth-order names like 王三). WRITE/READBACK/FIX
+# stay on the primary provider (Qwen) for fluent English + strict JSON.
+# Override READ_* to point the READ node elsewhere without moving the rest.
+READ_MODEL = os.getenv("READ_MODEL", "") or DEEPSEEK_CHAT_MODEL
+READ_API_KEY = os.getenv("READ_API_KEY", "") or DEEPSEEK_API_KEY
+READ_BASE_URL = os.getenv("READ_BASE_URL", "") or DEEPSEEK_BASE_URL
+
 # --- Anthropic Claude (optional arbitration) ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -95,9 +103,9 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # reasoning_content (burning ~1000+ tokens of "thinking" per call) and do not
 # reliably honor response_format json_object. Verified 2026-08-18.
 MODEL_MAP = {
-    "translate":              LLM_MODEL,  # WRITE agent
-    "translate_critical":     LLM_MODEL,  # Reserved (same tier as translate)
-    "read":                   LLM_MODEL,  # READ agent
-    "readback":               LLM_MODEL,  # Cold reader
-    "fix":                    LLM_MODEL,  # Editor
+    "translate":              LLM_MODEL,   # WRITE agent (primary provider, Qwen)
+    "translate_critical":     LLM_MODEL,   # FIX agent (primary provider, Qwen)
+    "read":                   READ_MODEL,  # READ agent (DeepSeek — cultural understanding)
+    "readback":               LLM_MODEL,   # Cold reader (primary provider, Qwen)
+    "fix":                    LLM_MODEL,   # Editor (primary provider, Qwen)
 }
