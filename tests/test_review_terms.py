@@ -23,6 +23,7 @@ def _mock_review(monkeypatch, review_json):
         "src.agent.nodes.review_terms.ChatOpenAI",
         lambda **kwargs: mock_llm,
     )
+    monkeypatch.setattr("src.agent.nodes.review_terms.LLM_API_KEY", "fake-key")
     return mock_llm
 
 
@@ -115,6 +116,7 @@ class TestReviewTerms:
             "src.agent.nodes.review_terms.ChatOpenAI",
             fake_factory,
         )
+        monkeypatch.setattr("src.agent.nodes.review_terms.LLM_API_KEY", "fake-key")
         review_terms_node(state)
         user_msg = [m for m in captured["messages"] if m.type == "human"][0]
         assert "South Mao, North Ma" in user_msg.content

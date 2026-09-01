@@ -108,3 +108,56 @@ class TestFidelityGate:
         )
         agent._post_process(result, "en-US")
         assert result["new_terms_found"][0]["term_en"] == "Qingfeng"
+
+
+class TestIsValidRendering:
+    def test_valid_renderings_pass(self):
+        from src.agent.fidelity import is_valid_rendering
+        assert is_valid_rendering("聋婆婆", "Deaf Granny") == (True, "")
+        assert is_valid_rendering("王三", "Wang San") == (True, "")
+        assert is_valid_rendering("996", "996 grind") == (True, "")
+
+    def test_empty_fails(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, _ = is_valid_rendering("聋婆婆", "")
+        assert ok is False
+
+    def test_chinese_fails(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("聋婆婆", "Deaf 婆婆")
+        assert ok is False
+        assert "Chinese" in reason
+
+    def test_tone_marked_pinyin_fails(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("聋婆婆", "Lóng Pópo")
+        assert ok is False
+        assert "pinyin" in reason
+
+    def test_stray_digit_fails(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("王三", "M3")
+        assert ok is False
+        assert "digit" in reason
+
+
+class TestCurationGate:
+    def test_invalid_terms_dropped_before_caching(self):
+        agent = _agent()
+        captured = {}
+        agent.exact_store.add_batch = lambda terms, **k: captured.update(exact=terms)
+        agent.semantic_store.add_batch = lambda terms, **k: captured.update(semantic=terms)
+
+        result = _result(
+            translated_text="Wang San lived in the village.",
+            read_decisions=[],
+            new_terms=[
+                {"term_cn": "聋婆婆", "term_en": "Lóng Pópo", "category": "character"},
+                {"term_cn": "王三", "term_en": "Wang San", "category": "character"},
+            ],
+        )
+        agent._post_process(result, "en-US")
+
+        # The tone-marked pinyin rendering must be dropped, not cached.
+        semantic_terms = captured.get("semantic", [])
+        assert [t["term_en"] for t in semantic_terms] == ["Wang San"]

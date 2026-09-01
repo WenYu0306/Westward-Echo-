@@ -26,7 +26,7 @@ from .nodes.read import read_node
 from .nodes.readback import readback_node
 from .nodes.review_terms import review_terms_node
 from .nodes.write import write_node
-from .fidelity import check_cultural_fidelity, is_single_rendering
+from .fidelity import check_cultural_fidelity, is_single_rendering, is_valid_rendering
 from .state import TranslatorState
 
 logger = logging.getLogger(__name__)
@@ -496,6 +496,23 @@ class TranslationAgent:
                         chapter_number, cn, t.get("term_en", ""), read_en,
                     )
                     t["term_en"] = read_en
+
+        # ── Hard curation gate: drop obviously-invalid renderings ──
+        # A rendering that is empty, contains Chinese, tone-marked pinyin, or
+        # a stray digit must not be cached — it would be locked in as "must
+        # use" for the whole book.
+        if new_terms:
+            kept = []
+            for t in new_terms:
+                ok, reason = is_valid_rendering(t.get("term_cn", ""), t.get("term_en", ""))
+                if ok:
+                    kept.append(t)
+                else:
+                    logger.warning(
+                        "CURATION GATE ch%d: dropping '%s' → '%s' (%s)",
+                        chapter_number, t.get("term_cn", ""), t.get("term_en", ""), reason,
+                    )
+            new_terms = kept
 
         if new_terms:
             # Write character/location terms to exact store

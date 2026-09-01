@@ -100,6 +100,11 @@ def review_terms_node(state: TranslatorState) -> dict:
     if not to_review:
         return {}
 
+    # No key → no review (dev/test mode). Fail-safe, like the invoke() guard.
+    if not LLM_API_KEY:
+        logger.warning("REVIEW_TERMS: no LLM key configured, skipping review")
+        return {}
+
     llm = ChatOpenAI(  # type: ignore[call-arg]
         model=LLM_MODEL,
         api_key=LLM_API_KEY,  # type: ignore[arg-type]

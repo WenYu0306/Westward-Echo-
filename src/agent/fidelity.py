@@ -49,6 +49,33 @@ def is_single_rendering(proposed_en: str) -> bool:
     return "/" not in proposed_en and "—" not in proposed_en and " - " not in proposed_en
 
 
+# Tone-marked Latin vowels — the tell of a pinyin transliteration (Lóng Pópo).
+_TONE_MARKED = frozenset("áàǎāéèěēíìǐīóòǒōúùǔūǘǜǚǖü")
+
+
+def is_valid_rendering(term_cn: str, term_en: str) -> tuple[bool, str]:
+    """Hard rule-check for whether a term's English rendering is acceptable.
+
+    This is the deterministic gate (unlike the LLM review node): a rendering
+    that fails here is *obviously* wrong and must not be cached into the
+    glossary, where it would be locked in as "must use" for the whole book.
+
+    Returns (ok, reason). ``ok`` is False when the rendering is empty, contains
+    Chinese, contains tone-marked pinyin, or contains a digit that the source
+    term doesn't have.
+    """
+    en = term_en.strip()
+    if not en:
+        return False, "empty rendering"
+    if any("一" <= ch <= "鿿" for ch in en):
+        return False, "contains Chinese"
+    if any(ch in _TONE_MARKED for ch in en):
+        return False, "contains tone-marked pinyin"
+    if any(ch.isdigit() for ch in en) and not any(ch.isdigit() for ch in term_cn):
+        return False, "digit appeared that the source doesn't have"
+    return True, ""
+
+
 def check_cultural_fidelity(read_analysis: dict, translated_text: str) -> list[str]:
     """Return fidelity-failure strings; empty list means nothing was violated.
 
