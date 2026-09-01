@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, MODEL_MAP
+from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
 from ..prompts.registry import get_prompt_set
@@ -78,6 +79,14 @@ def write_node(state: TranslatorState) -> dict:
         rejected_text = "(No human-rejected terms.)"
 
     regional_style = LANGUAGE_STYLE_NOTES.get(target_lang, "")
+    fidelity_all = load_fidelity_rules(target_lang)
+    fidelity_brief = {
+        k: v for k, v in fidelity_all.items()
+        if k in ("character_names", "terms_of_address")
+    }
+    fidelity_text = format_fidelity_for_prompt(
+        fidelity_brief,
+    ) or "(No cultural fidelity rules for this language.)"
     image_gaps_text = _format_image_gaps(state.get("image_gaps", []))
 
     memo = state.get("style_memo", "(No style memo yet — this is the first chapter.)")
@@ -95,6 +104,7 @@ def write_node(state: TranslatorState) -> dict:
         confirmed_terms=confirmed_text,
         rejected_terms=rejected_text,
         regional_style=regional_style if regional_style else "(Standard American English.)",
+        fidelity_rules=fidelity_text,
         chapter_content=state["chapter_content"],
     )
 

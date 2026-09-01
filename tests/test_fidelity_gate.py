@@ -1,0 +1,80 @@
+"""Tests for the fidelity gate — drifted terms are corrected before caching."""
+
+from src.agent.graph import TranslationAgent
+
+
+def _agent():
+    agent = TranslationAgent(book_id="test_fidelity_gate")
+    agent.style_memo.update_from_read_analysis = lambda *a, **k: None
+    agent.style_memo.update_from_feedback = lambda *a, **k: None
+    agent.exact_store.add_batch = lambda *a, **k: None
+    agent.semantic_store.add_batch = lambda *a, **k: None
+    return agent
+
+
+def _result(translated_text, read_decisions, new_terms):
+    return {
+        "chapter_number": 1,
+        "translated_text": translated_text,
+        "read_analysis": {"terminology_decisions": read_decisions},
+        "new_terms_found": new_terms,
+        "readback_feedback": {},
+        "quality_issues": [],
+        "adaptation_notes": [],
+        "chapter_summary": "",
+    }
+
+
+class TestFidelityGate:
+    def test_drifted_term_corrected_to_read_decision(self):
+        agent = _agent()
+        result = _result(
+            translated_text="Lóng Pópo lived in the village.",
+            read_decisions=[{"term_cn": "聋婆婆", "proposed_en": "Deaf Granny"}],
+            new_terms=[{"term_cn": "聋婆婆", "term_en": "Lóng Pópo", "category": "character"}],
+        )
+
+        agent._post_process(result, "en-US")
+
+        assert result["new_terms_found"][0]["term_en"] == "Deaf Granny"
+
+    def test_matching_term_untouched(self):
+        agent = _agent()
+        result = _result(
+            translated_text="Deaf Granny lived in the village.",
+            read_decisions=[{"term_cn": "聋婆婆", "proposed_en": "Deaf Granny"}],
+            new_terms=[{"term_cn": "聋婆婆", "term_en": "Deaf Granny", "category": "character"}],
+        )
+
+        agent._post_process(result, "en-US")
+
+        assert result["new_terms_found"][0]["term_en"] == "Deaf Granny"
+
+    def test_term_without_read_decision_untouched(self):
+        agent = _agent()
+        result = _result(
+            translated_text="Wang San lived in the village.",
+            read_decisions=[],
+            new_terms=[{"term_cn": "王三", "term_en": "Wang San", "category": "character"}],
+        )
+
+        agent._post_process(result, "en-US")
+
+        assert result["new_terms_found"][0]["term_en"] == "Wang San"
+
+    def test_long_descriptive_read_rendering_not_forced(self):
+        # A long descriptive rendering is an explanation, not a cached token —
+        # the gate must not overwrite WRITE's term_en with it.
+        agent = _agent()
+        result = _result(
+            translated_text="the medium served the fox spirit.",
+            read_decisions=[{
+                "term_cn": "出马弟子",
+                "proposed_en": "a spirit medium who serves a court of fox, weasel, and snake spirits",
+            }],
+            new_terms=[{"term_cn": "出马弟子", "term_en": "spirit medium", "category": "culture"}],
+        )
+
+        agent._post_process(result, "en-US")
+
+        assert result["new_terms_found"][0]["term_en"] == "spirit medium"

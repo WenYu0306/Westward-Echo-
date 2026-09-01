@@ -212,3 +212,66 @@ def format_rules_as_bullets(rules: dict) -> str:
         else:
             bullets.append(f'- {cn_term} → "{target}"')
     return "\n".join(bullets)
+
+
+def load_fidelity_rules(target_lang: str = "en-US",
+                        path: Optional[str] = None) -> dict:
+    """Load strategy-level cultural-fidelity rules for a target language.
+
+    Unlike :func:`load_rules` (term-level mappings), these are category-level
+    rules — how to translate a CLASS of terms (names, honorifics, worldview
+    terms), not what a specific word means.
+
+    Parameters
+    ----------
+    target_lang : str
+        Language-region code, e.g. ``"en-US"``.
+    path : str or None
+        Override the JSON file path.
+
+    Returns
+    -------
+    dict
+        ``{category: {rule: str, examples: [{cn, do, why}]}}``, or ``{}`` if
+        no fidelity rules are defined for the language.
+    """
+    data = _load_raw_data(path)
+    return data.get("fidelity", {}).get(target_lang, {})
+
+
+def format_fidelity_for_prompt(rules: dict) -> str:
+    """Format fidelity rules as a compact prompt block for the READ agent.
+
+    Parameters
+    ----------
+    rules : dict
+        ``{category: {rule, examples}}`` as returned by
+        :func:`load_fidelity_rules`.
+
+    Returns
+    -------
+    str
+        A markdown block with one section per category: the rule plus one
+        worked example. Returns ``""`` when *rules* is empty.
+    """
+    if not rules:
+        return ""
+
+    sections = []
+    for category, entry in rules.items():
+        rule = entry.get("rule", "")
+        if not rule:
+            continue
+        title = category.replace("_", " ").title()
+        lines = [f"### {title}", rule]
+        for ex in entry.get("examples", [])[:1]:
+            cn = ex.get("cn", "")
+            do = ex.get("do", "")
+            why = ex.get("why", "")
+            line = f"  e.g. {cn} → {do}"
+            if why:
+                line += f"  ({why})"
+            lines.append(line)
+        sections.append("\n".join(lines))
+
+    return "\n\n".join(sections)

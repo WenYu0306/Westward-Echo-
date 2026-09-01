@@ -8,10 +8,12 @@ import pytest
 
 from src.cultural_rules import (
     detect_genre,
+    format_fidelity_for_prompt,
     format_rules_as_bullets,
     format_rules_for_prompt,
     is_known_genre,
     list_known_genres,
+    load_fidelity_rules,
     load_rules,
 )
 
@@ -142,3 +144,63 @@ class TestFormatRules:
         assert "穿越" in text
         assert "transmigration" in text
         assert "Isekai-like" in text
+
+
+@pytest.fixture
+def fidelity_file():
+    """Create a minimal cultural_rules.json with a fidelity partition."""
+    data = {
+        "fidelity": {
+            "en-US": {
+                "character_names": {
+                    "rule": "Meaningful names must be translated, plain names kept in pinyin.",
+                    "examples": [
+                        {"cn": "聋婆婆", "do": "Deaf Granny", "why": "pun"},
+                        {"cn": "华九难", "do": "Hua Jiunan", "why": "plain"},
+                    ],
+                },
+                "terms_of_address": {
+                    "rule": "Convey relationship + status + closeness.",
+                    "examples": [{"cn": "白月光", "do": "unattainable first love", "why": ""}],
+                },
+            },
+        },
+    }
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as f:
+        json.dump(data, f)
+        path = f.name
+    yield path
+    Path(path).unlink()
+
+
+class TestFidelityRules:
+    def test_load_fidelity_rules(self, fidelity_file):
+        rules = load_fidelity_rules("en-US", path=fidelity_file)
+        assert "character_names" in rules
+        assert "terms_of_address" in rules
+        assert rules["character_names"]["rule"]
+        assert len(rules["character_names"]["examples"]) == 2
+
+    def test_load_fidelity_unknown_lang(self, fidelity_file):
+        rules = load_fidelity_rules("es-ES", path=fidelity_file)
+        assert rules == {}
+
+    def test_load_fidelity_from_real_file(self):
+        # The real cultural_rules.json has the full 8-category fidelity set.
+        rules = load_fidelity_rules("en-US")
+        assert "character_names" in rules
+        assert "terms_of_address" in rules
+        assert "worldview_terms" in rules
+        assert "implicit_values" in rules
+        assert "wordplay" in rules
+
+    def test_format_fidelity_empty(self):
+        assert format_fidelity_for_prompt({}) == ""
+
+    def test_format_fidelity_for_prompt(self, fidelity_file):
+        rules = load_fidelity_rules("en-US", path=fidelity_file)
+        text = format_fidelity_for_prompt(rules)
+        assert "Character Names" in text
+        assert "Meaningful names must be translated" in text
+        assert "聋婆婆" in text
+        assert "Deaf Granny" in text

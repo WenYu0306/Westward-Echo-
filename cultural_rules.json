@@ -1323,5 +1323,65 @@
         }
       }
     }
+  },
+  "fidelity": {
+    "en-US": {
+      "character_names": {
+        "rule": "A character name that carries a pun, meaning, allusion, or any author-designed significance MUST be rendered in English with its meaning conveyed: translate the meaning and reveal the pun in one short line on first appearance. Only a plain name with no hidden meaning may be kept in pinyin. Never leave a meaningful name as bare pinyin.",
+        "examples": [
+          {"cn": "聋婆婆", "do": "Deaf Granny — her snake spirit is called a little dragon, and 'dragon' sounds like 'deaf'", "why": "The name is a pun (聋/deaf ≈ 龙/dragon) the author deliberately planted"},
+          {"cn": "华九难", "do": "Hua Jiunan", "why": "A plain personal name with no pun or hidden meaning"}
+        ]
+      },
+      "terms_of_address": {
+        "rule": "Terms of address must convey relationship + status + closeness. Never keep a term in pinyin or translate it literally into something English has no equivalent for. Kinship, honorific, sect/martial, and webnovel relationship words must become English relationship words the reader instantly grasps.",
+        "examples": [
+          {"cn": "白月光", "do": "the girl he could never have / his unattainable first love", "why": "Not 'white moonlight' — that means nothing to an American reader"},
+          {"cn": "师尊", "do": "Master (honorific for one's cultivation teacher)", "why": "Bare pinyin 'Shizun' loses the teacher-disciple reverence"}
+        ]
+      },
+      "worldview_terms": {
+        "rule": "Worldview terms (cultivation, wuxia, folk religion, imperial bureaucracy) get one of two treatments: if the reader must understand it to follow the plot, domesticate it OR keep the Chinese word but explain it on first appearance; if it is pure atmosphere, keep the exotic flavor. Never hand the reader a bare pinyin label.",
+        "examples": [
+          {"cn": "出马弟子", "do": "a spirit medium who serves a court of fox, weasel, and snake spirits", "why": "The reader must picture what this person IS, not just see a label"},
+          {"cn": "金丹", "do": "the Golden Core stage (of cultivation)", "why": "Keep the exotic term as the selling point, but anchor it on first use"}
+        ]
+      },
+      "cultural_practices": {
+        "rule": "Festivals, rituals, and customs carry their value in the emotion and ritual weight behind them, not in the noun. Rebuild the scene with sensory detail so the reader FEELS the ritual's weight, rather than meeting an unfamiliar word.",
+        "examples": [
+          {"cn": "鬼节", "do": "the Ghost Festival — the night the dead walk among the living", "why": "The name alone gives no sense of the taboo and dread"},
+          {"cn": "压岁钱", "do": "lucky money in a red envelope", "why": "Convey the ritual, not just the noun"}
+        ]
+      },
+      "idioms_allusions": {
+        "rule": "Idioms, classical allusions, and proverbs die under literal translation. Use a natural English equivalent, or paraphrase the meaning. If an allusion is not instantly recognizable to an American, paraphrase what it MEANS.",
+        "examples": [
+          {"cn": "画蛇添足", "do": "gilding the lily", "why": "A natural English equivalent, not 'draw legs on a snake'"},
+          {"cn": "卧薪尝胆", "do": "he endured every humiliation to prepare his revenge", "why": "The historical allusion means nothing to an American reader without explanation"}
+        ]
+      },
+      "wordplay": {
+        "rule": "Puns, double meanings, character-splitting, and acrostics carry their value in the EFFECT, not the literal surface. Rebuild an equivalent effect in English even if it means a different joke. If no equivalent exists, reveal it outright ('the name was a pun on...'). Never hard-translate the surface and let the joke vanish.",
+        "examples": [
+          {"cn": "聋/龙 谐音", "do": "translate the meaning (Deaf) + reveal the pun ('dragon' sounds like 'deaf')", "why": "The pun is the author's craft; bare pinyin erases it"},
+          {"cn": "藏头诗", "do": "state it is an acrostic and translate the hidden message", "why": "The hidden message is the point, not the surface poem"}
+        ]
+      },
+      "implicit_values": {
+        "rule": "Values like face, filial piety, hierarchy, loyalty, and marriage norms are invisible but decide whether a character's motives make sense. Do NOT explain them (that breaks the read). Convey the pressure through scene, reaction, and interior monologue so the American reader FEELS the constraint and the character's behavior stays coherent.",
+        "examples": [
+          {"cn": "为了面子拼命", "do": "show the character's inner dread of losing face, not a narrator note 'this is face culture'", "why": "The motive must feel real, not explained"},
+          {"cn": "不敢违逆父母", "do": "show the internal struggle against filial duty", "why": "An American reader won't understand blind obedience without feeling its weight"}
+        ]
+      },
+      "symbolism": {
+        "rule": "Implicit meanings in numbers, colors, and symbolic objects (四=death, 红=joy, 白=mourning, 蝙蝠=fortune) must be surfaced when they drive the plot (taboos, gift-giving). When they are pure atmosphere, handle them lightly.",
+        "examples": [
+          {"cn": "送礼避「钟」", "do": "reveal the taboo: 'clock' sounds like 'attending a funeral'", "why": "The taboo is a plot point the reader must understand"},
+          {"cn": "红色喜庆", "do": "let the red carry its festive meaning through the scene", "why": "Pure atmosphere — no need to explain"}
+        ]
+      }
+    }
   }
 }

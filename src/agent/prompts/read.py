@@ -216,6 +216,13 @@ They may or may not apply to THIS chapter. Use them as hints, not rules. \
 Your own reading of the actual text is what matters.
 {cultural_rules_table}
 
+## CULTURAL FIDELITY RULES (STRATEGY — follow these when DECIDING how to translate)
+These are category-level strategy rules, not hints. They tell you HOW to \
+render names, honorifics, worldview terms, idioms, and other cultural \
+elements — even when the specific term is new to you. Apply them in your \
+terminology_decisions and bridge_guidance.
+{fidelity_rules}
+
 ## DETECTED SIGNALS (for reference only — may be wrong or incomplete)
 Automated scanners flagged the following in this chapter. Use as starting \
 points for your own investigation, not as conclusions.

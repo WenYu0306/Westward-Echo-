@@ -214,6 +214,9 @@ and how it should FEEL to an English viewer. Use it to inform your writing.
 ## REGIONAL STYLE NOTES
 {regional_style}
 
+## CULTURAL FIDELITY RULES (STRATEGY — follow for any name/term not already decided above)
+{fidelity_rules}
+
 ## SOURCE SCRIPT
 
 {chapter_content}

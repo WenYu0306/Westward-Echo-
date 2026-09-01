@@ -11,7 +11,12 @@ from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
-from ...cultural_rules import format_rules_as_bullets, load_rules
+from ...cultural_rules import (
+    format_fidelity_for_prompt,
+    format_rules_as_bullets,
+    load_fidelity_rules,
+    load_rules,
+)
 from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
 from ...stats import TranslationStats
@@ -102,6 +107,11 @@ def read_node(
     rules = load_rules(target_lang=target_lang, genre=genre)
     cultural_rules_bullets = format_rules_as_bullets(rules)
 
+    # Strategy-level cultural fidelity rules (how to render a CATEGORY of terms)
+    fidelity_rules = format_fidelity_for_prompt(
+        load_fidelity_rules(target_lang),
+    ) or "(No cultural fidelity rules for this language.)"
+
     # Aggregate context signals
     context_signals = _build_context_signals(state)
 
@@ -121,6 +131,7 @@ def read_node(
         cultural_rules_table=(
             cultural_rules_bullets if cultural_rules_bullets else "(No genre-specific rules.)"
         ),
+        fidelity_rules=fidelity_rules,
         context_signals=context_signals,
         chapter_content=state["chapter_content"],
     )

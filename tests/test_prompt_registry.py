@@ -92,8 +92,8 @@ class TestScriptSignature:
             style_memo="memo", chapter_number=1, chapter_title="T",
             genre="romance_ceo", target_language="en-US",
             previous_summary="prev", exact_matches="terms",
-            cultural_rules_table="rules", context_signals="signals",
-            chapter_content="source",
+            cultural_rules_table="rules", fidelity_rules="fidelity",
+            context_signals="signals", chapter_content="source",
         )
         assert "source" in out
 
@@ -103,7 +103,8 @@ class TestScriptSignature:
             chapter_number=1, chapter_title="T", genre="romance_ceo",
             exact_matches="terms", semantic_matches="sem", previous_summary="prev",
             confirmed_terms="conf", rejected_terms="rej",
-            regional_style="style", chapter_content="source",
+            regional_style="style", fidelity_rules="fidelity",
+            chapter_content="source",
         )
         assert "source" in out
 

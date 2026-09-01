@@ -25,6 +25,7 @@ from .nodes.fix import fix_node
 from .nodes.read import read_node
 from .nodes.readback import readback_node
 from .nodes.write import write_node
+from .fidelity import check_cultural_fidelity
 from .state import TranslatorState
 
 logger = logging.getLogger(__name__)
@@ -413,6 +414,21 @@ class TranslationAgent:
         chapter_number = result.get("chapter_number", 0)
         retries = result.get("retranslation_count", 0)
 
+        # ── Cultural fidelity check (rule-based, no LLM) ──
+        # READBACK is blind to the source, so it cannot catch a meaningful
+        # name being flattened to pinyin. Verify WRITE honored READ's
+        # terminology decisions; record failures for diagnosis.
+        fidelity_failures = check_cultural_fidelity(
+            result.get("read_analysis", {}),
+            result.get("translated_text", ""),
+        )
+        if fidelity_failures:
+            for failure in fidelity_failures:
+                logger.warning("FIDELITY ch%d: %s", chapter_number, failure)
+            result["quality_issues"] = (
+                list(result.get("quality_issues", [])) + fidelity_failures
+            )
+
         # ── Audit log: FORCED_ACCEPT when cold reader still says NEEDS_FIX ──
         # after max retries.  Without this log, we cannot diagnose whether
         # the chapter was too hard, the cold reader was too strict, or the
@@ -451,6 +467,28 @@ class TranslationAgent:
                 cn = t.get("term_cn", "")
                 if cn in term_notes and not t.get("note"):
                     t["note"] = term_notes[cn]
+
+        # ── Fidelity gate: prefer READ's rendering over WRITE's drift ──
+        # READ is the decision point (now guided by the fidelity rules).
+        # If WRITE recorded a different rendering (e.g. flattened a pun to
+        # pinyin), cache READ's decision instead — a wrong rendering persisted
+        # here would propagate to every subsequent chapter.
+        if new_terms and read_analysis:
+            read_en_by_cn = {}
+            for td in read_analysis.get("terminology_decisions", []):
+                cn = td.get("term_cn", "")
+                en = td.get("proposed_en", "")
+                if cn and en and len(en) <= 50:
+                    read_en_by_cn[cn] = en
+            for t in new_terms:
+                cn = t.get("term_cn", "")
+                read_en = read_en_by_cn.get(cn, "")
+                if read_en and read_en != t.get("term_en", ""):
+                    logger.warning(
+                        "FIDELITY GATE ch%d: '%s' WRITE='%s' READ='%s' — using READ",
+                        chapter_number, cn, t.get("term_en", ""), read_en,
+                    )
+                    t["term_en"] = read_en
 
         if new_terms:
             # Write character/location terms to exact store
