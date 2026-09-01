@@ -57,6 +57,52 @@ class TestCheckCulturalFidelity:
         failures = check_cultural_fidelity(analysis, text)
         assert len(failures) == 2
 
+    def test_suspicious_digit_rendering_flagged(self):
+        analysis = _analysis(_decision("王三", "M3"))
+        text = "M3 lived in the village."
+        failures = check_cultural_fidelity(analysis, text)
+        assert len(failures) == 1
+        assert "suspicious" in failures[0].lower()
+
+    def test_digit_in_source_not_flagged(self):
+        # A term whose source itself contains a digit (996) legitimately keeps
+        # the digit in its rendering — not suspicious.
+        analysis = _analysis(_decision("996", "996 grind"))
+        text = "the 996 grind wore him down."
+        failures = check_cultural_fidelity(analysis, text)
+        assert failures == []
+
+    def test_cut_decision_is_skipped(self):
+        # READ decided the term needs no rendering — not a failure to honor.
+        analysis = _analysis(_decision("王张氏", "(cut — no English rendering needed)"))
+        text = "The old woman lived in the village."
+        failures = check_cultural_fidelity(analysis, text)
+        assert failures == []
+
+    def test_case_insensitive_match(self):
+        # "Fox" must match "fox" in the output — case is not a fidelity signal.
+        analysis = _analysis(_decision("胡", "Fox"))
+        text = "the fox spirit watched from the shadows."
+        failures = check_cultural_fidelity(analysis, text)
+        assert failures == []
+
+    def test_culture_category_skipped(self):
+        # A culture term legitimately gets an equivalent rendering — not a drift.
+        analysis = _analysis(
+            _decision("南茅北马", "South Talisman, North Spirit-Horse", category="culture")
+        )
+        text = "The south had its talismans, the north its horse spirits."
+        failures = check_cultural_fidelity(analysis, text)
+        assert failures == []
+
+    def test_character_category_checked(self):
+        analysis = _analysis(
+            _decision("聋婆婆", "Deaf Granny", category="character")
+        )
+        text = "Lóng Pópo lived in the village."
+        failures = check_cultural_fidelity(analysis, text)
+        assert len(failures) == 1
+
 
 class TestPostProcessIntegration:
     def test_post_process_records_fidelity_failure(self):

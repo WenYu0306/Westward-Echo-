@@ -1327,10 +1327,11 @@
   "fidelity": {
     "en-US": {
       "character_names": {
-        "rule": "A character name that carries a pun, meaning, allusion, or any author-designed significance MUST be rendered in English with its meaning conveyed: translate the meaning and reveal the pun in one short line on first appearance. Only a plain name with no hidden meaning may be kept in pinyin. Never leave a meaningful name as bare pinyin.",
+        "rule": "A character name that carries a pun, meaning, allusion, or any author-designed significance MUST be rendered in English with its meaning conveyed: translate the meaning and reveal the pun in one short line on first appearance. Only a plain name with no hidden meaning may be kept in pinyin. Never leave a meaningful name as bare pinyin. A birth-order suffix in a name (王三=third son of the Wang family, 李四, 张五) is a RANK, not a number: render it as 'Wang San' or 'Third Wang', never as a letter+digit like 'M3'.",
         "examples": [
           {"cn": "聋婆婆", "do": "Deaf Granny — her snake spirit is called a little dragon, and 'dragon' sounds like 'deaf'", "why": "The name is a pun (聋/deaf ≈ 龙/dragon) the author deliberately planted"},
-          {"cn": "华九难", "do": "Hua Jiunan", "why": "A plain personal name with no pun or hidden meaning"}
+          {"cn": "华九难", "do": "Hua Jiunan", "why": "A plain personal name with no pun or hidden meaning"},
+          {"cn": "王三", "do": "Wang San / Third Wang", "why": "三 is his birth-order rank (third son), not a number to encode"}
         ]
       },
       "terms_of_address": {

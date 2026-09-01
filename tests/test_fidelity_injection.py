@@ -114,3 +114,13 @@ class TestWriteInjection:
         # WRITE gets only the brief subset, not the full 8
         assert "Implicit Values" not in text
         assert "Wordplay" not in text
+
+
+class TestCoverageMandate:
+    def test_read_system_mandates_full_terminology_coverage(self):
+        from src.agent.prompts.read import READ_SYSTEM
+        assert "COVERAGE IS MANDATORY" in READ_SYSTEM
+
+    def test_script_read_system_mandates_full_terminology_coverage(self):
+        from src.agent.prompts.script_read import SCRIPT_READ_SYSTEM
+        assert "COVERAGE IS MANDATORY" in SCRIPT_READ_SYSTEM

@@ -78,3 +78,33 @@ class TestFidelityGate:
         agent._post_process(result, "en-US")
 
         assert result["new_terms_found"][0]["term_en"] == "spirit medium"
+
+    def test_gate_skips_slash_rendering(self):
+        # READ's "Chuma Shaman / spirit medium" is multi-candidate — do NOT
+        # overwrite WRITE's clean "Chuma shaman" with it.
+        agent = _agent()
+        result = _result(
+            translated_text="the Chuma shaman served the spirits.",
+            read_decisions=[{
+                "term_cn": "出马弟子",
+                "proposed_en": "Chuma Shaman / spirit medium",
+            }],
+            new_terms=[{"term_cn": "出马弟子", "term_en": "Chuma shaman", "category": "culture"}],
+        )
+        agent._post_process(result, "en-US")
+        assert result["new_terms_found"][0]["term_en"] == "Chuma shaman"
+
+    def test_gate_skips_explanatory_rendering(self):
+        # READ's "Qingfeng — the spirits of..." is explanatory — do NOT
+        # overwrite WRITE's clean "Qingfeng" with it.
+        agent = _agent()
+        result = _result(
+            translated_text="Qingfeng wandered the hall.",
+            read_decisions=[{
+                "term_cn": "清风",
+                "proposed_en": "Qingfeng — the spirits of the violently dead",
+            }],
+            new_terms=[{"term_cn": "清风", "term_en": "Qingfeng", "category": "character"}],
+        )
+        agent._post_process(result, "en-US")
+        assert result["new_terms_found"][0]["term_en"] == "Qingfeng"

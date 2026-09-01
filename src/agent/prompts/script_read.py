@@ -133,6 +133,14 @@ names must be consistent across all episodes — choose once, never drift.
 - For existing glossary terms: verify they still work in THIS episode's \
 context. If one doesn't, flag it — your reading overrides precedent.
 
+**COVERAGE IS MANDATORY.** Every named character and every term of address \
+in this episode — however minor — MUST get a terminology_decision with a \
+proposed_en. Leaving any name undecided is a failure, because the \
+SCREENWRITER will then invent a rendering on its own and break consistency \
+across episodes. Tag each decision with a `category`: character (person \
+names + terms of address), location (places), culture (concepts), technique \
+(skills), item (objects), era (periods).
+
 ## OUTPUT FORMAT
 
 Return a single JSON object — no preamble, no markdown fences:
@@ -169,6 +177,7 @@ humiliation, a ring hitting the floor, the silence after a slap. 3-6 vivid phras
     {
       "term_cn": "Chinese term",
       "proposed_en": "Proposed English rendering",
+      "category": "character|location|technique|culture|item|era",
       "reasoning": "Why this rendering works",
       "cultural_note": "What the SCREENWRITER needs to know \
 about how this term should feel in English"

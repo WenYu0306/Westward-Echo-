@@ -24,8 +24,9 @@ from ..glossary.semantic_store import SemanticGlossary
 from .nodes.fix import fix_node
 from .nodes.read import read_node
 from .nodes.readback import readback_node
+from .nodes.review_terms import review_terms_node
 from .nodes.write import write_node
-from .fidelity import check_cultural_fidelity
+from .fidelity import check_cultural_fidelity, is_single_rendering
 from .state import TranslatorState
 
 logger = logging.getLogger(__name__)
@@ -69,13 +70,15 @@ def build_graph(
         "read_node",
         lambda s: read_node(s, exact_store, semantic_store),
     )
+    builder.add_node("review_terms_node", review_terms_node)
     builder.add_node("write_node", write_node)
     builder.add_node("readback_node", readback_node)
     builder.add_node("fix_node", fix_node)
 
     # ── Edges ──
     builder.set_entry_point("read_node")
-    builder.add_edge("read_node", "write_node")
+    builder.add_edge("read_node", "review_terms_node")
+    builder.add_edge("review_terms_node", "write_node")
 
     # ── Conditional: skip READBACK in fast mode, otherwise quality check ──
     builder.add_conditional_edges(
@@ -483,7 +486,11 @@ class TranslationAgent:
             for t in new_terms:
                 cn = t.get("term_cn", "")
                 read_en = read_en_by_cn.get(cn, "")
-                if read_en and read_en != t.get("term_en", ""):
+                if (
+                    read_en
+                    and read_en != t.get("term_en", "")
+                    and is_single_rendering(read_en)
+                ):
                     logger.warning(
                         "FIDELITY GATE ch%d: '%s' WRITE='%s' READ='%s' — using READ",
                         chapter_number, cn, t.get("term_en", ""), read_en,

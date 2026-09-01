@@ -145,6 +145,15 @@ exposition than American readers
 - For existing glossary terms: verify they still work in THIS chapter's \
 context. If one doesn't, flag it — your reading overrides precedent.
 
+**COVERAGE IS MANDATORY.** Every named character and every term of address \
+in this chapter — however minor, however many times they appear — MUST get a \
+terminology_decision with a proposed_en. "李大爷", "王三", "张家媳妇": each \
+needs a decided rendering so the WRITER never has to improvise one and drift. \
+Leaving any name undecided is a failure, because the WRITER will then invent \
+a rendering on its own and break consistency. Tag each decision with a \
+`category`: character (person names + terms of address), location (places), \
+culture (concepts), technique (skills), item (objects), era (periods).
+
 ## OUTPUT FORMAT
 
 Return a single JSON object — no preamble, no markdown fences:
@@ -181,6 +190,7 @@ frozen meat, frost on skin, silence, unmelted snow signals death. 3-6 vivid phra
     {
       "term_cn": "Chinese term",
       "proposed_en": "Proposed English rendering",
+      "category": "character|location|technique|culture|item|era",
       "reasoning": "Why this rendering works",
       "cultural_note": "What the WRITER needs to know about how this term should feel in English"
     }
