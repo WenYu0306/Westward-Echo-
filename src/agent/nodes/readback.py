@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
+from ...config import LLM_API_KEY, LLM_BASE_URL, QWEN_MODEL, QWEN_THINKING_BUDGET
 from ...stats import TranslationStats
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
@@ -43,11 +43,12 @@ def readback_node(state: TranslatorState) -> dict:
         }
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=MODEL_MAP["readback"],
+        model=QWEN_MODEL,
         api_key=state.get("api_key") or LLM_API_KEY,  # type: ignore[arg-type]
         base_url=LLM_BASE_URL,
         temperature=0.1,
-        max_tokens=2048,
+        max_tokens=4096,
+        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=120,
         max_retries=0,
     )

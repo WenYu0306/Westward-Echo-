@@ -15,10 +15,10 @@ import httpx
 from .config import (
     CHECKPOINT_DB_PATH,
     CHROMA_PERSIST_PATH,
-    FLASH_MODEL,
     LLM_API_KEY,
     LLM_BASE_URL,
     OUTPUT_DIR,
+    QWEN_MODEL,
 )
 
 if TYPE_CHECKING:
@@ -182,9 +182,9 @@ class HealthChecker:
     def check_llm_api(self) -> dict:
         """Test the primary LLM provider with a minimal 1-token call.
 
-        Probes LLM_BASE_URL + FLASH_MODEL (the Qwen fast tier) — the same
-        OpenAI-compatible base_url the WRITE node uses, so this check reflects
-        whether translation will actually work, not the legacy DeepSeek path.
+        Probes LLM_BASE_URL + QWEN_MODEL (the Qwen 3.8 max judging tier) — the
+        same OpenAI-compatible base_url READBACK/REVIEW_TERMS use, so this
+        check reflects whether the judging nodes will actually work.
         """
         start = time.monotonic()
         try:
@@ -199,7 +199,7 @@ class HealthChecker:
             url = f"{base_url}/chat/completions"
 
             payload = {
-                "model": FLASH_MODEL,
+                "model": QWEN_MODEL,
                 "messages": [{"role": "user", "content": "Hi"}],
                 "max_tokens": 1,
                 "temperature": 0,

@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import MODEL_MAP, READ_API_KEY, READ_BASE_URL
+from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_FULL_MODEL, GLM_READ_EFFORT
 from ...cultural_rules import (
     format_fidelity_for_prompt,
     format_rules_as_bullets,
@@ -89,14 +89,15 @@ def read_node(
         - read_analysis: the READ agent's structured analysis (JSON)
         - context_signals: aggregated context signal text
     """
-    api_key = state.get("api_key") or READ_API_KEY
+    api_key = state.get("api_key") or GLM_API_KEY
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=MODEL_MAP.get("read", MODEL_MAP["translate"]),
+        model=GLM_FULL_MODEL,
         api_key=api_key,  # type: ignore[arg-type]
-        base_url=READ_BASE_URL,
+        base_url=GLM_BASE_URL,
         temperature=0.3,
-        max_tokens=4096,
-        request_timeout=120,
+        max_tokens=16384,
+        reasoning_effort=GLM_READ_EFFORT,
+        request_timeout=900,
         max_retries=0,
     )
 

@@ -24,8 +24,8 @@ def client():
     import src.api.routes as _routes
     _routes._has_celery = False
     from src import config
-    if not config.DEEPSEEK_API_KEY:
-        config.DEEPSEEK_API_KEY = "ci-test-key"
+    if not config.LLM_API_KEY:
+        config.LLM_API_KEY = "ci-test-key"
     from src.main import create_app
     return TestClient(create_app())
 
@@ -76,8 +76,8 @@ class TestTranslateValidation:
         import src.config as cfg
         text = "第一章 测试\n\n天空是灰色的。\n"
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(cfg, "DEEPSEEK_API_KEY", "")
-            # The fixture sets DEEPSEEK_API_KEY="ci-test-key"; clear it
+            mp.setattr(cfg, "LLM_API_KEY", "")
+            # The fixture sets LLM_API_KEY="ci-test-key"; clear it
             r = client.post(
                 "/api/translate",
                 files={"file": ("test.txt", _make_txt(text), "text/plain")},

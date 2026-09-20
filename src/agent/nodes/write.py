@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import FLASH_MODEL, LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
+from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_MODEL, GLM_WRITE_EFFORT
 from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
@@ -37,16 +37,16 @@ def write_node(state: TranslatorState) -> dict:
     """
     chapter_number = state["chapter_number"]
     flash = state.get("use_flash_writer", False)
-    model_id = FLASH_MODEL if flash else MODEL_MAP["translate"]
-    api_key = state.get("api_key") or LLM_API_KEY
+    api_key = state.get("api_key") or GLM_API_KEY
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=model_id,
+        model=GLM_MODEL,
         api_key=api_key,  # type: ignore[arg-type]
-        base_url=LLM_BASE_URL,
-        temperature=0.3,
-        max_tokens=8192,
-        request_timeout=120,
+        base_url=GLM_BASE_URL,
+        temperature=0.2,
+        max_tokens=16384,
+        reasoning_effort=GLM_WRITE_EFFORT,
+        request_timeout=300,
         max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )

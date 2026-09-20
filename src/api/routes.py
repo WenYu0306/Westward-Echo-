@@ -154,13 +154,13 @@ async def translate_novel(
             content={"error": "无效的 API Key 格式（应以 sk- 开头）"},
         )
     if not api_key:
-        from ..config import DEEPSEEK_API_KEY
-        if not DEEPSEEK_API_KEY:
+        from ..config import LLM_API_KEY
+        if not LLM_API_KEY:
             return JSONResponse(
                 status_code=400,
-                content={"error": "请提供 DeepSeek API Key，或配置服务器环境变量"},
+                content={"error": "请提供 LLM API Key，或配置服务器环境变量"},
             )
-        api_key = DEEPSEEK_API_KEY
+        api_key = LLM_API_KEY
 
     # ── Backpressure: reject new work if queue is full ──
     if not backpressure.try_accept():

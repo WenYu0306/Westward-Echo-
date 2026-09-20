@@ -17,6 +17,20 @@ def _reset_backpressure():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _reset_circuit_breakers():
+    """Reset the per-language circuit breaker registry before each test.
+
+    The circuit breaker is a module-level singleton keyed by language; a test
+    that trips "en-US" would otherwise leave it OPEN and poison downstream
+    tests that hit the same breaker through get_breaker().
+    """
+    from src.circuit_breaker import _breakers, _breakers_lock
+    with _breakers_lock:
+        _breakers.clear()
+    yield
+
+
 @pytest.fixture
 def mock_llm_response():
     """Return a valid translation JSON response that parse_llm_response can handle."""

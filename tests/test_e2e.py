@@ -23,8 +23,8 @@ _api_routes._has_celery = False
 @pytest.fixture
 def client():
     from src import config
-    if not config.DEEPSEEK_API_KEY:
-        config.DEEPSEEK_API_KEY = "ci-test-key"
+    if not config.LLM_API_KEY:
+        config.LLM_API_KEY = "ci-test-key"
     from src.main import create_app
 
     return TestClient(create_app())

@@ -18,7 +18,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from ...config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from ...config import LLM_API_KEY, LLM_BASE_URL, QWEN_MODEL, QWEN_THINKING_BUDGET
 from ..parse_utils import parse_llm_json
 from ..state import TranslatorState
 
@@ -106,11 +106,12 @@ def review_terms_node(state: TranslatorState) -> dict:
         return {}
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=LLM_MODEL,
+        model=QWEN_MODEL,
         api_key=LLM_API_KEY,  # type: ignore[arg-type]
         base_url=LLM_BASE_URL,
         temperature=0.1,
-        max_tokens=2048,
+        max_tokens=4096,
+        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=120,
         max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},

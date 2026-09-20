@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
+from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_FIX_EFFORT, GLM_FULL_MODEL
 from ...stats import TranslationStats
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
@@ -26,12 +26,13 @@ def fix_node(state: TranslatorState) -> dict:
         - adaptation_notes: what was changed and why
     """
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=MODEL_MAP["translate_critical"],  # Pro — editing needs precision
-        api_key=state.get("api_key") or LLM_API_KEY,  # type: ignore[arg-type]
-        base_url=LLM_BASE_URL,
+        model=GLM_FULL_MODEL,
+        api_key=state.get("api_key") or GLM_API_KEY,  # type: ignore[arg-type]
+        base_url=GLM_BASE_URL,
         temperature=0.1,
-        max_tokens=8192,
-        request_timeout=120,
+        max_tokens=16384,
+        reasoning_effort=GLM_FIX_EFFORT,
+        request_timeout=900,
         max_retries=0,
     )
 

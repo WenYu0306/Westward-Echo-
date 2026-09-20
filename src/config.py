@@ -14,32 +14,27 @@ OUTPUT_DIR = ROOT_DIR / "output"
 
 VERSION = "0.16.0"
 
-# --- LLM provider (pluggable) ---
-# Default provider is DeepSeek. Override LLM_BASE_URL / LLM_API_KEY /
-# LLM_MODEL to switch the whole pipeline to another OpenAI-compatible
-# provider (e.g. Qwen: https://dashscope.aliyuncs.com/compatible-mode/v1,
-# model "qwen-plus"). Leave unset to fall back to DeepSeek.
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_CHAT_MODEL = os.getenv("DEEPSEEK_CHAT_MODEL", "deepseek-chat")
+# --- LLM providers (2026-09 定案：全面弃 DeepSeek) ---
+# 两个 provider：
+#   - GLM（智谱）：文字思考（READ/FIX 用 full）+ 文字输出（WRITE 用 flash）
+#   - Qwen（通义千问）：读取判断（READBACK/REVIEW_TERMS 用 3.8-max）
 
-# Unified LLM override (takes precedence over DeepSeek defaults)
-LLM_API_KEY = os.getenv("LLM_API_KEY", "") or DEEPSEEK_API_KEY
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "") or DEEPSEEK_BASE_URL
-LLM_MODEL = os.getenv("LLM_MODEL", "") or DEEPSEEK_CHAT_MODEL
+# Qwen — 判断层（LLM_* 即 Qwen 的 key/base_url）
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3.8-max")
+QWEN_THINKING_BUDGET = int(os.getenv("QWEN_THINKING_BUDGET", "2048"))
 
-# Fast/cheap model for flash mode (bulk translation that skips READBACK).
-# Qwen's flash tier — same instruction-following contract as qwen-plus,
-# same OpenAI-compatible base_url, just cheaper for high-volume chapters.
-FLASH_MODEL = os.getenv("FLASH_MODEL", "qwen-3.8-flash")
+# GLM — 文字思考/输出
+GLM_API_KEY = os.getenv("GLM_API_KEY", "")
+GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+GLM_MODEL = os.getenv("GLM_MODEL", "glm-5.3-flash")       # WRITE 文字输出（便宜10倍）
+GLM_FULL_MODEL = os.getenv("GLM_FULL_MODEL", "glm-5.3")   # READ/FIX 文字思考（深度）
 
-# READ node provider — DeepSeek for stronger Chinese cultural understanding
-# (catch puns, understand birth-order names like 王三). WRITE/READBACK/FIX
-# stay on the primary provider (Qwen) for fluent English + strict JSON.
-# Override READ_* to point the READ node elsewhere without moving the rest.
-READ_MODEL = os.getenv("READ_MODEL", "") or DEEPSEEK_CHAT_MODEL
-READ_API_KEY = os.getenv("READ_API_KEY", "") or DEEPSEEK_API_KEY
-READ_BASE_URL = os.getenv("READ_BASE_URL", "") or DEEPSEEK_BASE_URL
+# 思考强度（GLM 用 reasoning_effort 档位；默认 max 贵 35 倍，必须显式设）
+GLM_READ_EFFORT = os.getenv("GLM_READ_EFFORT", "high")    # READ 深度理解找文化缺口
+GLM_WRITE_EFFORT = os.getenv("GLM_WRITE_EFFORT", "low")   # WRITE 忠实输出
+GLM_FIX_EFFORT = os.getenv("GLM_FIX_EFFORT", "high")      # FIX 深度修复
 
 # --- Anthropic Claude (optional arbitration) ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -91,20 +86,14 @@ MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))  # 50MB default
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # --- Per-node model routing ---
-# Split by role, not by Pro/Flash (the Pro/Flash split was never shipped):
-#   - READ runs on DeepSeek (READ_MODEL) for stronger Chinese cultural
-#     understanding — catching puns and birth-order names like 王三.
-#   - WRITE / READBACK / FIX / REVIEW_TERMS run on the primary provider
-#     (LLM_MODEL, default Qwen) for fluent English + strict JSON.
-#
-# Do NOT switch the strict-JSON nodes to glm-* or kimi-k2.6: they are
-# reasoning models that emit reasoning_content (burning ~1000+ tokens of
-# "thinking" per call) and do not reliably honor response_format json_object.
-# Verified 2026-08-18.
+# 按节点角色分 provider（2026-09 定案，全面弃 DeepSeek）：
+#   - READ / FIX：GLM 5.3（full）— 文字思考（找文化缺口 / 靶向修复）
+#   - WRITE：GLM 5.3 flash — 文字输出（忠实编译，便宜10倍）
+#   - READBACK / REVIEW_TERMS：Qwen 3.8 max — 读取判断
 MODEL_MAP = {
-    "translate":              LLM_MODEL,   # WRITE agent (primary provider, Qwen)
-    "translate_critical":     LLM_MODEL,   # FIX agent (primary provider, Qwen)
-    "read":                   READ_MODEL,  # READ agent (DeepSeek — cultural understanding)
-    "readback":               LLM_MODEL,   # Cold reader (primary provider, Qwen)
-    "fix":                    LLM_MODEL,   # Editor (primary provider, Qwen)
+    "read":          GLM_FULL_MODEL,  # READ — GLM 5.3 文字思考
+    "write":         GLM_MODEL,       # WRITE — GLM 5.3 flash 文字输出
+    "readback":      QWEN_MODEL,      # READBACK — Qwen 3.8 max 判断
+    "fix":           GLM_FULL_MODEL,  # FIX — GLM 5.3 文字思考
+    "review_terms":  QWEN_MODEL,      # REVIEW_TERMS — Qwen 3.8 max 判断
 }
