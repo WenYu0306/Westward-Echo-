@@ -2,7 +2,6 @@
 
 import json
 import logging
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,23 +48,3 @@ class _JSONFormatter(logging.Formatter):
 
 
 logger = setup_logging()
-
-
-# ── Helper decorator for task metrics ──
-
-def log_duration(name: str):
-    """Decorator that logs the duration of a function call."""
-    def decorator(fn):
-        def wrapper(*args, **kwargs):
-            start = time.monotonic()
-            try:
-                result = fn(*args, **kwargs)
-                elapsed = time.monotonic() - start
-                logger.info("%s completed in %.2fs", name, elapsed)
-                return result
-            except Exception:
-                elapsed = time.monotonic() - start
-                logger.error("%s failed after %.2fs", name, elapsed, exc_info=True)
-                raise
-        return wrapper
-    return decorator

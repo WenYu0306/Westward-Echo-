@@ -124,17 +124,6 @@ def _get_cn_chapter(job_id: str, chapter_num: int, total_chapters: int) -> Optio
     return None
 
 
-def _split_into_paragraph_pairs(cn_text: str, en_text: str) -> tuple[list[str], list[str]]:
-    """Split CN and EN text into aligned paragraph arrays.
-
-    Paragraphs are split on newlines. Both sides may have different counts
-    (translations can be longer/shorter). We present them as-is.
-    """
-    cn_paras = [p.strip() for p in cn_text.strip().split("\n") if p.strip()]
-    en_paras = [p.strip() for p in en_text.strip().split("\n") if p.strip()]
-    return cn_paras, en_paras
-
-
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 

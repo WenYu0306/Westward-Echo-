@@ -21,6 +21,7 @@ from src.circuit_breaker import (
     CircuitBreakerOpenError,
     _breakers,
     _breakers_lock,
+    get_all_breakers,
     get_breaker,
 )
 from src.error_tracker import get_event_summary, get_recent_issues, record_event
@@ -229,6 +230,48 @@ class TestCircuitBreakerEdgeCases:
             cb.call(lambda: "ok")  # recover
 
         assert cb._open_transitions == 3
+
+
+class TestCircuitBreakerDefaults:
+    """Default thresholds and recovery-timeout transitions (hardcoded values)."""
+
+    def test_default_threshold_recovery_window(self):
+        cb = CircuitBreaker(name="defaults")
+        assert cb._failure_threshold == 5
+        assert cb._recovery_timeout == 30.0
+        assert cb._window_seconds == 60.0
+
+    def test_get_breaker_uses_defaults(self):
+        cb = get_breaker("defaults-test-xyz")
+        assert cb._failure_threshold == 5
+        assert cb._recovery_timeout == 30.0
+        with _breakers_lock:
+            _breakers.pop("defaults-test-xyz", None)
+
+    def test_get_all_breakers_returns_snapshots(self):
+        get_breaker("gb-a")
+        get_breaker("gb-b")
+        snaps = get_all_breakers()
+        assert "gb-a" in snaps
+        assert "gb-b" in snaps
+        with _breakers_lock:
+            _breakers.pop("gb-a", None)
+            _breakers.pop("gb-b", None)
+
+    def test_is_open_false_when_recovery_due(self):
+        cb = _fresh_breaker(threshold=1, recovery=0.05)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
+        assert cb.is_open()          # OPEN before recovery window elapses
+        time.sleep(0.1)
+        assert not cb.is_open()      # recovery due → will probe
+
+    def test_snapshot_half_open_when_recovery_due(self):
+        cb = _fresh_breaker(threshold=1, recovery=0.05)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
+        time.sleep(0.1)
+        assert cb.snapshot()["state"] == "half_open"
 
 
 # ──────────────────────────────────────────────────────────────

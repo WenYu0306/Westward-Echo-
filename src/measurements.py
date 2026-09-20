@@ -130,28 +130,28 @@ def _example_for(phrase: str, unit: str) -> str:
         )
     elif unit == "万":
         if digits >= 100:
-            millions = digits * 10000 / 1_000_000
+            millions = converted / 1_000_000
             return (
-                f"- {phrase} → ~{_format_number(digits * 10000)} / "
+                f"- {phrase} → ~{friendly} / "
                 f"{_format_number(millions)}M "
                 f"(not \"{digits} ten thousand\")"
             )
         else:
             return (
-                f"- {phrase} → ~{_format_number(digits * 10000)} "
+                f"- {phrase} → ~{friendly} "
                 f"(not literally \"{digits} ten thousand\")"
             )
     elif unit == "亿":
         if digits >= 1:
-            billions = digits * 100_000_000 / 1_000_000_000
+            billions = converted / 1_000_000_000
             return (
-                f"- {phrase} → ~{_format_number(digits * 100_000_000)} / "
+                f"- {phrase} → ~{friendly} / "
                 f"{_format_number(billions)}B "
                 f"(not \"{digits} hundred million\")"
             )
         else:
             return (
-                f"- {phrase} → ~{_format_number(digits * 100_000_000)} "
+                f"- {phrase} → ~{friendly} "
                 f"(not literally \"{digits} hundred million\")"
             )
 

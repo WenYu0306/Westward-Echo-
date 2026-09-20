@@ -49,13 +49,6 @@ class TestJobCreate:
         assert job["total_chapters"] == 100
         assert job["status"] == "queued"
 
-    def test_create_job_with_content_type_script(self, store):
-        jid = store.create_job("script.txt", "en-US", 10,
-                               content_type="script", script_mode="dialogue")
-        job = store.get_job(jid)
-        assert job["content_type"] == "script"
-        assert job["script_mode"] == "dialogue"
-
     def test_create_job_with_project_id(self, store):
         jid = store.create_job("test.txt", "en-US", 5, project_id="proj01")
         job = store.get_job(jid)
@@ -65,7 +58,6 @@ class TestJobCreate:
         jid = store.create_job("x.txt", "en-US", 1)
         job = store.get_job(jid)
         assert job["content_type"] == "novel"
-        assert job["script_mode"] == "full"
         assert job["completed_chapters"] == 0
         assert job["tokens_input"] == 0
         assert job["tokens_output"] == 0
@@ -125,6 +117,7 @@ class TestJobQuery:
 
     def test_delete_nonexistent_job_no_error(self, store):
         store.delete_job("deadbeef")  # must not raise
+        assert store.get_job("deadbeef") is None  # idempotent: still absent
 
     def test_get_incomplete_jobs(self, store):
         jid = store.create_job("test.txt", "en-US", 10)

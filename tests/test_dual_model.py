@@ -5,8 +5,10 @@ import json
 from unittest.mock import MagicMock
 
 from src.config import (
+    FLASH_MODEL,
     LLM_BASE_URL,
     LLM_MODEL,
+    MODEL_MAP,
     READ_API_KEY,
     READ_BASE_URL,
     READ_MODEL,
@@ -83,3 +85,34 @@ class TestWriteUsesPrimaryProvider:
 
         assert captured["kwargs"]["model"] == LLM_MODEL
         assert captured["kwargs"]["base_url"] == LLM_BASE_URL
+
+
+class TestWriteFlashMode:
+    """flash mode (use_flash_writer=True) routes to FLASH_MODEL, not the primary."""
+
+    def _capture_write_model(self, monkeypatch, state):
+        from src.agent.nodes.write import write_node
+
+        content = json.dumps({
+            "translated_text": "Deaf Granny lived in the village.",
+            "chapter_title_en": "Ch1",
+            "new_terms_found": [],
+            "adaptation_notes": [],
+            "chapter_summary": "summary",
+        })
+        captured = {}
+        monkeypatch.setattr(
+            "src.agent.nodes.write.ChatOpenAI",
+            _capture_factory(captured, content),
+        )
+        write_node(state)
+        return captured["kwargs"]["model"]
+
+    def test_flash_mode_uses_flash_model(self, monkeypatch):
+        state = _minimal_state()
+        state["use_flash_writer"] = True
+        assert self._capture_write_model(monkeypatch, state) == FLASH_MODEL
+
+    def test_pro_mode_uses_primary_model(self, monkeypatch):
+        state = _minimal_state()  # use_flash_writer defaults to False
+        assert self._capture_write_model(monkeypatch, state) == MODEL_MAP["translate"]

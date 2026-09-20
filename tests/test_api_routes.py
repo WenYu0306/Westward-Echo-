@@ -72,15 +72,6 @@ class TestTranslateValidation:
         )
         assert r.status_code == 400
 
-    def test_invalid_script_mode_rejected(self, client):
-        text = "第一章 测试\n\n天空是灰色的。\n"
-        r = client.post(
-            "/api/translate",
-            files={"file": ("test.txt", _make_txt(text), "text/plain")},
-            data={"target_lang": "en-US", "script_mode": "bogus"},
-        )
-        assert r.status_code == 400
-
     def test_empty_api_key_rejected_when_no_server_key(self, client):
         import src.config as cfg
         text = "第一章 测试\n\n天空是灰色的。\n"
@@ -295,15 +286,6 @@ class TestMultiLang:
         )
         assert r.status_code == 400
 
-    def test_multi_rejects_invalid_script_mode(self, client):
-        text = "第一章 测试\n\n天空。\n"
-        r = client.post(
-            "/api/translate/multi",
-            files={"file": ("test.txt", _make_txt(text), "text/plain")},
-            data={"target_langs": "en-US,es-ES", "script_mode": "bogus"},
-        )
-        assert r.status_code == 400
-
     def test_multi_creates_project(self, client):
         text = "第一章 测试\n\n天空是灰色的。\n\n第二章 出发\n\n他推开了门。\n"
         r = client.post(
@@ -322,18 +304,6 @@ class TestMultiLang:
         # The _reset_backpressure fixture cleans the singleton after the
         # test, so wait briefly for threads to finish.
         for job in j["jobs"]:
-            client.delete(f"/api/jobs/{job['job_id']}")
-
-    def test_multi_script_content_type_auto_genre(self, client):
-        """When content_type=script, genre defaults to 'urban' not 'romance_ceo'."""
-        text = "第1集 穿书\n\n场景1：别墅/夜\n\n苏念醒来。\n"
-        r = client.post(
-            "/api/translate/multi",
-            files={"file": ("script.txt", _make_txt(text), "text/plain")},
-            data={"target_langs": "en-US", "content_type": "script"},
-        )
-        assert r.status_code == 200, r.text
-        for job in r.json()["jobs"]:
             client.delete(f"/api/jobs/{job['job_id']}")
 
 

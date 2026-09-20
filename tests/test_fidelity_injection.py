@@ -72,21 +72,6 @@ class TestReadInjection:
         assert "Implicit Values" in text
         assert "Wordplay" in text
 
-    def test_read_node_injects_for_script_branch(self, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(
-            "src.agent.nodes.read.ChatOpenAI",
-            _fake_chat_openai_factory(captured, "{}"),
-        )
-        read_node(
-            _minimal_state(content_type="script"),
-            ExactGlossary(),
-            SemanticGlossary(),
-        )
-        text = _user_prompt_text(captured)
-        assert "CULTURAL FIDELITY RULES" in text
-        assert "Character Names" in text
-
 
 class TestWriteInjection:
     def test_write_node_injects_brief_fidelity_rules(self, monkeypatch):
@@ -120,7 +105,3 @@ class TestCoverageMandate:
     def test_read_system_mandates_full_terminology_coverage(self):
         from src.agent.prompts.read import READ_SYSTEM
         assert "COVERAGE IS MANDATORY" in READ_SYSTEM
-
-    def test_script_read_system_mandates_full_terminology_coverage(self):
-        from src.agent.prompts.script_read import SCRIPT_READ_SYSTEM
-        assert "COVERAGE IS MANDATORY" in SCRIPT_READ_SYSTEM

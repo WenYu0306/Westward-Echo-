@@ -136,6 +136,55 @@ class TestSplitChapter:
         }]
 
 
+class TestSplitChapterHardcodedBoundaries:
+    """Boundary cases the mutation test flagged — hardcoded thresholds, not
+    the constants under test (sharing a constant with the code masks drift)."""
+
+    def test_accumulate_3001_splits(self):
+        """1500 + 1501 = 3001 exceeds the hard 3000 limit → must split."""
+        text = "文" * 1500 + "\n\n" + "文" * 1501
+        segments = split_chapter(text)
+        assert len(segments) == 2
+
+    def test_accumulate_exactly_3000_stays_one_segment(self):
+        """1500 + 1500 = 3000 is not over the limit → single segment."""
+        text = "文" * 1500 + "\n\n" + "文" * 1500
+        segments = split_chapter(text)
+        assert len(segments) == 1
+
+    def test_max_chars_hardcoded_3000(self):
+        """Every segment must be <= 3000 chars (hardcoded, not the constant)."""
+        text = _long_text(12_000, para_size=700)
+        segments = split_chapter(text)
+        for seg in segments:
+            stripped = seg["content"].replace("\n", "").replace(" ", "")
+            assert len(stripped) <= 3000
+
+    def test_split_threshold_hardcoded(self):
+        """4500 is the hard split threshold (hardcoded boundary)."""
+        assert should_split(_cn(4500)) is False
+        assert should_split(_cn(4501)) is True
+
+    def test_whitespace_only_returns_single_segment(self):
+        """Whitespace-only content returns one wrapping segment, not empty."""
+        segments = split_chapter("   \n\n   ")
+        assert len(segments) == 1
+        assert segments[0]["index"] == 1
+        assert segments[0]["is_first"] is True
+        assert segments[0]["is_last"] is True
+
+    def test_empty_branch_fields_exact(self):
+        """The empty-content branch returns the exact documented dict."""
+        segments = split_chapter("")
+        assert segments == [{
+            "index": 1,
+            "total": 1,
+            "content": "",
+            "is_first": True,
+            "is_last": True,
+        }]
+
+
 class TestBuildSegmentTitle:
     """Segment title generation for display."""
 

@@ -118,10 +118,13 @@ class TestEpubBuild:
         path = build_epub(chapters, "Single", output_path=output_path)
         assert os.path.exists(path)
 
-    def test_default_output_path(self, sample_chapters):
+    def test_default_output_path(self, sample_chapters, tmp_path, monkeypatch):
+        # Default path is CWD/<title>.epub — isolate it into tmp_path so a
+        # failure can't leave an artifact in the project root.
+        monkeypatch.chdir(tmp_path)
         path = build_epub(sample_chapters, "DefaultTest")
+        assert path == str(tmp_path / "DefaultTest.epub")
         assert os.path.exists(path)
-        os.remove(path)
 
     def test_content_xml_escaped(self, output_path):
         chapters = [{

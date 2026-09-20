@@ -24,7 +24,6 @@ from ..config import (
     VERSION,
 )
 from ..job_store import job_store
-from ..script_splitter import split_episodes
 from ..stats import TranslationStats
 
 try:
@@ -41,20 +40,15 @@ app = FastAPI(title="Westward Echo API", version=VERSION)
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 _KNOWN_LANGS = frozenset({"en-US", "es-ES", "de", "fr", "en"})
 _KNOWN_GENRES = frozenset({"romance_ceo", "xianxia", "urban", "scifi", "folk_religion"})
-_VALID_CONTENT_TYPES = frozenset({"novel", "script", "game"})
 
 
 def _split_by_content_type(text: str, content_type: str):
-    """Split upload text by content type.
+    """Split upload text into translatable chapters (SKIP-filtered).
 
-    "script" uses the episode splitter (vertical short drama); everything
-    else falls back to the novel chapter splitter. Returns the list of
-    translatable sections (SKIP-filtered).
+    content_type is accepted for forward compatibility but only "novel"
+    is a validated path — everything routes through the chapter splitter.
     """
-    if content_type == "script":
-        chunks = split_episodes(text)
-    else:
-        chunks = split_chapters(text)
+    chunks = split_chapters(text)
     return [c for c in chunks if c.action != ParagraphTag.SKIP]
 
 def _safe_job_id(job_id: str) -> str:
@@ -137,7 +131,6 @@ async def translate_novel(
     qa_interval: int = Form(20),
     genre: str = Form("romance_ceo"),
     content_type: str = Form("novel"),
-    script_mode: str = Form("full"),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
 ):
@@ -146,11 +139,6 @@ async def translate_novel(
     If ``glossary_preset`` is provided, the named preset's glossary is
     pre-loaded into the translation agent before the first chapter, giving
     the translation a warm start with known terminology.
-
-    ``script_mode`` applies to ``content_type="script"`` only:
-    "full" (default) compiles the complete shooting script; "dialogue"
-    compiles the same validated pipeline but delivers only spoken lines
-    (dialogue + OS) for dubbing/ADR workflows.
     """
     # ── Validate BEFORE accepting work — rejected requests must not
     #    consume a backpressure slot ──
@@ -174,12 +162,6 @@ async def translate_novel(
             )
         api_key = DEEPSEEK_API_KEY
 
-    if script_mode not in ("full", "dialogue"):
-        return JSONResponse(
-            status_code=400,
-            content={"error": "script_mode 必须是 'full' 或 'dialogue'"},
-        )
-
     # ── Backpressure: reject new work if queue is full ──
     if not backpressure.try_accept():
         return JSONResponse(
@@ -196,7 +178,7 @@ async def translate_novel(
         return await _translate_accepted(
             text=text, file=file, target_lang=target_lang,
             translate_mode=translate_mode, qa_interval=qa_interval,
-            genre=genre, content_type=content_type, script_mode=script_mode,
+            genre=genre, content_type=content_type,
             glossary_preset=glossary_preset, api_key=api_key,
         )
     except Exception:
@@ -206,7 +188,7 @@ async def translate_novel(
 
 async def _translate_accepted(
     text: str, file: UploadFile, target_lang: str, translate_mode: str,
-    qa_interval: int, genre: str, content_type: str, script_mode: str,
+    qa_interval: int, genre: str, content_type: str,
     glossary_preset: str, api_key: str,
 ):
     """Start a translation job after validation + backpressure accept.
@@ -221,8 +203,7 @@ async def _translate_accepted(
     # Create persistent job record
     filename = file.filename or "unknown.txt"
     job_id = job_store.create_job(filename, target_lang, total,
-                                  content_type=content_type,
-                                  script_mode=script_mode)
+                                  content_type=content_type)
 
     # ── Pre-load glossary preset if requested ──
     preset_glossary_json = ""
@@ -238,7 +219,6 @@ async def _translate_accepted(
             genre=genre,
             glossary_preset_glossary=preset_glossary_json,
             content_type=content_type,
-            script_mode=script_mode,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
 
@@ -290,7 +270,6 @@ async def _translate_accepted(
                         skip_readback=flash_mode,
                         use_flash_writer=flash_mode,
                         content_type=content_type,
-                        script_mode=script_mode,
                     )
                 except CircuitBreakerOpenError:
                     job_store.fail_job(job_id, "Circuit breaker opened")
@@ -308,7 +287,6 @@ async def _translate_accepted(
                                 skip_readback=flash_mode,
                                 use_flash_writer=flash_mode,
                                 content_type=content_type,
-                                script_mode=script_mode,
                             )
                         except Exception as e2:
                             logger.warning("Sync chapter %d failed after retry: %s", ch.index, e2)
@@ -378,7 +356,6 @@ async def translate_multi(
     translate_mode: str = Form("flash"),
     genre: str = Form("romance_ceo"),
     content_type: str = Form("novel"),
-    script_mode: str = Form("full"),
     qa_interval: int = Form(20),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
@@ -395,12 +372,6 @@ async def translate_multi(
     if error:
         status_code = 413 if "too large" in error.lower() else 400
         return JSONResponse(status_code=status_code, content={"error": error})
-
-    if script_mode not in ("full", "dialogue"):
-        return JSONResponse(
-            status_code=400,
-            content={"error": "script_mode 必须是 'full' 或 'dialogue'"},
-        )
 
     langs = [lang.strip() for lang in target_langs.split(",") if lang.strip()]
     if not langs:
@@ -430,10 +401,6 @@ async def translate_multi(
         )
 
     try:
-        # ── Map content_type → default genre ──
-        if content_type != "novel" and genre == "romance_ceo":
-            genre = {"script": "urban", "game": "scifi"}.get(content_type, genre)
-
         chapters = _split_by_content_type(text, content_type)
         total = len(chapters)
         filename = file.filename or "unknown.txt"
@@ -452,8 +419,7 @@ async def translate_multi(
 
         for lang in langs:
             job_id = job_store.add_language_job(project_id, lang, filename, total,
-                                                content_type=content_type,
-                                                script_mode=script_mode)
+                                                content_type=content_type)
 
             if _has_celery:
                 task = translate_novel_task.delay(
@@ -462,7 +428,6 @@ async def translate_multi(
                     genre=genre,
                     glossary_preset_glossary=preset_glossary_json,
                     content_type=content_type,
-                    script_mode=script_mode,
                 )
                 results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
             else:
@@ -536,7 +501,6 @@ async def translate_multi(
                                 skip_readback=flash_mode,
                                 use_flash_writer=flash_mode,
                                 content_type=content_type,
-                                script_mode=script_mode,
                             )
                         except CircuitBreakerOpenError:
                             TranslationStats.record_chapter_failed(lang)
@@ -559,7 +523,6 @@ async def translate_multi(
                                         skip_readback=flash_mode,
                                         use_flash_writer=flash_mode,
                                         content_type=content_type,
-                                        script_mode=script_mode,
                                     )
                                 except Exception as e2:
                                     logger.warning(
@@ -889,7 +852,6 @@ async def resume_translation(
             qa_interval=qa_interval,
             genre=genre,
             content_type=content_type,
-            script_mode=job.get("script_mode", "full"),
         )
 
         # 6. Update job status back to translating

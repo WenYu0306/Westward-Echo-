@@ -2,7 +2,9 @@
 
 import os
 import tempfile
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from src.cms import (
@@ -132,3 +134,56 @@ class TestGetConnector:
             mp.setattr(cfg, "CMS_SOURCE_TYPE", "database")
             with pytest.raises(ValueError, match="Unknown CMS_SOURCE_TYPE"):
                 get_connector()
+
+
+class TestWebhookConnector:
+    """WebhookConnector — HTTP pull/push, client caching, error handling."""
+
+    def test_client_lazy_init_and_cached(self):
+        wc = WebhookConnector("https://example.com", api_key="secret")
+        with patch("src.cms.httpx.Client") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client_cls.return_value = mock_client
+            c1 = wc.client
+            c2 = wc.client
+        assert c1 is c2
+        assert mock_client_cls.call_count == 1
+        kwargs = mock_client_cls.call_args.kwargs
+        assert kwargs["timeout"] == 30
+        assert kwargs["headers"] == {"Authorization": "Bearer secret"}
+
+    def test_client_no_auth_header_without_key(self):
+        wc = WebhookConnector("https://example.com")
+        with patch("src.cms.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value = MagicMock()
+            wc.client
+        assert mock_client_cls.call_args.kwargs["headers"] == {}
+
+    def test_pull_novel_returns_text_and_builds_url(self):
+        wc = WebhookConnector("https://example.com")
+        mock_client = MagicMock()
+        mock_client.get.return_value.text = "第一章 测试"
+        wc._client = mock_client
+        result = wc.pull_novel("test-book")
+        assert result == "第一章 测试"
+        mock_client.get.assert_called_with("https://example.com/novels/test-book")
+
+    def test_push_translation_success_truncates_message(self):
+        wc = WebhookConnector("https://example.com")
+        mock_client = MagicMock()
+        mock_client.post.return_value.text = "x" * 300
+        mock_client.post.return_value.raise_for_status = MagicMock()
+        wc._client = mock_client
+        result = wc.push_translation("job1", "web")
+        assert result["status"] == "published"
+        assert result["url"] == "https://example.com/translations/job1"
+        assert len(result["platform_message"]) == 200  # truncated to 200 chars
+
+    def test_push_translation_http_error_returns_failed(self):
+        wc = WebhookConnector("https://example.com")
+        mock_client = MagicMock()
+        mock_client.post.return_value.raise_for_status.side_effect = httpx.HTTPError("boom")
+        wc._client = mock_client
+        result = wc.push_translation("job1", "web")
+        assert result["status"] == "failed"
+        assert "boom" in result["platform_message"]

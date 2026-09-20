@@ -21,15 +21,17 @@ VERSION = "0.16.0"
 # model "qwen-plus"). Leave unset to fall back to DeepSeek.
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-
-DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
-DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro")
 DEEPSEEK_CHAT_MODEL = os.getenv("DEEPSEEK_CHAT_MODEL", "deepseek-chat")
 
 # Unified LLM override (takes precedence over DeepSeek defaults)
 LLM_API_KEY = os.getenv("LLM_API_KEY", "") or DEEPSEEK_API_KEY
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "") or DEEPSEEK_BASE_URL
 LLM_MODEL = os.getenv("LLM_MODEL", "") or DEEPSEEK_CHAT_MODEL
+
+# Fast/cheap model for flash mode (bulk translation that skips READBACK).
+# Qwen's flash tier — same instruction-following contract as qwen-plus,
+# same OpenAI-compatible base_url, just cheaper for high-volume chapters.
+FLASH_MODEL = os.getenv("FLASH_MODEL", "qwen-3.8-flash")
 
 # READ node provider — DeepSeek for stronger Chinese cultural understanding
 # (catch puns, understand birth-order names like 王三). WRITE/READBACK/FIX
@@ -89,19 +91,16 @@ MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))  # 50MB default
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # --- Per-node model routing ---
-# All nodes use deepseek-chat (the preview/stable V4 Flash alias). This is
-# deliberately NOT split into per-node Pro/Flash, despite the original plan:
+# Split by role, not by Pro/Flash (the Pro/Flash split was never shipped):
+#   - READ runs on DeepSeek (READ_MODEL) for stronger Chinese cultural
+#     understanding — catching puns and birth-order names like 王三.
+#   - WRITE / READBACK / FIX / REVIEW_TERMS run on the primary provider
+#     (LLM_MODEL, default Qwen) for fluent English + strict JSON.
 #
-# - deepseek-v4-flash (the OFFICIAL V4 Flash name) had output issues in
-#   Westward Echo — reverted back to deepseek-chat (2026-08-17).
-# - deepseek-v4-pro hangs on large multi-thousand-char prompts with JSON
-#   output, and is 3× more expensive.
-# - deepseek-chat is the only model name that is stable + reasonably priced
-#   for Westward Echo's strict-JSON pipeline.
-#
-# Do NOT switch to glm-* or kimi-k2.6: they are reasoning models that emit
-# reasoning_content (burning ~1000+ tokens of "thinking" per call) and do not
-# reliably honor response_format json_object. Verified 2026-08-18.
+# Do NOT switch the strict-JSON nodes to glm-* or kimi-k2.6: they are
+# reasoning models that emit reasoning_content (burning ~1000+ tokens of
+# "thinking" per call) and do not reliably honor response_format json_object.
+# Verified 2026-08-18.
 MODEL_MAP = {
     "translate":              LLM_MODEL,   # WRITE agent (primary provider, Qwen)
     "translate_critical":     LLM_MODEL,   # FIX agent (primary provider, Qwen)

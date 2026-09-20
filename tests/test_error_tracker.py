@@ -10,12 +10,22 @@ from src.error_tracker import (
 
 class TestRecordEvent:
     def test_record_event_succeeds(self):
-        """record_event with valid args should not raise."""
+        """record_event with valid args should not raise AND should persist."""
         record_event("job1", 1, "guard_warning", "test detail", "en-US")
+        issues = get_recent_issues(100)
+        assert any(
+            e["job_id"] == "job1" and e["event_type"] == "guard_warning"
+            for e in issues
+        )
 
     def test_record_event_with_none_job_id(self):
-        """record_event with None job_id should not raise."""
+        """record_event with None job_id should not raise AND persist as None."""
         record_event(None, None, "empty_output", "no job", "en-US")
+        issues = get_recent_issues(100)
+        assert any(
+            e["event_type"] == "empty_output" and e["job_id"] is None
+            for e in issues
+        )
 
 
 class TestGetEventSummary:

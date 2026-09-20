@@ -11,7 +11,7 @@ class TranslatorState(TypedDict):
     chapter_number: int
     target_lang: str                # e.g. "en-US"
     genre: str                      # e.g. "romance_ceo", "xianxia", "urban"
-    content_type: str               # "novel" (default) | "script" | "game" — prompt branch selector
+    content_type: str               # "novel" — the only validated prompt branch
 
     # === Glossary ===
     exact_glossary: dict            # {term_cn: term_en} — exact matches

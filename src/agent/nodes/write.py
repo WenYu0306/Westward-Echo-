@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, MODEL_MAP
+from ...config import FLASH_MODEL, LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
 from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
@@ -37,7 +37,7 @@ def write_node(state: TranslatorState) -> dict:
     """
     chapter_number = state["chapter_number"]
     flash = state.get("use_flash_writer", False)
-    model_id = LLM_MODEL if flash else MODEL_MAP["translate"]
+    model_id = FLASH_MODEL if flash else MODEL_MAP["translate"]
     api_key = state.get("api_key") or LLM_API_KEY
 
     llm = ChatOpenAI(  # type: ignore[call-arg]

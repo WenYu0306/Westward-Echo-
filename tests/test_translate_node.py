@@ -103,6 +103,7 @@ class TestExactGlossaryWithFixture:
 # ------------------------------------------------------------------
 
 @pytest.mark.skipif(not has_api_key(), reason="DEEPSEEK_API_KEY not set")
+@pytest.mark.requires_api_key
 class TestLiveTranslation:
 
     def test_translate_short_text(self):

@@ -15,6 +15,9 @@ import httpx
 from .config import (
     CHECKPOINT_DB_PATH,
     CHROMA_PERSIST_PATH,
+    FLASH_MODEL,
+    LLM_API_KEY,
+    LLM_BASE_URL,
     OUTPUT_DIR,
 )
 
@@ -55,7 +58,7 @@ class HealthChecker:
         checks["config"] = self.check_config()
         checks["output_dir"] = self.check_output_dir_writable()
         checks["sqlite"] = self.check_sqlite()
-        checks["deepseek_api"] = self.check_deepseek_api()
+        checks["llm_api"] = self.check_llm_api()
         checks["memory"] = check_memory()
         checks["disk_io"] = check_disk_io()
         checks["chroma"] = self.check_chroma(exact_store=self._exact_store,
@@ -176,29 +179,33 @@ class HealthChecker:
             elapsed = round((time.monotonic() - start) * 1000, 1)
             return {"status": "error", "message": str(exc), "latency_ms": elapsed, "critical": True}
 
-    def check_deepseek_api(self) -> dict:
-        """Test the DeepSeek API with a minimal 1-token call."""
+    def check_llm_api(self) -> dict:
+        """Test the primary LLM provider with a minimal 1-token call.
+
+        Probes LLM_BASE_URL + FLASH_MODEL (the Qwen fast tier) — the same
+        OpenAI-compatible base_url the WRITE node uses, so this check reflects
+        whether translation will actually work, not the legacy DeepSeek path.
+        """
         start = time.monotonic()
         try:
-            api_key = os.getenv("DEEPSEEK_API_KEY", "")
-            if not api_key:
+            if not LLM_API_KEY:
                 elapsed = round((time.monotonic() - start) * 1000, 1)
                 return {
-                    "status": "error", "message": "DEEPSEEK_API_KEY not set",
+                    "status": "error", "message": "LLM_API_KEY not set",
                     "latency_ms": elapsed,
                 }
 
-            base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").rstrip("/")
-            url = f"{base_url}/v1/chat/completions"
+            base_url = LLM_BASE_URL.rstrip("/")
+            url = f"{base_url}/chat/completions"
 
             payload = {
-                "model": os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                "model": FLASH_MODEL,
                 "messages": [{"role": "user", "content": "Hi"}],
                 "max_tokens": 1,
                 "temperature": 0,
             }
             headers = {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {LLM_API_KEY}",
                 "Content-Type": "application/json",
             }
 
@@ -208,7 +215,7 @@ class HealthChecker:
             elapsed = round((time.monotonic() - start) * 1000, 1)
 
             if resp.status_code == 200:
-                return {"status": "ok", "message": "DeepSeek API responding", "latency_ms": elapsed}
+                return {"status": "ok", "message": "LLM API responding", "latency_ms": elapsed}
             else:
                 body = resp.text[:200]
                 return {
@@ -219,7 +226,7 @@ class HealthChecker:
         except httpx.TimeoutException:
             elapsed = round((time.monotonic() - start) * 1000, 1)
             return {
-                "status": "warn", "message": "DeepSeek API timed out (5s)", "latency_ms": elapsed
+                "status": "warn", "message": "LLM API timed out (5s)", "latency_ms": elapsed
             }
         except Exception as exc:
             elapsed = round((time.monotonic() - start) * 1000, 1)

@@ -19,6 +19,7 @@ import logging
 from langgraph.graph import END, StateGraph
 
 from ..chapter_slicer import build_segment_title, should_split, split_chapter
+from ..config import MAX_RETRANSLATION_ATTEMPTS
 from ..glossary.exact_store import ExactGlossary
 from ..glossary.semantic_store import SemanticGlossary
 from .nodes.fix import fix_node
@@ -32,7 +33,7 @@ from .state import TranslatorState
 logger = logging.getLogger(__name__)
 
 # Max FIX → READBACK loops per chapter
-_MAX_FIX_ATTEMPTS = 2
+_MAX_FIX_ATTEMPTS = MAX_RETRANSLATION_ATTEMPTS
 
 
 def _should_readback(state: TranslatorState) -> str:
@@ -202,23 +203,15 @@ class TranslationAgent:
         skip_readback: bool = False,
         use_flash_writer: bool = False,
         content_type: str = "novel",
-        script_mode: str = "full",
     ) -> dict:
-        """Translate a single chapter through the 4-node reader-centric pipeline.
+        """Translate a single chapter through the 5-node reader-centric pipeline.
 
         Set skip_readback=True for fast mode: READ→WRITE→END, skipping
         the cold reader and editor nodes. Use for non-sample chapters
         to save ~50% API calls and latency.
 
-        content_type selects the parallel prompt branch ("novel" default,
-        "script" for short drama scripts); the novel path is unchanged.
-
-        script_mode only applies when content_type == "script":
-        "full" (default) returns the complete shooting script; "dialogue"
-        runs the identical validated pipeline but post-filters the output
-        down to speaker dialogue + OS lines (dubbing/ADR deliverable).
-        The full pipeline always runs because dialogue quality depends on
-        the action-line context (who speaks, how, why).
+        content_type selects the prompt branch ("novel" is the only
+        validated path; unknown types fall back to novel).
 
         Returns:
             {translated_text, new_terms_found, adaptation_notes,
@@ -238,17 +231,6 @@ class TranslationAgent:
                 previous_summary, target_lang, genre, skip_readback,
                 content_type=content_type,
             )
-
-        # ── Dialogue-only deliverable (script branch) ─────────────
-        # The full pipeline always runs (dialogue quality depends on the
-        # action-line context); the deliverable is filtered afterwards.
-        # pre_filter_text carries the complete script so downstream
-        # truncation guards can judge against the unfiltered word count.
-        if content_type == "script" and script_mode == "dialogue":
-            from ..script_splitter import extract_dialogue
-            full_text = result.get("translated_text", "")
-            result["translated_text"] = extract_dialogue(full_text)
-            result["pre_filter_text"] = full_text
 
         return result
 
@@ -438,7 +420,7 @@ class TranslationAgent:
         # FIX agent is ineffective.
         if readback_feedback:
             verdict = readback_feedback.get("verdict", "PASS") if readback_feedback else "PASS"
-            if verdict == "NEEDS_FIX" and retries >= 2:
+            if verdict == "NEEDS_FIX" and retries >= MAX_RETRANSLATION_ATTEMPTS:
                 logger.warning(
                     "FORCED_ACCEPT ch%d: verdict=NEEDS_FIX after %d retries. "
                     "Cold reader issues: comprehension=%d, engagement=%d. "
