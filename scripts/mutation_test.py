@@ -86,16 +86,38 @@ COMPARE_FLIP = {
 
 
 def node_span(source, node):
+    """Byte offsets of a node, because ast col_offset is a UTF-8 BYTE offset.
+
+    This used to add ``node.col_offset`` to a *character* count of the preceding
+    lines. For any line containing multi-byte characters — Chinese comments,
+    Chinese string literals, curly quotes, em dashes, all of which this codebase
+    is full of — the two units disagree, so the computed offset landed somewhere
+    else in the file and the mutation was applied at the WRONG PLACE.
+
+    Consequence, measured: ``const 8->9 at 30`` in src/agent/fidelity.py left
+    line 30 completely unchanged (it mutated an unrelated character further
+    down), so no test could ever kill it and it was reported as a surviving
+    blind spot. A mutation that changes nothing is not evidence about the tests,
+    and a mutation that changes the wrong thing is evidence about nothing.
+
+    The returned offsets index the UTF-8 BYTES of the source, so callers must
+    slice ``source.encode("utf-8")``, not the str.
+    """
     lines = source.split("\n")
-    start = sum(len(l) + 1 for l in lines[: node.lineno - 1]) + node.col_offset
-    end = sum(len(l) + 1 for l in lines[: node.end_lineno - 1]) + node.end_col_offset
+    start = sum(len(l.encode("utf-8")) + 1 for l in lines[: node.lineno - 1]) + node.col_offset
+    end = sum(len(l.encode("utf-8")) + 1 for l in lines[: node.end_lineno - 1]) + node.end_col_offset
     return start, end
 
 
 def mutants_for(source):
     """Yield (description, mutated_source) for each mutation point."""
     tree = ast.parse(source)
+    data = source.encode("utf-8")
     out = []
+
+    def emit(desc, start, end, replacement):
+        """Splice a replacement in at BYTE offsets, then decode back to text."""
+        out.append((desc, (data[:start] + replacement.encode("utf-8") + data[end:]).decode("utf-8")))
 
     def visit(node):
         if isinstance(node, ast.Compare) and len(node.ops) == 1:
@@ -107,28 +129,27 @@ def mutants_for(source):
                     ops=[COMPARE_FLIP[old_op]()],
                     comparators=node.comparators,
                 ))
-                out.append((f"compare {old_op.__name__}->{COMPARE_FLIP[old_op].__name__} at {node.lineno}",
-                            source[:s] + new + source[e:]))
+                emit(f"compare {old_op.__name__}->{COMPARE_FLIP[old_op].__name__} at {node.lineno}",
+                     s, e, new)
         elif isinstance(node, ast.BoolOp) and len(node.values) == 2:
             s, e = node_span(source, node)
             new_op = "or" if isinstance(node.op, ast.And) else "and"
             new = ast.unparse(ast.BoolOp(op=ast.Or() if new_op == "or" else ast.And(),
                                          values=node.values))
-            out.append((f"boolop ->{new_op} at {node.lineno}", source[:s] + new + source[e:]))
+            emit(f"boolop ->{new_op} at {node.lineno}", s, e, new)
         elif isinstance(node, ast.Constant) and isinstance(node.value, bool):
             s, e = node_span(source, node)
-            new = "False" if node.value else "True"
-            out.append((f"const bool->{new} at {node.lineno}", source[:s] + new + source[e:]))
+            emit(f"const bool->{'False' if node.value else 'True'} at {node.lineno}",
+                 s, e, "False" if node.value else "True")
         elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and node.value != 0:
             s, e = node_span(source, node)
             new = repr(node.value + (1 if node.value > 0 else -1))
-            out.append((f"const {node.value}->{new} at {node.lineno}", source[:s] + new + source[e:]))
+            emit(f"const {node.value}->{new} at {node.lineno}", s, e, new)
         elif isinstance(node, ast.Return) and node.value is not None and not isinstance(node.value, ast.Constant):
             s, e = node_span(source, node.value)
             seg = ast.unparse(node.value)
             if seg not in ("None", "True", "False"):
-                out.append((f"return {seg[:20]}->None at {node.lineno}",
-                            source[:s] + "None" + source[e:]))
+                emit(f"return {seg[:20]}->None at {node.lineno}", s, e, "None")
         for child in ast.iter_child_nodes(node):
             visit(child)
 

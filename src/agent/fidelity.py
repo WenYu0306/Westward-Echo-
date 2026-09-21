@@ -23,9 +23,100 @@ def _candidates(proposed_en: str) -> list[str]:
     return [c.strip() for c in proposed_en.split("/") if c.strip()]
 
 
-def _has_digit(s: str) -> bool:
-    """True if the string contains any Arabic digit (0-9)."""
-    return any(ch.isdigit() for ch in s)
+import re
+
+
+_CN_DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_NUMERAL_CHARS = "零〇一二三四五六七八九两十百千万亿"
+
+
+def _cn_numeral_to_int(run: str) -> int:
+    """Parse a Chinese numeral run. Handles both readings.
+
+    Digit-by-digit (no place marker): 三零一 -> 301, 六 -> 6
+    With place markers:               二十三 -> 23, 二百零一 -> 201
+
+    The digit-by-digit form matters: 三零一度 → "301 Degrees" is a real
+    glossary entry, and parsing 三零一 as 1 produced a false "invented number"
+    verdict on it.
+    """
+    if not any(c in "十百千万亿" for c in run):
+        digits = "".join(str(_CN_DIGITS[c]) for c in run if c in _CN_DIGITS)
+        return int(digits) if digits else 0
+
+    total = section = number = 0
+    for ch in run:
+        if ch in _CN_DIGITS:
+            number = _CN_DIGITS[ch]
+        elif ch == "十":
+            section += (number or 1) * 10
+            number = 0
+        elif ch == "百":
+            section += (number or 1) * 100
+            number = 0
+        elif ch == "千":
+            section += (number or 1) * 1000
+            number = 0
+        elif ch == "万":
+            total += (section + number) * 10000
+            section = number = 0
+        elif ch == "亿":
+            total = (total + section + number) * 100000000
+            section = number = 0
+    return total + section + number
+
+
+def _numbers_in(s: str) -> set[int]:
+    """Every number expressed in *s*, in Arabic digits or Chinese numerals.
+
+    Replaces a check that only looked for Arabic digit characters. The old
+    question was "does the SOURCE contain an Arabic digit (0-9)?", so a term
+    written 联邦二十三频道 ("Federal Channel twenty-three") looked digit-free
+    while its CORRECT rendering "Federal Channel 23" looked invented, and the
+    curation gate deleted it.
+
+    Not a corner case: Chinese writes counts, tiers, years and names as numerals
+    constantly. Measured on 《间客》 chapter 1 — the orphans' rallying cry
+    我们要看联邦二十三频道! is the plot's spine, and the gate dropped the term,
+    locking every later chapter out of using it.
+    """
+    out: set[int] = set()
+    for m in re.finditer(r"\d+", s or ""):
+        out.add(int(m.group()))
+    for m in re.finditer(f"[{_CN_NUMERAL_CHARS}]+", s or ""):
+        value = _cn_numeral_to_int(m.group())
+        if value:
+            out.add(value)
+    return out
+
+
+def _invents_number(term_cn: str, rendering: str) -> bool:
+    """True when *rendering* states a number the source term does not contain.
+
+    Still catches genuine invention (a year the source never had) while no
+    longer mistaking 二十三 for an invented 23.
+    """
+    return bool(_numbers_in(rendering) - _numbers_in(term_cn))
+
+
+# A rendering shaped like a designation rather than a name: "M3", "B12", "7X".
+_CODE_LIKE = re.compile(r"^[A-Za-z]{1,3}\d+$|^\d+[A-Za-z]{1,3}$")
+
+
+def _is_code_like(rendering: str) -> bool:
+    """True for a bare letter+digit designation.
+
+    This replaces what the digit rule used to catch by accident. 王三 → "M3" is
+    wrong because "M3" is a code, not because a number was invented: 王三
+    contains 三, so the 3 is faithfully present. The old rule conflated the two.
+
+    Deliberately narrow, and calibrated rather than guessed: across 1936 real
+    glossary entries this pattern matches ZERO, while every legitimate
+    number-bearing rendering carries word structure — "Refuge Base 7",
+    "Nemesis-2", "Riffraff No.1", "Chaonei Street 130", "301 Degrees".
+    """
+    return bool(_CODE_LIKE.match((rendering or "").strip()))
 
 
 def _is_cut(proposed_en: str) -> bool:
@@ -88,8 +179,10 @@ def is_valid_rendering(term_cn: str, term_en: str) -> tuple[bool, str]:
         return False, "contains Chinese"
     if any(ch in _TONE_MARKED for ch in en):
         return False, "contains tone-marked pinyin"
-    if any(ch.isdigit() for ch in en) and not any(ch.isdigit() for ch in term_cn):
-        return False, "digit appeared that the source doesn't have"
+    if _invents_number(term_cn, en):
+        return False, "a number appeared that the source doesn't have"
+    if _is_code_like(en):
+        return False, "code-like designation, not a name"
     if _is_explanatory(en):
         return False, "explanatory rendering, not a single token"
     return True, ""
@@ -129,13 +222,20 @@ def check_cultural_fidelity(read_analysis: dict, translated_text: str) -> list[s
         if _is_cut(proposed_en):
             continue
 
-        # Suspicious rendering: a digit appeared in the English but not the
-        # source (e.g. 王三 → M3). This is a wrong rendering regardless of
-        # whether WRITE used it — flag it outright.
-        if _has_digit(proposed_en) and not _has_digit(term_cn):
+        # Suspicious rendering: the English states a number the source term
+        # does not (e.g. 联邦23频道 → "Channel 24"), or is a bare designation
+        # rather than a name (e.g. 王三 → "M3"). Wrong regardless of whether
+        # WRITE used it — flag it outright.
+        if _invents_number(term_cn, proposed_en):
             failures.append(
                 f"READ proposed a suspicious rendering '{term_cn}' → "
-                f"'{proposed_en}' (a digit appeared that the source doesn't have)"
+                f"'{proposed_en}' (a number appeared that the source doesn't have)"
+            )
+            continue
+        if _is_code_like(proposed_en):
+            failures.append(
+                f"READ proposed a suspicious rendering '{term_cn}' → "
+                f"'{proposed_en}' (code-like designation, not a name)"
             )
             continue
 

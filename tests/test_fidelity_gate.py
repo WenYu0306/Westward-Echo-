@@ -188,11 +188,18 @@ class TestIsValidRendering:
         assert ok is False
         assert "pinyin" in reason
 
-    def test_stray_digit_fails(self):
+    def test_code_like_designation_fails(self):
+        """王三 → "M3" is rejected because M3 is a designation, not a name.
+
+        It is NOT rejected for inventing a number: 王三 contains 三, so the 3 is
+        faithful. The old rule conflated the two and, to catch this case, also
+        deleted every correct term whose number was written in Chinese numerals
+        (联邦二十三频道 → "Federal Channel 23").
+        """
         from src.agent.fidelity import is_valid_rendering
         ok, reason = is_valid_rendering("王三", "M3")
         assert ok is False
-        assert "digit" in reason
+        assert "code-like" in reason
 
     def test_parenthetical_gloss_fails(self):
         from src.agent.fidelity import is_valid_rendering
@@ -267,3 +274,128 @@ class TestCurationGate:
         agent._post_process(result, "en-US")
 
         assert [t["term_cn"] for t in result["new_terms_found"]] == ["聋婆婆", "王三"]
+
+
+class TestChineseNumeralTerms:
+    """A number written in Chinese numerals must not read as an invented number.
+
+    The digit rule asked whether the SOURCE contained an Arabic digit, so
+    联邦二十三频道 ("Federal Channel twenty-three") looked digit-free while its
+    correct rendering "Federal Channel 23" looked fabricated — and the curation
+    gate deleted the term and blocked it from every later chapter.
+
+    Measured on 《间客》 chapter 1: the orphans' rallying cry
+    我们要看联邦二十三频道! is the spine of the scene, and it was dropped.
+    Chinese writes counts, tiers, years and names as numerals constantly, so the
+    old rule hit any term carrying a number.
+    """
+
+    def test_chinese_numeral_term_is_accepted(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("联邦二十三频道", "Federal Channel 23")
+        assert ok is True, reason
+
+    def test_chinese_numeral_without_prefix_is_accepted(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("二十三频道", "Channel 23")
+        assert ok is True, reason
+
+    def test_arabic_numeral_form_still_accepted(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("联邦23频道", "Federal Channel 23")
+        assert ok is True, reason
+
+    def test_digit_by_digit_reading(self):
+        """三零一 is read digit-by-digit (=301), not as a place-value numeral."""
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("三零一") == {301}
+        assert _numbers_in("三零一度") == {301}
+
+    def test_place_marker_reading(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("二十三") == {23}
+        assert _numbers_in("二百零一") == {201}
+        assert _numbers_in("六") == {6}
+
+    def test_real_glossary_entry_with_chinese_numeral_passes(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("三零一度", "301 Degrees")
+        assert ok is True, reason
+
+    def test_genuinely_invented_number_still_rejected(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("联邦23频道", "Federal Channel 24")
+        assert ok is False
+        assert "number" in reason
+
+    def test_invented_year_on_a_nameless_term_still_rejected(self):
+        from src.agent.fidelity import is_valid_rendering
+        ok, reason = is_valid_rendering("张三", "Zhang San 1984")
+        assert ok is False
+        assert "number" in reason
+
+    def test_legitimate_number_rendering_shapes_pass(self):
+        """Real entries from the corpus — every one must survive the new rules."""
+        from src.agent.fidelity import is_valid_rendering
+        for term_cn, en in [
+            ("追踪者二号", "Nemesis-2"),
+            ("第七号收容基地", "Refuge Base 7"),
+            ("流氓一号", "Riffraff No.1"),
+            ("朝内大街130号", "Chaonei Street 130"),
+            ("三零一度", "301 Degrees"),
+            ("王三", "Wang San"),
+        ]:
+            ok, reason = is_valid_rendering(term_cn, en)
+            assert ok is True, f"{term_cn} -> {en}: {reason}"
+
+
+class TestChineseNumeralPlaceValues:
+    """Every numeral mapping and place marker, pinned.
+
+    These boundary cases were the 9 mutants that survived the first mutation
+    run on the numeral fix: 二/八 mappings, and the `number or 1` fallback for
+    a bare 十/百/千 (which means "one ten", "one hundred", "one thousand").
+    """
+
+    def test_every_digit_mapping(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("一") == {1}
+        assert _numbers_in("二") == {2}
+        assert _numbers_in("两") == {2}
+        assert _numbers_in("三") == {3}
+        assert _numbers_in("四") == {4}
+        assert _numbers_in("五") == {5}
+        assert _numbers_in("六") == {6}
+        assert _numbers_in("七") == {7}
+        assert _numbers_in("八") == {8}
+        assert _numbers_in("九") == {9}
+        assert _numbers_in("零") == set()
+        assert _numbers_in("〇") == set()
+
+    def test_bare_place_markers_mean_one_of_that_place(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("十") == {10}
+        assert _numbers_in("百") == {100}
+        assert _numbers_in("千") == {1000}
+
+    def test_place_markers_scale_their_digit(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("三十") == {30}
+        assert _numbers_in("三百") == {300}
+        assert _numbers_in("三千") == {3000}
+
+    def test_wan_and_yi(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("五万") == {50000}
+        assert _numbers_in("三亿") == {300000000}
+        assert _numbers_in("一万二千") == {12000}
+
+    def test_arabic_digits_are_collected_too(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("Channel 23") == {23}
+        assert _numbers_in("朝内大街130号") == {130}
+
+    def test_no_numbers_yields_empty_set(self):
+        from src.agent.fidelity import _numbers_in
+        assert _numbers_in("聋婆婆") == set()
+        assert _numbers_in("") == set()
