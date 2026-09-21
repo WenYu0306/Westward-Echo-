@@ -1,0 +1,142 @@
+[
+  {
+    "label": "difu-min",
+    "book": "difu",
+    "chapter": 0,
+    "cjk": 76,
+    "src_chars": 174,
+    "out_chars": 784,
+    "verdict": "PASS",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 5315,
+        "out": 4376
+      },
+      "write": {
+        "n": 1,
+        "in": 5280,
+        "out": 783
+      },
+      "readback": {
+        "n": 1,
+        "in": 1005,
+        "out": 1286
+      }
+    },
+    "total": 18045
+  },
+  {
+    "label": "wuxian-p50",
+    "book": "wuxian",
+    "chapter": 604,
+    "cjk": 2809,
+    "src_chars": 3131,
+    "out_chars": 11166,
+    "verdict": "NEEDS_FIX",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 12601,
+        "out": 6573
+      },
+      "write": {
+        "n": 1,
+        "in": 9159,
+        "out": 3334
+      },
+      "readback": {
+        "n": 3,
+        "in": 10270,
+        "out": 7407
+      },
+      "fix": {
+        "n": 2,
+        "in": 12675,
+        "out": 21841
+      }
+    },
+    "total": 83860
+  },
+  {
+    "label": "wuxian-p90",
+    "book": "wuxian",
+    "chapter": 488,
+    "cjk": 3677,
+    "src_chars": 4142,
+    "out_chars": 0,
+    "verdict": "ERROR:APIConnectionError",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 13634,
+        "out": 8417
+      },
+      "write": {
+        "n": 1,
+        "in": 11140,
+        "out": 3501
+      }
+    },
+    "total": 36692
+  },
+  {
+    "label": "difu-max",
+    "book": "difu",
+    "chapter": 2301,
+    "cjk": 6541,
+    "src_chars": 9383,
+    "out_chars": 0,
+    "verdict": "ERROR:BadRequestError",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 8738,
+        "out": 13496
+      },
+      "write": {
+        "n": 1,
+        "in": 13070,
+        "out": 4215
+      },
+      "readback": {
+        "n": 1,
+        "in": 4299,
+        "out": 2881
+      }
+    },
+    "total": 46699
+  },
+  {
+    "label": "wuxian-p10",
+    "book": "wuxian",
+    "chapter": 91,
+    "cjk": 2205,
+    "src_chars": 2509,
+    "out_chars": 10650,
+    "verdict": "NEEDS_FIX",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 11506,
+        "out": 7725
+      },
+      "write": {
+        "n": 1,
+        "in": 8707,
+        "out": 2896
+      },
+      "readback": {
+        "n": 3,
+        "in": 9600,
+        "out": 6478
+      },
+      "fix": {
+        "n": 2,
+        "in": 10879,
+        "out": 15192
+      }
+    },
+    "total": 72983
+  }
+]

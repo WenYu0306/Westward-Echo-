@@ -1,0 +1,90 @@
+[
+  {
+    "label": "short",
+    "chapter": 173,
+    "cjk": 1065,
+    "src_chars": 1547,
+    "out_chars": 7350,
+    "verdict": "PASS",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 6446,
+        "out": 7791
+      },
+      "write": {
+        "n": 1,
+        "in": 8526,
+        "out": 2752
+      },
+      "readback": {
+        "n": 2,
+        "in": 4947,
+        "out": 4062
+      },
+      "fix": {
+        "n": 1,
+        "in": 3832,
+        "out": 2127
+      }
+    },
+    "total": 40483
+  },
+  {
+    "label": "median",
+    "chapter": 1238,
+    "cjk": 1153,
+    "src_chars": 1643,
+    "out_chars": 7363,
+    "verdict": "NEEDS_FIX",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 7683,
+        "out": 9432
+      },
+      "write": {
+        "n": 1,
+        "in": 10006,
+        "out": 3203
+      },
+      "readback": {
+        "n": 3,
+        "in": 8633,
+        "out": 7652
+      },
+      "fix": {
+        "n": 2,
+        "in": 8721,
+        "out": 14845
+      }
+    },
+    "total": 70175
+  },
+  {
+    "label": "long",
+    "chapter": 11,
+    "cjk": 1436,
+    "src_chars": 2017,
+    "out_chars": 8291,
+    "verdict": "PASS",
+    "per_node": {
+      "read": {
+        "n": 1,
+        "in": 7791,
+        "out": 11700
+      },
+      "write": {
+        "n": 1,
+        "in": 12468,
+        "out": 2779
+      },
+      "readback": {
+        "n": 1,
+        "in": 3373,
+        "out": 2376
+      }
+    },
+    "total": 40487
+  }
+]
