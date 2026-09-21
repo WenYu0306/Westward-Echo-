@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import ParagraphTag, split_chapters
 from src.circuit_breaker import CircuitBreakerOpenError
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 
 NOVEL_PATH = "tests/fixtures/《无限恐怖》 作者：zhttty.txt"
 BOOK_ID = "ab_memo_test"

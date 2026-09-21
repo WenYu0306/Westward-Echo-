@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.chapter_splitter import split_chapters, ParagraphTag  # noqa: E402
-from src.encoding import detect_and_read  # noqa: E402
+from src.text_io import detect_and_read  # noqa: E402
 from scripts.run_novel import NOVELS  # noqa: E402
 from scripts.translate_and_verify import (  # noqa: E402
     _is_term_consistent,

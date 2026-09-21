@@ -1,7 +1,7 @@
 """Analyze 地府叫我小先生 for Westward Echo testing."""
 import sys
 sys.path.insert(0, ".")
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 from src.chapter_splitter import split_chapters
 from src.cultural_rules import detect_genre, is_known_genre, list_known_genres
 

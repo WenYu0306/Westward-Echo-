@@ -150,6 +150,23 @@ class TestTokenTracking:
         # Flash pricing: $0.14/M in, $0.28/M out
         assert cost["estimated_cost_usd"] == pytest.approx(0.42, rel=0.01)
 
+    def test_cost_is_rounded_to_four_decimals_exactly(self, store):
+        # 1000 input tokens at $0.14/M = $0.00014 → rounds to $0.0001. Carrying
+        # more precision than the API reports would misstate micro-costs.
+        jid = store.create_job("small.txt", "en-US", 1)
+        store.update_token_usage(jid, 1_000, 0)
+        assert store.get_job_cost(jid)["estimated_cost_usd"] == 0.0001
+
+    def test_one_million_input_tokens_costs_fourteen_cents(self, store):
+        jid = store.create_job("rates-in.txt", "en-US", 1)
+        store.update_token_usage(jid, 1_000_000, 0)
+        assert store.get_job_cost(jid)["estimated_cost_usd"] == 0.14
+
+    def test_one_million_output_tokens_costs_twenty_eight_cents(self, store):
+        jid = store.create_job("rates-out.txt", "en-US", 1)
+        store.update_token_usage(jid, 0, 1_000_000)
+        assert store.get_job_cost(jid)["estimated_cost_usd"] == 0.28
+
 
 # ── Glossary presets ─────────────────────────────────────────────
 
@@ -267,3 +284,75 @@ class TestRejectedTerms:
         assert len(store.get_rejected_terms("en-US")) == 1
         assert len(store.get_rejected_terms("es-ES")) == 1
         assert len(store.get_rejected_terms("de")) == 0
+
+
+# ── Default listing limits ────────────────────────────────────────
+
+class TestDefaultListingLimits:
+    """The default limits are the dashboard's paging contract."""
+
+    def test_list_jobs_defaults_to_fifty(self, store):
+        for i in range(51):
+            store.create_job(f"f{i}.txt", "en-US", 1)
+        assert len(store.list_jobs()) == 50
+
+    def test_list_projects_defaults_to_twenty(self, store):
+        # A project only appears once it has a language job.
+        for i in range(21):
+            pid = store.create_project(f"p{i}.txt")
+            store.add_language_job(pid, "en-US", f"p{i}.txt", 1)
+        assert len(store.list_projects()) == 20
+
+    def test_explicit_limit_still_wins(self, store):
+        for i in range(5):
+            store.create_job(f"g{i}.txt", "en-US", 1)
+        assert len(store.list_jobs(limit=2)) == 2
+
+
+# ── Confirmed terms (human-approved glossary) ─────────────────────
+
+class TestConfirmedTerms:
+    """get_confirmed_terms feeds the never-overwrite glossary contract."""
+
+    def test_returns_only_confirmed_terms(self, store, tmp_path, monkeypatch):
+        import src.config as config
+        from src.glossary.exact_store import ExactGlossary
+
+        db = tmp_path / "ckpt.db"
+        monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", str(db))
+
+        eg = ExactGlossary(db_path=str(db), book_id="confirmed-terms-test")
+        eg.add("聋婆婆", "Deaf Granny", category="character")
+        eg.add("王三", "Wang San", category="character")
+        eg.confirm_term("聋婆婆", target_lang="en-US")
+
+        confirmed = store.get_confirmed_terms("en-US")
+
+        assert confirmed == {"聋婆婆": "Deaf Granny"}
+
+    def test_returns_empty_dict_when_nothing_confirmed(self, store, tmp_path, monkeypatch):
+        import src.config as config
+        from src.glossary.exact_store import ExactGlossary
+
+        db = tmp_path / "ckpt2.db"
+        monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", str(db))
+        ExactGlossary(db_path=str(db), book_id="confirmed-terms-empty").add(
+            "王三", "Wang San"
+        )
+
+        assert store.get_confirmed_terms("en-US") == {}
+
+
+# ── Connection bootstrap ──────────────────────────────────────────
+
+class TestConnectionBootstrap:
+    def test_missing_parent_directories_are_created(self, tmp_path, monkeypatch):
+        """A first run must create its own nesting, not crash on mkdir."""
+        import src.job_store as js
+
+        nested = tmp_path / "deep" / "nested" / "jobs.db"
+        monkeypatch.setattr(js, "DB_PATH", str(nested))
+        monkeypatch.setattr(js._local, "conn", None)
+
+        assert js.JobStore().create_job("boot.txt", "en-US", 1)
+        assert nested.exists()

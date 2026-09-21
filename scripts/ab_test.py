@@ -16,7 +16,7 @@ from src.agent.nodes.write import _format_read_analysis, _parse_write_response
 from src.agent.prompts.write import WRITE_SYSTEM, WRITE_USER
 from src.agent.prompts.translation import LANGUAGE_STYLE_NOTES
 from src.chapter_splitter import split_chapters, ParagraphTag
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
 from src.circuit_breaker import get_breaker
 from src.stats import TranslationStats

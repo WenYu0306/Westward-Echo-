@@ -171,7 +171,10 @@ class TranslationAgent:
             parts.extend(term_lines)
             parts.append("")
 
-        if len(parts) <= 1:
+        # A briefing with any one section is still worth sending: an off-by-one
+        # here (`<= 1`) silently discarded a chapter-2+ briefing that had only
+        # the "early chapter" line, or only a character roster.
+        if not parts:
             return ""
         return '\n'.join(parts)
 
@@ -223,13 +226,13 @@ class TranslationAgent:
             result = self._translate_split(
                 chapter_title, chapter_content, chapter_number,
                 previous_summary, target_lang, genre, skip_readback,
-                content_type=content_type,
+                use_flash_writer, content_type=content_type,
             )
         else:
             result = self._translate_once(
                 chapter_title, chapter_content, chapter_number,
                 previous_summary, target_lang, genre, skip_readback,
-                content_type=content_type,
+                use_flash_writer, content_type=content_type,
             )
 
         return result
@@ -480,9 +483,9 @@ class TranslationAgent:
                     t["term_en"] = read_en
 
         # ── Hard curation gate: drop obviously-invalid renderings ──
-        # A rendering that is empty, contains Chinese, tone-marked pinyin, or
-        # a stray digit must not be cached — it would be locked in as "must
-        # use" for the whole book.
+        # A rendering that is empty, contains Chinese, tone-marked pinyin, a
+        # stray digit, or is a gloss rather than a token must not be cached —
+        # it would be locked in as "must use" for the whole book.
         if new_terms:
             kept = []
             for t in new_terms:
@@ -495,6 +498,11 @@ class TranslationAgent:
                         chapter_number, t.get("term_cn", ""), t.get("term_en", ""), reason,
                     )
             new_terms = kept
+            # Mirror the curated list back into the result: the dropped terms
+            # must not be reported as discovered glossary terms either, or a
+            # caller (API response, split merge, on-disk artifact) would
+            # re-introduce exactly what this gate rejected.
+            result["new_terms_found"] = kept
 
         if new_terms:
             # Write character/location terms to exact store

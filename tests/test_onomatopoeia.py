@@ -47,3 +47,22 @@ class TestBuildOnomatopoeiaContext:
         # 哗啦啦 should appear exactly once in the output (not counting the header)
         # The dedup is done by set() in build_onomatopoeia_context
         assert result.count("哗啦啦") == 1
+
+
+class TestOnomatopoeiaCountRendering:
+    def _context(self, text):
+        from src.onomatopoeia import build_onomatopoeia_context
+        return build_onomatopoeia_context(text)
+
+    def test_sound_appearing_once_has_no_count(self):
+        out = self._context("雨淅淅沥沥地下着。")
+        assert "淅淅沥沥" in out
+        assert "appears" not in out
+
+    def test_sound_appearing_twice_reports_the_count(self):
+        out = self._context("淅淅沥沥，淅淅沥沥，下个不停。")
+        assert "(appears 2x)" in out
+
+    def test_sound_appearing_three_times_reports_the_count(self):
+        out = self._context("淅淅沥沥，淅淅沥沥，淅淅沥沥。")
+        assert "(appears 3x)" in out

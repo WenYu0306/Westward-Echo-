@@ -38,6 +38,23 @@ def _is_cut(proposed_en: str) -> bool:
     return "(cut" in low or "no english rendering" in low or "no translation" in low
 
 
+def _is_explanatory(rendering: str) -> bool:
+    """True if a rendering is a gloss rather than a single usable token.
+
+    A term cached in the glossary is re-injected as "must use" for every
+    later chapter, so only a token WRITE can drop into prose verbatim may be
+    cached. These are glosses, not tokens:
+
+      "Chuma Shaman / spirit medium"                  → alternatives
+      "Qingfeng — the spirits of the violently dead"  → em-dash gloss
+      "Ghost Festival (chapter title: 'Ghost Festival')" → parenthetical gloss
+      "Ghost Festival: the night the dead walk"       → colon gloss
+    """
+    if any(mark in rendering for mark in ("/", "—", "–", "(", ")", ":")):
+        return True
+    return " - " in rendering
+
+
 def is_single_rendering(proposed_en: str) -> bool:
     """True if proposed_en is one clean rendering, not alternatives/explanation.
 
@@ -46,7 +63,7 @@ def is_single_rendering(proposed_en: str) -> bool:
     this to avoid overwriting a WRITE rendering with a sloppy multi-candidate
     or explanatory string.
     """
-    return "/" not in proposed_en and "—" not in proposed_en and " - " not in proposed_en
+    return bool(proposed_en.strip()) and not _is_explanatory(proposed_en)
 
 
 # Tone-marked Latin vowels — the tell of a pinyin transliteration (Lóng Pópo).
@@ -61,8 +78,8 @@ def is_valid_rendering(term_cn: str, term_en: str) -> tuple[bool, str]:
     glossary, where it would be locked in as "must use" for the whole book.
 
     Returns (ok, reason). ``ok`` is False when the rendering is empty, contains
-    Chinese, contains tone-marked pinyin, or contains a digit that the source
-    term doesn't have.
+    Chinese, contains tone-marked pinyin, contains a digit that the source
+    term doesn't have, or is a gloss/explanation rather than a single token.
     """
     en = term_en.strip()
     if not en:
@@ -73,6 +90,8 @@ def is_valid_rendering(term_cn: str, term_en: str) -> tuple[bool, str]:
         return False, "contains tone-marked pinyin"
     if any(ch.isdigit() for ch in en) and not any(ch.isdigit() for ch in term_cn):
         return False, "digit appeared that the source doesn't have"
+    if _is_explanatory(en):
+        return False, "explanatory rendering, not a single token"
     return True, ""
 
 

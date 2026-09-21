@@ -36,7 +36,7 @@ if ch_count == 0:
 print(f"{ch_count} chapters already translated")
 
 # Verify against source
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 from src.chapter_splitter import split_chapters, ParagraphTag
 
 text, enc = detect_and_read("tests/fixtures/《无限恐怖》 作者：zhttty.txt")

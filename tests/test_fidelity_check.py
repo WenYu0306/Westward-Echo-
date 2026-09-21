@@ -103,6 +103,32 @@ class TestCheckCulturalFidelity:
         failures = check_cultural_fidelity(analysis, text)
         assert len(failures) == 1
 
+    def test_unusable_analysis_is_skipped_without_english_text(self):
+        # Both guards matter independently: a populated analysis with no WRITE
+        # output can say nothing about drift, so it must not report any.
+        analysis = _analysis(_decision("聋婆婆", "Deaf Granny", category="character"))
+        assert check_cultural_fidelity(analysis, "") == []
+
+    def test_decision_missing_term_cn_is_skipped(self):
+        # A half-empty decision carries no checkable pair — it must not be
+        # reported as a dropped decision.
+        analysis = _analysis(_decision("", "Deaf Granny", category="character"))
+        assert check_cultural_fidelity(analysis, "Nothing relevant here.") == []
+
+    def test_decision_missing_proposed_en_is_skipped(self):
+        analysis = _analysis(_decision("聋婆婆", "", category="character"))
+        assert check_cultural_fidelity(analysis, "Nothing relevant here.") == []
+
+    def test_rendering_of_exactly_51_chars_is_skipped(self):
+        # Boundary of the long/descriptive-rendering guard.
+        analysis = _analysis(_decision("聋婆婆", "A" * 51, category="character"))
+        assert check_cultural_fidelity(analysis, "Nothing relevant here.") == []
+
+    def test_rendering_of_exactly_50_chars_is_still_checked(self):
+        analysis = _analysis(_decision("聋婆婆", "A" * 50, category="character"))
+        failures = check_cultural_fidelity(analysis, "Nothing relevant here.")
+        assert len(failures) == 1
+
 
 class TestPostProcessIntegration:
     def test_post_process_records_fidelity_failure(self):

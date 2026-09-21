@@ -384,7 +384,15 @@ def build_epub(
 
     # ── Derived values ──
     book_id = str(uuid.uuid4())
-    chapter_ids = [f"chapter_{ch.get('chapter_num', i + 1)}" for i, ch in enumerate(chapters)]
+    # Number the chapters once, here. The OPF manifest idrefs, the spine, the
+    # NCX navPoints and the XHTML file names must all agree; computing the
+    # fallback separately in each place wrote duplicate `chapter_0.xhtml`
+    # entries for chapters without an explicit number, and left the spine
+    # pointing at files that were never created.
+    chapter_nums = [
+        ch.get("chapter_num") or (i + 1) for i, ch in enumerate(chapters)
+    ]
+    chapter_ids = [f"chapter_{n}" for n in chapter_nums]
 
     # ── Open ZIP ──
     try:
@@ -405,9 +413,8 @@ def build_epub(
             )
 
             # Chapters
-            for ch in chapters:
-                ch_title = ch.get("title", f"Chapter {ch.get('chapter_num', '?')}")
-                ch_num = ch.get("chapter_num", 0)
+            for ch, ch_num in zip(chapters, chapter_nums):
+                ch_title = ch.get("title", f"Chapter {ch_num}")
                 zf.writestr(
                     f"OEBPS/chapter_{ch_num}.xhtml",
                     _chapter_page(ch_title, ch.get("content", "")).encode("utf-8"),

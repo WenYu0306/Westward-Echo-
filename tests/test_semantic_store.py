@@ -95,3 +95,327 @@ class TestClientMode:
             s._book_id = "default"
             s._init_chroma("/tmp/unused")
         mock_pc.assert_called_once()
+
+
+# ── Init retry policy ─────────────────────────────────────────────
+
+class TestInitRetryPolicy:
+    """The ONNX model download is flaky — the retry envelope is a design choice."""
+
+    def _retrying(self):
+        return SemanticGlossary._init_chroma.retry
+
+    def test_three_attempts(self):
+        assert self._retrying().stop.max_attempt_number == 3
+
+    def test_exponential_backoff_multiplier(self):
+        assert self._retrying().wait.multiplier == 2
+
+    def test_backoff_floor_is_two_seconds(self):
+        assert self._retrying().wait.min == 2
+
+    def test_backoff_ceiling_is_eight_seconds(self):
+        assert self._retrying().wait.max == 8
+
+    def test_original_exception_is_reraised(self):
+        # reraise=False would replace the real cause (e.g. a download error)
+        # with an opaque RetryError, making the warning log useless.
+        assert self._retrying().reraise is True
+
+
+# ── Constructor / readiness ───────────────────────────────────────
+
+class TestConstructorReadiness:
+    def test_successful_init_marks_the_store_ready(self, monkeypatch):
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        s = SemanticGlossary(persist_path="/tmp/unused-ready", book_id="b")
+        assert s._ready is True
+        assert s.is_healthy() is True
+
+    def test_failed_init_leaves_the_store_unready(self, monkeypatch):
+        def boom(self, path):
+            raise RuntimeError("onnx unavailable")
+
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", boom)
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time", 0.0)
+        s = SemanticGlossary(persist_path="/tmp/unused-broken", book_id="b")
+        assert s._ready is False
+
+    def test_persist_path_defaults_to_the_configured_chroma_path(self, monkeypatch):
+        from src.config import CHROMA_PERSIST_PATH
+
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        s = SemanticGlossary(persist_path=None, book_id="b")
+        assert str(s._persist_path) == str(CHROMA_PERSIST_PATH)
+
+    def test_existing_persist_path_is_accepted(self, tmp_path, monkeypatch):
+        # mkdir with exist_ok=False would explode on every restart.
+        target = tmp_path / "already-there"
+        target.mkdir()
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        s = SemanticGlossary(persist_path=str(target), book_id="b")
+        assert s._persist_path == str(target)
+
+
+# ── try_recover / is_healthy ──────────────────────────────────────
+
+class TestRecoveryStateMachine:
+    def test_ready_store_reports_recovered(self):
+        s = _make_store("b", MagicMock())
+        assert s.try_recover() is True
+
+    def test_recent_attempt_is_throttled(self, monkeypatch):
+        import time
+
+        s = _make_store("b", None)
+        s._ready = False
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time", time.monotonic())
+        assert s.try_recover() is False
+
+    def test_attempt_allowed_once_the_throttle_window_passes(self, monkeypatch):
+        import time
+
+        s = _make_store("b", None)
+        s._ready = False
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time",
+                            time.monotonic() - 60.5)
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        assert s.try_recover() is True
+
+    def test_just_inside_the_window_is_still_throttled(self, monkeypatch):
+        import time
+
+        s = _make_store("b", None)
+        s._ready = False
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time",
+                            time.monotonic() - 59.5)
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        assert s.try_recover() is False
+
+    def test_successful_recovery_marks_ready_and_resets_warning(self, monkeypatch):
+        s = _make_store("b", None)
+        s._ready = False
+        s._warned = True
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time", 0.0)
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        assert s.try_recover() is True
+        assert s._ready is True
+        assert s._warned is False
+
+    def test_failed_recovery_reports_false(self, monkeypatch):
+        def boom(self, path):
+            raise RuntimeError("still down")
+
+        s = _make_store("b", None)
+        s._ready = False
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time", 0.0)
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", boom)
+        assert s.try_recover() is False
+
+    def test_healthy_store_with_client_is_healthy(self):
+        s = _make_store("b", MagicMock())
+        assert s.is_healthy() is True
+
+    def test_ready_without_client_is_not_healthy(self):
+        # An instance that lost its client must not be reported healthy.
+        s = _make_store("b", None)
+        s.try_recover = lambda: False
+        assert s.is_healthy() is False
+
+    def test_unready_store_delegates_to_recovery(self):
+        s = _make_store("b", MagicMock())
+        s._ready = False
+        s.try_recover = lambda: True
+        assert s.is_healthy() is True
+
+    def test_ready_and_client_set_does_not_attempt_recovery(self):
+        s = _make_store("b", MagicMock())
+        s.try_recover = lambda: (_ for _ in ()).throw(AssertionError("should not recover"))
+        assert s.is_healthy() is True
+
+
+class TestWarnOnce:
+    def test_warns_on_first_use_only(self, caplog):
+        import logging
+
+        s = _make_store("b", MagicMock())
+        s._ready = False
+        with caplog.at_level(logging.WARNING, logger="westward_echo.glossary"):
+            s._warn_once()
+            s._warn_once()
+            s._warn_once()
+        messages = [r.getMessage() for r in caplog.records if "not ready" in r.getMessage()]
+        assert len(messages) == 1
+
+    def test_warn_flag_starts_clear(self, monkeypatch):
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", lambda self, path: MagicMock())
+        s = SemanticGlossary(persist_path="/tmp/unused-warned", book_id="b")
+        assert s._warned is False
+
+
+# ── _init_chroma client selection ─────────────────────────────────
+
+class TestInitChromaProbe:
+    def test_returns_the_constructed_client(self, monkeypatch):
+        monkeypatch.delenv("CHROMA_HOST", raising=False)
+        mock_collection = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        with patch("chromadb.PersistentClient", return_value=mock_client):
+            s = SemanticGlossary.__new__(SemanticGlossary)
+            s._book_id = "default"
+            assert s._init_chroma("/tmp/unused") is mock_client
+
+    def test_probe_document_is_cleaned_up(self, monkeypatch):
+        monkeypatch.delenv("CHROMA_HOST", raising=False)
+        mock_collection = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+        with patch("chromadb.PersistentClient", return_value=mock_client):
+            s = SemanticGlossary.__new__(SemanticGlossary)
+            s._book_id = "default"
+            s._init_chroma("/tmp/unused")
+        mock_collection.upsert.assert_called_once()
+        mock_collection.delete.assert_called_once_with(ids=["test"])
+
+    def test_telemetry_is_disabled_for_persistent_client(self, monkeypatch):
+        monkeypatch.delenv("CHROMA_HOST", raising=False)
+        mock_client = MagicMock()
+        with patch("chromadb.PersistentClient", return_value=mock_client) as mock_pc:
+            s = SemanticGlossary.__new__(SemanticGlossary)
+            s._book_id = "default"
+            s._init_chroma("/tmp/unused")
+        assert mock_pc.call_args[1]["settings"].anonymized_telemetry is False
+
+    def test_telemetry_is_disabled_for_http_client(self, monkeypatch):
+        monkeypatch.setenv("CHROMA_HOST", "chroma")
+        mock_client = MagicMock()
+        with patch("chromadb.HttpClient", return_value=mock_client) as mock_http:
+            s = SemanticGlossary.__new__(SemanticGlossary)
+            s._book_id = "default"
+            s._init_chroma("/tmp/unused")
+        assert mock_http.call_args[1]["settings"].anonymized_telemetry is False
+
+
+# ── Store operations (mock collection) ────────────────────────────
+
+class TestSearchBehaviour:
+    def _searching_store(self, metadatas=None, count=1):
+        client = MagicMock()
+        collection = MagicMock()
+        collection.count.return_value = count
+        collection.query.return_value = {"metadatas": metadatas}
+        client.get_or_create_collection.return_value = collection
+        return _make_store("b", client), collection
+
+    def test_default_top_k_is_fifteen(self):
+        store, collection = self._searching_store(metadatas=[[{"term_cn": "鬼节",
+                                                             "term_en": "Ghost Festival",
+                                                             "category": "culture"}]])
+        store.search("鬼节")
+        assert collection.query.call_args.kwargs["n_results"] == 15
+
+    def test_query_text_is_passed_through(self):
+        store, collection = self._searching_store(metadatas=[[{"term_cn": "鬼节",
+                                                             "term_en": "GF",
+                                                             "category": "culture"}]])
+        store.search("鬼节的晚上")
+        assert collection.query.call_args.kwargs["query_texts"] == ["鬼节的晚上"]
+
+    def test_results_are_mapped_to_dicts(self):
+        store, _ = self._searching_store(metadatas=[[
+            {"term_cn": "鬼节", "term_en": "Ghost Festival", "category": "culture"},
+        ]])
+        assert store.search("x") == [
+            {"term_cn": "鬼节", "term_en": "Ghost Festival", "category": "culture"}
+        ]
+
+    def test_missing_category_defaults_to_culture(self):
+        store, _ = self._searching_store(metadatas=[[{"term_cn": "鬼节", "term_en": "GF"}]])
+        assert store.search("x")[0]["category"] == "culture"
+
+    def test_unready_store_returns_empty_list(self):
+        s = _make_store("b", MagicMock())
+        s._ready = False
+        assert s.search("x") == []
+
+    def test_unready_store_does_not_query(self):
+        client = MagicMock()
+        s = _make_store("b", client)
+        s._ready = False
+        s.search("x")
+        client.get_or_create_collection.assert_not_called()
+
+    def test_empty_collection_returns_empty_list(self):
+        store, collection = self._searching_store(metadatas=None, count=0)
+        assert store.search("x") == []
+        collection.query.assert_not_called()
+
+    def test_empty_metadata_list_returns_empty_list(self):
+        store, _ = self._searching_store(metadatas=[])
+        assert store.search("x") == []
+
+    def test_empty_metadata_inner_list_returns_empty_list(self):
+        store, _ = self._searching_store(metadatas=[[]])
+        assert store.search("x") == []
+
+
+class TestAddAndCount:
+    def _adding_store(self):
+        client = MagicMock()
+        collection = MagicMock()
+        collection.count.return_value = 7
+        client.get_or_create_collection.return_value = collection
+        return _make_store("b", client), collection
+
+    def test_add_term_upserts_one_document(self):
+        store, collection = self._adding_store()
+        store.add_term("鬼节", "Ghost Festival", category="culture")
+        kwargs = collection.upsert.call_args.kwargs
+        assert kwargs["ids"] == ["鬼节"]
+        assert kwargs["metadatas"][0]["term_en"] == "Ghost Festival"
+        assert kwargs["documents"] == ["[culture] 鬼节"]
+
+    def test_add_term_includes_context_when_given(self):
+        store, collection = self._adding_store()
+        store.add_term("鬼节", "Ghost Festival", context="第十五天")
+        assert collection.upsert.call_args.kwargs["documents"] == ["[culture] 鬼节: 第十五天"]
+
+    def test_add_batch_upserts_only_when_there_are_terms(self):
+        store, collection = self._adding_store()
+        store.add_batch([])
+        collection.upsert.assert_not_called()
+
+    def test_add_batch_maps_every_term(self):
+        store, collection = self._adding_store()
+        store.add_batch([
+            {"term_cn": "鬼节", "term_en": "Ghost Festival", "category": "culture"},
+            {"term_cn": "聋婆婆", "term_en": "Deaf Granny", "category": "character",
+             "context": "老槐树下"},
+        ])
+        kwargs = collection.upsert.call_args.kwargs
+        assert kwargs["ids"] == ["鬼节", "聋婆婆"]
+        assert kwargs["documents"][1] == "[character] 聋婆婆: 老槐树下"
+
+    def test_unready_store_add_term_is_a_noop(self):
+        client = MagicMock()
+        s = _make_store("b", client)
+        s._ready = False
+        s.add_term("鬼节", "Ghost Festival")
+        client.get_or_create_collection.assert_not_called()
+
+    def test_unready_store_add_batch_is_a_noop(self):
+        client = MagicMock()
+        s = _make_store("b", client)
+        s._ready = False
+        s.add_batch([{"term_cn": "鬼节", "term_en": "GF"}])
+        client.get_or_create_collection.assert_not_called()
+
+    def test_count_returns_the_collection_size(self):
+        store, _ = self._adding_store()
+        assert store.count() == 7
+
+    def test_unready_count_is_zero(self):
+        s = _make_store("b", MagicMock())
+        s._ready = False
+        assert s.count() == 0

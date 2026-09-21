@@ -92,3 +92,37 @@ class TestDialectContext:
         ctx = build_dialect_context("啥子嘛，巴适得很，要得要得。")
         assert "四川话" in ctx
         assert "Texas" in ctx
+
+
+class TestSystemTextDetection:
+    def test_system_marker_is_detected(self):
+        from src.dialect import has_system_text
+
+        assert has_system_text("系统提示：恭喜宿主绑定霸总攻略系统！") is True
+
+    def test_plain_prose_is_not_system_text(self):
+        from src.dialect import has_system_text
+
+        assert has_system_text("她走进房间，把门轻轻带上。") is False
+
+    def test_returns_a_boolean(self):
+        from src.dialect import has_system_text
+
+        assert isinstance(has_system_text("系统通知：经验值 +10"), bool)
+
+
+class TestDialectContextOrdering:
+    def test_stronger_dialect_is_listed_first(self):
+        # dongbei: 4 markers (整/啥/咋/俺); sichuan: 2 markers (啥子/巴适)
+        text = "你整啥呢？咋地了？俺也不知道。这道菜巴适得很，啥子味道嘛。"
+        detected = detect_dialects(text)
+        assert detected.get("dongbei", 0) > detected.get("sichuan", 0) > 0
+
+        context = build_dialect_context(text)
+        assert context.index("东北话") < context.index("四川话")
+
+    def test_header_precedes_every_dialect_line(self):
+        text = "你整啥呢？咋地了？俺也不知道。这道菜巴适得很，啥子味道嘛。"
+        context = build_dialect_context(text)
+        assert context.startswith("## DIALECT CONTEXT")
+        assert context.count("- Characters speaking") >= 2

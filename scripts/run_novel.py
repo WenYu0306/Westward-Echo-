@@ -13,7 +13,7 @@ import sys, os, time, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 from src.circuit_breaker import CircuitBreakerOpenError
 
 # ═══════════════════════════════════════════════════════════════

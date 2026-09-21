@@ -197,3 +197,74 @@ class TestBuildSegmentTitle:
         seg = {"index": 1, "total": 1, "content": "...", "is_first": True, "is_last": True}
         title = build_segment_title("楔子", seg)
         assert title == "楔子 [Part 1/1]"
+
+
+class TestSingleSegmentContent:
+    def test_short_content_is_preserved_verbatim(self):
+        from src.chapter_slicer import split_chapter
+
+        segments = split_chapter("这是一段很短的正文。")
+        assert len(segments) == 1
+        assert segments[0]["content"] == "这是一段很短的正文。"
+
+    def test_blank_content_stays_blank(self):
+        from src.chapter_slicer import split_chapter
+
+        assert split_chapter("")[0]["content"] == ""
+
+    def test_whitespace_only_content_is_preserved_verbatim(self):
+        # The single-segment fallback must hand back the original text, not
+        # collapse it to an empty string.
+        from src.chapter_slicer import split_chapter
+
+        assert split_chapter("   \n  ")[0]["content"] == "   \n  "
+
+
+class TestSegmentBoundary:
+    def _long_chapter(self, paragraphs, chars_each):
+        return "\n\n".join("字" * chars_each for _ in range(paragraphs))
+
+    def test_two_and_a_half_segments_of_content(self):
+        from src.chapter_slicer import MAX_CHARS_PER_SEGMENT, split_chapter
+
+        # 2.5 × the per-segment budget → 3 segments, and the last is smaller.
+        content = self._long_chapter(5, MAX_CHARS_PER_SEGMENT // 2)
+        segments = split_chapter(content)
+        assert len(segments) == 3
+        assert segments[-1]["content"] != ""
+        assert [s["index"] for s in segments] == [1, 2, 3]
+
+    def test_content_exactly_at_the_budget_is_one_segment(self):
+        from src.chapter_slicer import MAX_CHARS_PER_SEGMENT, split_chapter
+
+        content = self._long_chapter(1, MAX_CHARS_PER_SEGMENT)
+        segments = split_chapter(content)
+        assert len(segments) == 1
+
+    def test_no_segment_is_empty(self):
+        from src.chapter_slicer import MAX_CHARS_PER_SEGMENT, split_chapter
+
+        content = self._long_chapter(6, MAX_CHARS_PER_SEGMENT // 2)
+        segments = split_chapter(content)
+        assert all(s["content"].strip() for s in segments)
+
+    def test_oversized_single_paragraph_is_split_at_sentences(self):
+        from src.chapter_slicer import MAX_CHARS_PER_SEGMENT, split_chapter
+
+        sentence = "这是一个很长的句子。" + "字" * 60
+        content = sentence * 200  # one paragraph, far over the budget
+        segments = split_chapter(content)
+        assert len(segments) > 1
+        assert all(s["content"].strip() for s in segments)
+
+    def test_oversized_paragraph_packs_sentences_up_to_the_budget(self):
+        # 14,000 chars of one paragraph at a 3,000-char budget packs into a
+        # handful of near-full segments — a broken flush condition would emit
+        # one tiny segment per sentence (~200 of them).
+        from src.chapter_slicer import MAX_CHARS_PER_SEGMENT, split_chapter
+
+        sentence = "这是一个很长的句子。" + "字" * 60
+        segments = split_chapter(sentence * 200)
+        sizes = [len(s["content"].replace("\n", "").replace(" ", "")) for s in segments]
+        assert len(segments) == 5
+        assert all(size > MAX_CHARS_PER_SEGMENT * 0.5 for size in sizes)

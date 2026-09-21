@@ -232,6 +232,75 @@ class TestCircuitBreakerEdgeCases:
         assert cb._open_transitions == 3
 
 
+class TestCircuitBreakerCounters:
+    """Every counter the dashboard reads must move by exactly one per event."""
+
+    def test_call_increments_total_calls_by_one(self):
+        cb = _fresh_breaker()
+        cb.call(lambda: "ok")
+        assert cb.snapshot()["total_calls"] == 1
+        cb.call(lambda: "ok")
+        assert cb.snapshot()["total_calls"] == 2
+
+    def test_success_increments_total_successes_by_one(self):
+        cb = _fresh_breaker()
+        cb.call(lambda: "ok")
+        assert cb.snapshot()["total_successes"] == 1
+        cb.call(lambda: "ok")
+        assert cb.snapshot()["total_successes"] == 2
+
+    def test_failure_increments_total_failures_by_one(self):
+        cb = _fresh_breaker(threshold=99)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        assert cb.snapshot()["total_failures"] == 1
+
+    def test_rejected_call_still_counts_the_call_and_the_failure(self):
+        cb = _fresh_breaker(threshold=1, recovery=30.0)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        assert cb.is_open()
+
+        calls_before = cb.snapshot()["total_calls"]
+        failures_before = cb.snapshot()["total_failures"]
+        with pytest.raises(CircuitBreakerOpenError):
+            cb.call(lambda: "never runs")
+
+        assert cb.snapshot()["total_calls"] == calls_before + 1
+        assert cb.snapshot()["total_failures"] == failures_before + 1
+
+    def test_half_open_probe_is_counted_once(self):
+        cb = _fresh_breaker(threshold=1, recovery=0.05)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        time.sleep(0.1)
+
+        assert cb.state == CircuitBreaker.HALF_OPEN
+        cb.call(lambda: "probe")
+        # The probe succeeded, which resets the counter for the next window.
+        assert cb._half_open_attempts == 0
+
+    def test_half_open_probe_increments_attempts(self):
+        cb = _fresh_breaker(threshold=1, recovery=0.05)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        time.sleep(0.1)
+        # Enter HALF_OPEN and fail the probe: record_failure reopens the circuit
+        # and does not reset _half_open_attempts, so the increment is visible.
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("probe failed")))
+        assert cb._half_open_attempts == 1
+
+    def test_state_reports_half_open_when_recovery_is_due(self):
+        cb = _fresh_breaker(threshold=1, recovery=0.05)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+        assert cb.state == CircuitBreaker.OPEN
+        time.sleep(0.1)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+        assert cb.state == "half_open"
+
+
 class TestCircuitBreakerDefaults:
     """Default thresholds and recovery-timeout transitions (hardcoded values)."""
 
@@ -240,11 +309,14 @@ class TestCircuitBreakerDefaults:
         assert cb._failure_threshold == 5
         assert cb._recovery_timeout == 30.0
         assert cb._window_seconds == 60.0
+        assert cb._half_open_max == 1
 
     def test_get_breaker_uses_defaults(self):
         cb = get_breaker("defaults-test-xyz")
         assert cb._failure_threshold == 5
         assert cb._recovery_timeout == 30.0
+        assert cb._window_seconds == 60.0
+        assert cb._half_open_max == 1
         with _breakers_lock:
             _breakers.pop("defaults-test-xyz", None)
 
@@ -798,3 +870,18 @@ class TestTranslationStatsUnderFaults:
         ]
         for key in expected_keys:
             assert key in snap, f"Missing key: {key}"
+
+
+class TestBackpressureDefaults:
+    def test_default_queue_depth_is_one_hundred(self):
+        guard = BackpressureGuard()
+        for _ in range(100):
+            assert guard.try_accept() is True
+        assert guard.try_accept() is False
+
+    def test_release_frees_exactly_one_slot(self):
+        guard = BackpressureGuard(max_queue_depth=5)
+        guard.try_accept()
+        guard.try_accept()
+        guard.release()
+        assert guard._pending_count == 1

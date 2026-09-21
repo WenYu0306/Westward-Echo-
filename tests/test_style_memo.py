@@ -260,3 +260,312 @@ class TestUpdateFromFeedback:
         memo_store.update_from_feedback(readback_feedback, {}, 1)
         text = memo_store.read_all()
         assert "translation feel" in text
+
+
+class TestReadAllTruncation:
+    """Pin read_all()'s line-count threshold and line-slice boundaries."""
+
+    def test_truncates_over_70_lines(self, memo_store):
+        lines = ["# H"] + ["EARLYMARKER"] + [f"L{i}" for i in range(2, 71)]
+        (memo_store.root / "characters.md").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8")
+        text = memo_store.read_all()
+        assert "EARLYMARKER" not in text
+
+    def test_keeps_last_60_lines_with_header(self, memo_store):
+        lines = ["# H"] + [f"L{i}" for i in range(1, 75)]
+        lines[14] = "MARK61"
+        (memo_store.root / "characters.md").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8")
+        text = memo_store.read_all()
+        assert "MARK61" not in text
+
+    def test_keeps_last_60_lines_without_header(self, memo_store):
+        lines = ["NOHEADER"] + [f"L{i}" for i in range(1, 75)]
+        lines[14] = "MARK61B"
+        (memo_store.root / "pacing.md").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8")
+        text = memo_store.read_all()
+        assert "MARK61B" not in text
+
+
+class TestReadRelevantBoundaries:
+    """Pin read_relevant()'s budget, truncation and slice boundaries."""
+
+    def test_default_max_chars_is_5000(self, memo_store):
+        entry = "a" * 250
+        for fname in ["characters.md", "pacing.md", "bridges.md",
+                      "prose.md", "terms.md"]:
+            (memo_store.root / fname).write_text(
+                "# H\n" + "\n".join([entry] * 5) + "\n", encoding="utf-8")
+        result = memo_store.read_relevant()
+        assert len(result) == 5000
+
+    def test_default_recent_is_5(self, memo_store):
+        body = "\n".join(["OLDEST_MARKER"] + [f"entry{i}" for i in range(1, 6)])
+        (memo_store.root / "characters.md").write_text(
+            "# H\n" + body + "\n", encoding="utf-8")
+        result = memo_store.read_relevant()
+        assert "OLDEST_MARKER" not in result
+        assert "entry5" in result
+
+    def test_single_entry_drawer_is_processed(self, memo_store):
+        (memo_store.root / "characters.md").write_text(
+            "# H\nZENTRY\n", encoding="utf-8")
+        result = memo_store.read_relevant(max_chars=300)
+        assert "Index" not in result
+        assert "ZENTRY" in result
+
+    def test_entry_truncated_at_250(self, memo_store):
+        (memo_store.root / "characters.md").write_text(
+            "# H\n" + "7" * 300 + "\n", encoding="utf-8")
+        result = memo_store.read_relevant(max_chars=300)
+        assert "7" * 251 not in result
+        assert "7" * 250 in result
+
+    def test_includes_first_entry(self, memo_store):
+        (memo_store.root / "characters.md").write_text(
+            "# H\nFIRSTENTRY\nSECONDENTRY\n", encoding="utf-8")
+        result = memo_store.read_relevant(max_chars=300)
+        assert "FIRSTENTRY" in result
+        assert "SECONDENTRY" in result
+
+    def test_budget_201_continues_to_next_drawer(self, memo_store):
+        (memo_store.root / "characters.md").write_text(
+            "H\n" + "a" * 250 + "\n" + "b" * 46 + "\n", encoding="utf-8")
+        (memo_store.root / "pacing.md").write_text(
+            "H2\nMARKER_DRAWER2\n", encoding="utf-8")
+        result = memo_store.read_relevant(max_chars=500)
+        assert "MARKER_DRAWER2" in result
+
+    def test_does_not_fall_back_to_read_all(self, memo_store):
+        body = "\n".join(["OLD_MARKER"] + [f"entry{i}" for i in range(1, 6)])
+        (memo_store.root / "characters.md").write_text(
+            "# H\n" + body + "\n", encoding="utf-8")
+        result = memo_store.read_relevant(max_chars=300)
+        assert "OLD_MARKER" not in result
+
+    def test_caps_result_at_max_chars(self, memo_store):
+        (memo_store.root / "characters.md").write_text(
+            "# C\n" + "a" * 150 + "\n", encoding="utf-8")
+        (memo_store.root / "pacing.md").write_text(
+            "# P\n" + "b" * 250 + "\n", encoding="utf-8")
+        result = memo_store.read_relevant(max_chars=400)
+        assert len(result) == 400
+
+
+class TestStoreInitAndDedup:
+    def test_init_is_idempotent(self, memo_store):
+        import src.style_memo as sm
+        sm.StyleMemoStore("test_book")
+
+    def test_dedup_fingerprint_is_50_chars(self, memo_store):
+        memo_store.record_lesson("characters", "x" * 50 + "AAAA" + " one", 1)
+        memo_store.record_lesson("characters", "x" * 50 + "BBBB" + " two", 2)
+        text = memo_store.read_all()
+        assert "AAAA" in text
+        assert "BBBB" not in text
+
+
+class TestReadAnalysisBoundaries:
+    def test_cultural_gap_element_truncated_at_60(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"cultural_gaps": [{"element": "7" * 100, "bridge_guidance": "g"}]}, 1)
+        bridges = (memo_store.root / "bridges.md").read_text(encoding="utf-8")
+        assert "7" * 61 not in bridges
+
+    def test_cultural_gap_guidance_truncated_at_150(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"cultural_gaps": [{"element": "E", "bridge_guidance": "8" * 200}]}, 1)
+        bridges = (memo_store.root / "bridges.md").read_text(encoding="utf-8")
+        assert "8" * 151 not in bridges
+
+    def test_pacing_note_truncated_at_300(self, memo_store):
+        memo_store.update_from_read_analysis({"pacing_notes": "5" * 400}, 1)
+        pacing = (memo_store.root / "pacing.md").read_text(encoding="utf-8")
+        assert "5" * 301 not in pacing
+
+    def test_prose_rhythm_truncated_at_300(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"pacing_notes": "4" * 400 + " rhythm"}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "4" * 301 not in prose
+
+    def test_pacing_note_len_11_recorded(self, memo_store):
+        memo_store.update_from_read_analysis({"pacing_notes": "abcdefghijk"}, 1)
+        pacing = (memo_store.root / "pacing.md").read_text(encoding="utf-8")
+        assert "abcdefghijk" in pacing
+
+    def test_prose_rhythm_len_11_recorded(self, memo_store):
+        memo_store.update_from_read_analysis({"pacing_notes": "density 123"}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "density 123" in prose
+
+    def test_prose_rhythm_len_gt_10_recorded(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"pacing_notes": "density is high in chapter"}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "density is high" in prose
+
+    def test_pacing_none_is_skipped(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"pacing_notes": None, "image_gaps": [{"priority": "critical"}]}, 1)
+        pacing = (memo_store.root / "pacing.md").read_text(encoding="utf-8")
+        assert "image gaps detected" in pacing.lower()
+
+    def test_image_gaps_counts(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"image_gaps": [
+                {"priority": "critical"},
+                {"priority": "high"},
+                {"priority": "medium"},
+            ]}, 1)
+        pacing = (memo_store.root / "pacing.md").read_text(encoding="utf-8")
+        assert "critical=1" in pacing
+        assert "high=1" in pacing
+
+
+class TestTerminologyAndCharactersBoundaries:
+    def test_terminology_requires_cn_and_en(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "UNIQUECN", "proposed_en": ""}]}, 1)
+        text = memo_store.read_all()
+        assert "UNIQUECN" not in text
+
+    def test_character_len_5_not_routed(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "ABCDE", "proposed_en": "Five", "reasoning": "r"}]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "ABCDE" not in characters
+
+    def test_character_len_2_routed(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "AB", "proposed_en": "Two",
+                 "reasoning": "keep", "cultural_note": ""}]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "AB" in characters
+
+    def test_character_reasoning_only_routed(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "XYZ", "proposed_en": "Three",
+                 "reasoning": "why", "cultural_note": ""}]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "XYZ" in characters
+
+    def test_terms_cultural_note_truncated_at_120(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "ABCDE", "proposed_en": "EN",
+                 "cultural_note": "3" * 200}]}, 1)
+        terms = (memo_store.root / "terms.md").read_text(encoding="utf-8")
+        assert "3" * 121 not in terms
+
+    def test_terms_reasoning_truncated_at_120(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "ABCDE", "proposed_en": "EN",
+                 "reasoning": "2" * 200}]}, 1)
+        terms = (memo_store.root / "terms.md").read_text(encoding="utf-8")
+        assert "2" * 121 not in terms
+
+    def test_characters_cultural_note_truncated_at_120(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"terminology_decisions": [
+                {"term_cn": "CN", "proposed_en": "EN",
+                 "cultural_note": "1" * 200}]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "1" * 121 not in characters
+
+    def test_crafted_moment_len_21_routed(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"crafted_moments": ["y" * 21]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "y" * 21 in characters
+
+    def test_crafted_moment_len_20_not_routed(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"crafted_moments": ["w" * 20]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "w" * 20 not in characters
+
+    def test_crafted_moment_truncated_at_200(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"crafted_moments": ["0" * 300]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "0" * 201 not in characters
+
+    def test_crafted_moment_non_string_skipped(self, memo_store):
+        memo_store.update_from_read_analysis(
+            {"crafted_moments": [["ZZZZCRF"] * 21]}, 1)
+        characters = (memo_store.root / "characters.md").read_text(encoding="utf-8")
+        assert "ZZZZCRF" not in characters
+
+
+class TestFeedbackBoundaries:
+    def test_engagement_passage_truncated_at_80(self, memo_store):
+        memo_store.update_from_feedback(
+            {"engagement_gaps": [
+                {"passage": "6" * 100, "issue": "exposition"}]}, {}, 1)
+        pacing = (memo_store.root / "pacing.md").read_text(encoding="utf-8")
+        assert "6" * 81 not in pacing
+
+    def test_comprehension_passage_truncated_at_80(self, memo_store):
+        memo_store.update_from_feedback(
+            {"comprehension_issues": [
+                {"passage": "9" * 100, "issue": "unclear"}]}, {}, 1)
+        bridges = (memo_store.root / "bridges.md").read_text(encoding="utf-8")
+        assert "9" * 81 not in bridges
+
+    def test_engagement_info_only_records(self, memo_store):
+        memo_store.update_from_feedback(
+            {"engagement_gaps": [
+                {"passage": "p", "issue": "too much info dump"}]}, {}, 1)
+        text = memo_store.read_all()
+        assert "Exposition drag" in text
+
+    def test_engagement_explain_only_records(self, memo_store):
+        memo_store.update_from_feedback(
+            {"engagement_gaps": [
+                {"passage": "p", "issue": "explains too much"}]}, {}, 1)
+        text = memo_store.read_all()
+        assert "Exposition drag" in text
+
+    def test_standout_len_21_recorded(self, memo_store):
+        memo_store.update_from_feedback(
+            {"standout_moments": ["t" * 21]}, {}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "t" * 21 in prose
+
+    def test_standout_truncated_at_200(self, memo_store):
+        memo_store.update_from_feedback(
+            {"standout_moments": ["9" * 300]}, {}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "9" * 201 not in prose
+
+    def test_standout_non_string_skipped(self, memo_store):
+        memo_store.update_from_feedback(
+            {"standout_moments": [["ZZZZSTD"] * 21]}, {}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "ZZZZSTD" not in prose
+
+    def test_overall_impression_truncated_at_200(self, memo_store):
+        memo_store.update_from_feedback(
+            {"overall_impression": "8" * 300 + " translation"}, {}, 1)
+        prose = (memo_store.root / "prose.md").read_text(encoding="utf-8")
+        assert "8" * 201 not in prose
+
+    def test_translation_only_impression_records(self, memo_store):
+        memo_store.update_from_feedback(
+            {"overall_impression": "feels like machine translation"}, {}, 1)
+        text = memo_store.read_all()
+        assert "translation feel" in text
+
+    def test_reads_like_only_impression_records(self, memo_store):
+        memo_store.update_from_feedback(
+            {"overall_impression": "this reads like an essay"}, {}, 1)
+        text = memo_store.read_all()
+        assert "translation feel" in text

@@ -182,3 +182,84 @@ class TestConversionAccuracy:
     def test_yi_to_billions(self):
         out = build_measurements_hint("三亿")
         assert "0.3B" in out            # 300M = 0.3B
+
+
+class TestYiScale:
+    """The 亿 (hundred-million) conversions and their rounding boundaries."""
+
+    def test_one_yi_reports_the_billion_equivalent(self):
+        out = build_measurements_hint("一亿")
+        assert "/ 0.1B" in out
+
+    def test_zero_yi_uses_the_plain_form(self):
+        # digits < 1 → no billion equivalent, and the return must be a string
+        # (a None here would break the hint assembly).
+        out = build_measurements_hint("零亿")
+        assert "hundred million" in out
+        assert out.startswith("## MEASUREMENT LOCALIZATION")
+
+    def test_trillion_phrase_scales_from_yi(self):
+        # 万亿 = 10,000 × 亿 = 10^12 → 1,000B, and the thousands formatter
+        # (not the one-decimal formatter) is what renders it.
+        out = build_measurements_hint("1万亿")
+        assert "/ 1,000B" in out
+        assert "1,000.0B" not in out
+
+    def test_trillion_phrase_shows_the_converted_magnitude(self):
+        out = build_measurements_hint("2万亿")
+        assert "~2000.0B" in out
+
+
+class TestYiParsing:
+    """亿 with a trailing numeral: 亿三 → 10^8 + 3."""
+
+    def test_plain_yi_phrases(self):
+        assert _parse_chinese_number("三亿") == 300_000_000
+        assert _parse_chinese_number("一亿") == 100_000_000
+        assert _parse_chinese_number("十亿") == 1_000_000_000
+
+    def test_zero_yi_is_zero(self):
+        assert _parse_chinese_number("零亿") == 0
+
+    def test_bare_yi_defaults_to_one_hundred_million(self):
+        assert _parse_chinese_number("亿") == 100_000_000
+
+    def test_yi_with_trailing_numeral_adds_it(self):
+        # The right-hand side after 亿 is parsed recursively and added.
+        assert _parse_chinese_number("亿三") == 100_000_003
+
+    def test_yi_plus_wan_notation_is_not_parsed(self):
+        # KNOWN GAP, pinned so a future fix flips this test: the 万 branch is
+        # checked before 亿, so mixed notation ("三亿五千万" = 350 million) falls
+        # through to None and the hint degrades to its generic form.
+        assert _parse_chinese_number("三亿五千万") is None
+
+
+class TestFormatNumberBoundaries:
+    """B / M / thousands cut-overs and their rounding boundary."""
+
+    def test_one_million_promotes_to_m(self):
+        assert _format_number(1_000_000) == "1.0M"
+
+    def test_just_below_one_million_stays_thousands(self):
+        assert _format_number(999_999) == "999,999"
+
+    def test_m_rounding_boundary(self):
+        # 1,050,000 is 1.05M: one decimal place rounds up, and a divisor off by
+        # one would land on the wrong side of that boundary.
+        assert _format_number(1_050_000) == "1.1M"
+
+    def test_one_billion_promotes_to_b(self):
+        assert _format_number(1_000_000_000) == "1.0B"
+
+    def test_just_below_one_billion_stays_millions(self):
+        assert _format_number(999_999_999) == "1000.0M"
+
+    def test_b_rounding_boundary(self):
+        assert _format_number(1_050_000_000) == "1.1B"
+
+    def test_thousands_use_a_separator(self):
+        assert _format_number(12_345) == "12,345"
+
+    def test_fractional_thousands_keep_one_decimal(self):
+        assert _format_number(1_234.5) == "1,234.5"

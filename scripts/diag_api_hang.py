@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 from src.chapter_splitter import split_chapters, ParagraphTag
 
 # Load the chapter that always hangs

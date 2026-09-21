@@ -187,3 +187,43 @@ class TestWebhookConnector:
         result = wc.push_translation("job1", "web")
         assert result["status"] == "failed"
         assert "boom" in result["platform_message"]
+
+
+class TestConnectorDefaults:
+    def test_connector_without_sources_lists_none(self):
+        # The base-class default (used by connectors that have no remote
+        # source ids) must be an empty LIST, not None.
+        from src.cms import CMSConnector
+
+        class _Stub(CMSConnector):
+            def pull_novel(self, source_id):
+                raise NotImplementedError
+
+            def push_translation(self, job_id, platform, /):
+                raise NotImplementedError
+
+        sources = _Stub().list_sources()
+        assert sources == []
+        assert isinstance(sources, list)
+
+    def test_nested_base_dir_is_created_on_publish(self, tmp_path):
+        # A fresh install has no novels/ directory at all.
+        from src.cms import FileSystemConnector
+
+        base = tmp_path / "novels" / "nested"
+        connector = FileSystemConnector(base_dir=str(base))
+        result = connector.push_translation("job123", "web")
+
+        assert result["status"] == "published"
+        assert (base / "output").is_dir()
+
+    def test_republishing_into_an_existing_output_dir_works(self, tmp_path):
+        # Publishing twice must not explode on the directory that the first
+        # publish created.
+        from src.cms import FileSystemConnector
+
+        base = tmp_path / "novels"
+        connector = FileSystemConnector(base_dir=str(base))
+        first = connector.push_translation("job456", "web")
+        second = connector.push_translation("job456", "web")
+        assert first["status"] == second["status"] == "published"

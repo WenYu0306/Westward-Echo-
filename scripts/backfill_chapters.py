@@ -3,7 +3,7 @@ import sys, os, json, re, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 
 CHAPTERS_TO_FIX = [1656, 1686, 1741, 1748, 1813, 1818, 1904, 1939, 1969, 1971, 1972, 1988]
 

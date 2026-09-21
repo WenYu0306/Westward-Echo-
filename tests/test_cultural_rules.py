@@ -204,3 +204,92 @@ class TestFidelityRules:
         assert "Meaningful names must be translated" in text
         assert "聋婆婆" in text
         assert "Deaf Granny" in text
+
+
+class TestGenreConfidenceRatio:
+    """The runner-up ratio guard — reached only when TWO genres both score.
+
+    (The pre-existing "ambiguous" test uses a sample where neither genre
+    reaches the signal floor, so it never exercises this logic.)
+    """
+
+    SCIFI_6 = "机甲 联邦 帝国 战舰 星舰 太空港"
+    XIANXIA_5 = "修真 修仙 金丹 元婴 飞升"
+
+    def test_two_genres_within_two_to_one_is_ambiguous(self):
+        genre, score = detect_genre(f"{self.SCIFI_6} {self.XIANXIA_5}")
+        assert (genre, score) == ("", 0)
+
+    def test_ratio_of_exactly_two_to_one_is_accepted(self):
+        # 12 scifi vs 5 xianxia = 2.4; the guard is "< 2.0", so this commits.
+        text = f"{self.SCIFI_6} {self.SCIFI_6} {self.XIANXIA_5}"
+        genre, score = detect_genre(text)
+        assert genre == "scifi"
+        assert score == 12
+
+    def test_clear_winner_returns_the_highest_scoring_genre(self):
+        # A reversed sort would pick xianxia (the lower score) here.
+        text = f"{self.SCIFI_6} {self.SCIFI_6} {self.XIANXIA_5}"
+        assert detect_genre(text)[0] == "scifi"
+
+    def test_single_scored_genre_always_commits(self):
+        genre, score = detect_genre(self.SCIFI_6)
+        assert (genre, score) == ("scifi", 6)
+
+
+class TestGenreSignalFloor:
+    def test_exactly_five_signals_is_a_match(self):
+        text = "修真 修仙 金丹 元婴 飞升"
+        assert detect_genre(text) == ("xianxia", 5)
+
+    def test_four_signals_is_not_a_match(self):
+        text = "修真 修仙 金丹 元婴"
+        assert detect_genre(text) == ("", 0)
+
+    def test_no_match_returns_the_empty_tuple(self):
+        result = detect_genre("今天天气真好，我去超市买菜。")
+        assert result == ("", 0)
+        assert isinstance(result, tuple)
+
+
+class TestDefaultRulesPath:
+    def test_env_override_is_honoured(self, monkeypatch):
+        from src.cultural_rules import _default_rules_path
+
+        monkeypatch.setenv("CULTURAL_RULES_PATH", "/tmp/custom_rules.json")
+        assert _default_rules_path() == Path("/tmp/custom_rules.json")
+
+    def test_falls_back_to_the_repo_file(self, monkeypatch):
+        from src.cultural_rules import _default_rules_path
+
+        monkeypatch.delenv("CULTURAL_RULES_PATH", raising=False)
+        path = _default_rules_path()
+        assert isinstance(path, Path)
+        assert path.name == "cultural_rules.json"
+
+
+class TestFidelityExamples:
+    def test_only_the_first_example_is_rendered(self):
+        rules = {
+            "honorifics": {
+                "rule": "Keep honorifics meaningful.",
+                "examples": [
+                    {"cn": "聋婆婆", "do": "Deaf Granny", "why": "meaningful name"},
+                    {"cn": "王三", "do": "Wang San", "why": "plain name"},
+                ],
+            }
+        }
+        out = format_fidelity_for_prompt(rules)
+        assert "聋婆婆" in out
+        assert "Deaf Granny" in out
+        assert "王三" not in out
+
+    def test_example_why_clause_is_included(self):
+        rules = {"honorifics": {"rule": "R", "examples": [
+            {"cn": "聋婆婆", "do": "Deaf Granny", "why": "meaningful name"}]}}
+        assert "(meaningful name)" in format_fidelity_for_prompt(rules)
+
+    def test_entry_without_examples_still_renders_the_rule(self):
+        rules = {"honorifics": {"rule": "Keep honorifics meaningful."}}
+        out = format_fidelity_for_prompt(rules)
+        assert "Keep honorifics meaningful." in out

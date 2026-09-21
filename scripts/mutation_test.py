@@ -11,10 +11,12 @@ Each mutant is written in place (original is backed up), the module's own
 test file(s) are run, and the mutant is scored:
   KILLED   = tests fail (good — the test caught the mutation)
   SURVIVED = tests still pass (bad — a test blind spot)
+  TIMEOUT  = the suite never finished; not a kill, reported separately
 
 Usage:
   python scripts/mutation_test.py                 # all modules
   python scripts/mutation_test.py measurements    # one module
+  python scripts/mutation_test.py graph_post_process
 
 This is the project's "does the test have teeth" gate. Run it after adding
 any logic to confirm the new tests actually catch drift.
@@ -39,7 +41,17 @@ TARGETS = {
     "dialect": ("src/dialect.py", ["tests/test_dialect.py"]),
     "onomatopoeia": ("src/onomatopoeia.py", ["tests/test_onomatopoeia.py"]),
     "sensitive_terms": ("src/sensitive_terms.py", ["tests/test_sensitive_terms.py"]),
-    "encoding": ("src/encoding.py", ["tests/test_encoding.py"]),
+    "text_io": ("src/text_io.py", ["tests/test_text_io.py"]),
+    # graph.py holds the post-processing gates (fidelity check, fidelity gate,
+    # curation gate) — the engineering backstop for compile quality. Only the
+    # fast gate tests are used here: the full pipeline tests are too slow to
+    # run per mutant.
+    "graph_post_process": ("src/agent/graph.py", [
+        "tests/test_post_process_gates.py",
+        "tests/test_graph_units.py",
+        "tests/test_fidelity_gate.py",
+        "tests/test_fidelity_check.py",
+    ]),
     "cms": ("src/cms.py", ["tests/test_cms_connector.py"]),
     "exact_store": ("src/glossary/exact_store.py", ["tests/test_glossary.py", "tests/test_glossary_accumulation.py"]),
     "semantic_store": ("src/glossary/semantic_store.py", ["tests/test_semantic_store.py"]),
@@ -124,43 +136,70 @@ def run_tests(test_files):
 
 def run_one(key, module_rel, tests):
     module = ROOT / module_rel
+    if not module.exists():
+        print(f"\n=== {module_rel}: SKIPPED (module no longer exists) ===", flush=True)
+        return 0, 0, 0
+    missing = [t for t in tests if not (ROOT / t).exists()]
+    if missing:
+        print(f"\n=== {module_rel}: SKIPPED (test file(s) gone: {', '.join(missing)}) ===",
+              flush=True)
+        return 0, 0, 0
+
     original = module.read_text(encoding="utf-8")
     mutants = mutants_for(original)
     print(f"\n=== {module_rel}: {len(mutants)} mutants ===", flush=True)
     survived = 0
-    for desc, mutated in mutants:
-        module.write_text(mutated, encoding="utf-8")
-        try:
-            rc = run_tests(tests)
-        except subprocess.TimeoutExpired:
-            rc = -1
-        finally:
-            module.write_text(original, encoding="utf-8")
-        if rc == 0:
-            survived += 1
-            print(f"  [SURVIVED] {desc}", flush=True)
-        else:
-            print(f"  [killed] {desc}", flush=True)
-    print(f"  -> {len(mutants) - survived}/{len(mutants)} killed", flush=True)
-    return survived
+    timed_out = 0
+    # A long run that is killed mid-mutant would otherwise leave a mutated
+    # source file behind. Keep a recoverable copy on disk for the whole run.
+    backup = module.with_name(module.name + ".mutation_backup")
+    backup.write_text(original, encoding="utf-8")
+    try:
+        for desc, mutated in mutants:
+            module.write_text(mutated, encoding="utf-8")
+            try:
+                rc = run_tests(tests)
+            except subprocess.TimeoutExpired:
+                # A timeout is NOT a kill — the suite never rendered a verdict.
+                # Counting it as killed would hide a real blind spot.
+                rc = None
+            finally:
+                module.write_text(original, encoding="utf-8")
+            if rc is None:
+                timed_out += 1
+                print(f"  [TIMEOUT]  {desc}", flush=True)
+            elif rc == 0:
+                survived += 1
+                print(f"  [SURVIVED] {desc}", flush=True)
+            else:
+                print(f"  [killed] {desc}", flush=True)
+    finally:
+        module.write_text(original, encoding="utf-8")
+        backup.unlink(missing_ok=True)
+    print(f"  -> {len(mutants) - survived - timed_out}/{len(mutants)} killed"
+          f" ({survived} survived, {timed_out} timed out)", flush=True)
+    return len(mutants), survived, timed_out
 
 
 def main():
     keys = sys.argv[1:] or list(TARGETS.keys())
     total = 0
     survived = 0
+    timed_out = 0
     for key in keys:
         if key not in TARGETS:
             print(f"unknown module: {key}", flush=True)
             continue
         module_rel, tests = TARGETS[key]
-        s = run_one(key, module_rel, tests)
-        total += len(mutants_for((ROOT / module_rel).read_text(encoding="utf-8")))
+        n, s, t = run_one(key, module_rel, tests)
+        total += n
         survived += s
+        timed_out += t
     print(f"\n========== SUMMARY ==========", flush=True)
     print(f"total mutants: {total}", flush=True)
     print(f"survived (blind spots): {survived}", flush=True)
-    print(f"killed: {total - survived}", flush=True)
+    print(f"timed out: {timed_out}", flush=True)
+    print(f"killed: {total - survived - timed_out}", flush=True)
 
 
 if __name__ == "__main__":

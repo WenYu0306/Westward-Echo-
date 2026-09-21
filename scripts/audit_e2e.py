@@ -3,7 +3,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 
 text, enc = detect_and_read("tests/fixtures/《无限恐怖》 作者：zhttty.txt")
 chapters = split_chapters(text)

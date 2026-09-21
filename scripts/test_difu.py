@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv; load_dotenv()
 
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 from src.chapter_splitter import split_chapters
 from src.agent.graph import TranslationAgent
 from src.cultural_rules import detect_genre, is_known_genre

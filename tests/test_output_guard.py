@@ -131,3 +131,30 @@ class TestCheckAndRecordEventTypes:
             check_and_record(text, "job1", 1, "en-US")
         types = [c.args[2] for c in mock_rec.call_args_list]
         assert "untranslated_chinese" in types
+
+
+class TestNullAndRecordedOutputs:
+    def test_none_translation_is_reported_not_swallowed(self):
+        warnings = check_translation_output(None)
+        assert warnings is not None
+        assert any(w.startswith("EMPTY:") for w in warnings)
+
+    def test_chinese_residue_warning_lists_at_most_five_chars(self):
+        from src.output_guard import check_and_record
+
+        # Seven distinct Chinese characters — the warning shows the first five.
+        text = "甲 乙 丙 丁 戊 己 庚 and some English text here."
+        warnings = check_and_record(text or "", job_id="guard-test", chapter_num=1)
+        cn = [w for w in warnings if w.startswith("UNTRANSLATED")]
+        assert cn, "Chinese residue must be reported"
+        listed = cn[0].split("output: ")[1]
+        assert len([c for c in listed.split(", ") if c.strip()]) == 5
+
+    def test_recorded_output_returns_the_warning_list(self):
+        from src.output_guard import check_and_record
+
+        result = check_and_record(
+            "She stepped into the hall." * 5, job_id="guard-clean", chapter_num=1
+        )
+        assert isinstance(result, list)
+        assert result == []

@@ -126,7 +126,7 @@ try:
         record_result("OK", "1.3a Null bytes — decode rejected", f"UnicodeDecodeError: {e}")
 
     # Test 2: What about encoding.py detect_and_read with null byte file?
-    from src.encoding import detect_and_read
+    from src.text_io import detect_and_read
     try:
         text, enc = detect_and_read(null_path)
         has_chinese = "第" in text or bool(_CN_CHECK.search(text))
@@ -574,7 +574,7 @@ except Exception as e:
 
 section("6. ENCODING EDGE CASES")
 
-from src.encoding import detect_and_read
+from src.text_io import detect_and_read
 
 # Attack 6.1: detect_and_read on a file that doesn't exist
 try:

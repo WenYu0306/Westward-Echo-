@@ -25,6 +25,7 @@ from ..config import (
 )
 from ..job_store import job_store
 from ..stats import TranslationStats
+from ..text_io import decode_bytes
 
 try:
     from ..celery_app import resume_translate_task, translate_novel_task
@@ -93,21 +94,11 @@ async def _validate_novel_upload(file: UploadFile):
 
     # ── Markdown: pass through ──
     elif filename.endswith(".md") or filename.endswith(".markdown"):
-        for enc in ["utf-8", "gb18030", "gbk"]:
-            try:
-                text = content.decode(enc)
-                break
-            except (UnicodeDecodeError, LookupError):
-                continue
+        text = decode_bytes(content, ("utf-8", "gb18030", "gbk"))
 
     # ── Plain text: auto-detect encoding ──
     else:
-        for enc in ["utf-8", "gb18030", "gbk", "gb2312"]:
-            try:
-                text = content.decode(enc)
-                break
-            except (UnicodeDecodeError, LookupError):
-                continue
+        text = decode_bytes(content)
 
     if not text:
         return None, "Unable to decode file. Supported: .txt, .rtf, .docx, .md, .epub"

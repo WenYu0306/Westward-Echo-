@@ -111,6 +111,28 @@ class TestConfusablePairs:
         pairs = ExactGlossary._detect_confusable_pairs(terms)
         assert pairs == []
 
+    def test_two_char_term_sharing_a_two_char_prefix(self):
+        # A 2-char term IS eligible (the rule is "at least 2 chars"), and the
+        # shared prefix is exactly 2 chars — an off-by-one either way would
+        # miss this pair, which the English-first-word rule cannot rescue
+        # because the renderings share no first word.
+        terms = {"百花": "Baihua", "百花缭乱": "Hundred Flowers Blossom"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert ("百花", "Baihua", "百花缭乱", "Hundred Flowers Blossom") in pairs
+
+    def test_three_char_prefix_match_also_detected(self):
+        terms = {"苏沐橙": "Su Mucheng", "苏沐秋": "Su Muqiu"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert len(pairs) == 1
+
+    def test_prefix_rule_is_not_rescued_by_the_english_rule(self):
+        # A 3-char pair sharing a 2-char Chinese prefix, but with DIFFERENT
+        # English first words — so a broken prefix comparison cannot be masked
+        # by the English fallback.
+        terms = {"苏沐橙": "Su Mucheng", "苏沐秋": "Muqiu"}
+        pairs = ExactGlossary._detect_confusable_pairs(terms)
+        assert ("苏沐橙", "Su Mucheng", "苏沐秋", "Muqiu") in pairs
+
     def test_formatted_text_includes_warning(self):
         store = ExactGlossary(db_path=tempfile.NamedTemporaryFile(suffix=".db").name)
         store.add("苏沐橙", "Su Mucheng", category="character")
@@ -214,3 +236,150 @@ class TestWalConcurrency:
             s = ExactGlossary(db_path=db, book_id=f"book_{i}")
             s.load_from_db()
             assert s.get("苏念") == f"Su Nian (book_{i})", f"book_{i} 术语丢失或串"
+
+
+# ── Query surface ─────────────────────────────────────────────────
+
+class _TempStore:
+    """Build an ExactGlossary on a throwaway DB (fast, no fixtures needed)."""
+
+    def __init__(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.tmp.name, "glossary.db")
+        self.store = ExactGlossary(db_path=self.path, book_id="query-surface")
+
+    def close(self):
+        self.tmp.cleanup()
+
+
+@pytest.fixture
+def temp_store():
+    holder = _TempStore()
+    yield holder.store
+    holder.close()
+
+
+class TestTermInfoQueries:
+    def test_get_term_info_missing_returns_none(self, temp_store):
+        assert temp_store.get_term_info("不存在的词") is None
+
+    def test_get_term_info_returns_the_full_row(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny", category="character",
+                       context="老槐树下", chapter=1)
+        info = temp_store.get_term_info("聋婆婆")
+        assert isinstance(info, dict)
+        assert info["term_cn"] == "聋婆婆"
+        assert info["term_en"] == "Deaf Granny"
+        assert info["category"] == "character"
+
+    def test_get_status_missing_returns_none(self, temp_store):
+        assert temp_store.get_status("不存在的词") is None
+
+    def test_new_term_is_pending_review(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny")
+        assert temp_store.get_status("聋婆婆") == "pending_review"
+
+    def test_confirmed_term_reports_confirmed(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny")
+        temp_store.confirm_term("聋婆婆")
+        assert temp_store.get_status("聋婆婆") == "confirmed"
+
+    def test_rejected_term_is_removed_entirely(self, temp_store):
+        # reject_term deletes the row — it does not store a "rejected" status.
+        temp_store.add("聋婆婆", "Deaf Granny")
+        temp_store.reject_term("聋婆婆")
+        assert temp_store.get_status("聋婆婆") is None
+        assert temp_store.get_term_info("聋婆婆") is None
+
+
+class TestFindChaptersWithTerm:
+    def test_missing_term_returns_empty_list(self, temp_store):
+        assert temp_store.find_chapters_with_term("不存在的词") == []
+
+    def test_term_seen_in_a_chapter_returns_that_chapter(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny", chapter=7)
+        assert temp_store.find_chapters_with_term("聋婆婆") == [7]
+
+    def test_term_without_a_chapter_returns_empty_list(self, temp_store):
+        # chapter 0 means "unknown chapter" — it must not be reported as ch 0.
+        temp_store.add("聋婆婆", "Deaf Granny", chapter=0)
+        assert temp_store.find_chapters_with_term("聋婆婆") == []
+
+
+class TestFormattedText:
+    def test_empty_glossary_returns_the_placeholder(self, temp_store):
+        assert temp_store.to_formatted_text({}) == (
+            "(No glossary terms matched for this chapter.)"
+        )
+
+    def test_matched_terms_restrict_the_table(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny")
+        temp_store.add("王三", "Wang San")
+        table = temp_store.to_formatted_text({"王三": "Wang San"})
+        assert "Wang San" in table
+        assert "Deaf Granny" not in table
+
+    def test_longer_terms_are_listed_first(self, temp_store):
+        # Prompt ordering is deliberate: longer (more specific) terms first so
+        # the model matches 九道沟村 before 村.
+        temp_store.add("村", "Village")
+        temp_store.add("九道沟村", "Jiudaogou Village")
+        table = temp_store.to_formatted_text()
+        assert table.index("Jiudaogou Village") < table.index("| Village |")
+
+    def test_notes_table_lists_longer_terms_first(self, temp_store):
+        temp_store.add("村", "Village")
+        temp_store.add("九道沟村", "Jiudaogou Village")
+        table = temp_store.to_formatted_text_with_notes()
+        assert table.index("Jiudaogou Village") < table.index("| Village |")
+
+    def test_notes_table_marks_terms_without_a_note(self, temp_store):
+        temp_store.add("王三", "Wang San")
+        table = temp_store.to_formatted_text_with_notes()
+        assert "| 王三 | Wang San | (see prior chapters) |" in table
+
+
+class TestInventoryAccessors:
+    def test_get_all_terms_returns_dicts(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny", category="character")
+        rows = temp_store.get_all_terms()
+        assert isinstance(rows, list)
+        assert rows and isinstance(rows[0], dict)
+        assert rows[0]["term_cn"] == "聋婆婆"
+
+    def test_stats_counts_terms(self, temp_store):
+        assert temp_store.stats() == {"total_terms": 0}
+        temp_store.add("聋婆婆", "Deaf Granny")
+        temp_store.add("王三", "Wang San")
+        assert temp_store.stats() == {"total_terms": 2}
+
+    def test_contains_reports_membership(self, temp_store):
+        temp_store.add("聋婆婆", "Deaf Granny")
+        assert "聋婆婆" in temp_store
+        assert "不存在的词" not in temp_store
+
+    def test_len_counts_terms(self, temp_store):
+        assert len(temp_store) == 0
+        temp_store.add("聋婆婆", "Deaf Granny")
+        assert len(temp_store) == 1
+
+
+class TestSqliteLockTimeout:
+    def test_connections_wait_thirty_seconds_for_the_lock(self, tmp_path, monkeypatch):
+        # The translation workers share this DB; a short timeout would surface
+        # "database is locked" as a chapter failure.
+        import sqlite3
+
+        import src.glossary.exact_store as exact_store
+
+        seen = []
+        real_connect = sqlite3.connect
+
+        def spy(*args, **kwargs):
+            seen.append(kwargs)
+            return real_connect(*args, **kwargs)
+
+        monkeypatch.setattr(exact_store.sqlite3, "connect", spy)
+        ExactGlossary(db_path=str(tmp_path / "lock.db"), book_id="lock-timeout")
+        assert seen, "the store must open a connection"
+        assert all(kwargs.get("timeout") == 30 for kwargs in seen)

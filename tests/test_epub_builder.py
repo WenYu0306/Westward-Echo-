@@ -146,3 +146,62 @@ class TestEpubBuild:
         build_epub(sample_chapters, "Test", output_path=output_path)
         with zipfile.ZipFile(output_path, "r") as zf:
             assert "OEBPS/nav.xhtml" in zf.namelist()
+
+    def test_xml_files_declare_their_encoding(self, sample_chapters, output_path):
+        # Every XML part must carry the declaration: a reader that falls back to
+        # a locale default would mis-decode the Chinese in a glossary appendix.
+        build_epub(sample_chapters, "Test", glossary={"王三": "Wang San"},
+                   output_path=output_path)
+        with zipfile.ZipFile(output_path, "r") as zf:
+            for name in ("META-INF/container.xml", "OEBPS/content.opf",
+                         "OEBPS/toc.ncx"):
+                xml = zf.read(name).decode("utf-8")
+                assert xml.startswith("<?xml "), name
+                assert "encoding='utf-8'" in xml or 'encoding="utf-8"' in xml, name
+
+
+class TestEpubNavOrdering:
+    """playOrder must number the TOC entries 1..N in reading order."""
+
+    def _ncx(self, chapters, output_path, glossary=None):
+        build_epub(chapters, "Test", glossary=glossary, output_path=output_path)
+        with zipfile.ZipFile(output_path, "r") as zf:
+            return zf.read("OEBPS/toc.ncx").decode("utf-8")
+
+    def test_cover_is_play_order_one(self, sample_chapters, output_path):
+        ncx = self._ncx(sample_chapters, output_path)
+        cover = ncx.split('id="nav_cover"')[1].split("</navPoint>")[0]
+        assert 'playOrder="1"' in cover
+
+    def test_first_chapter_is_play_order_two(self, sample_chapters, output_path):
+        ncx = self._ncx(sample_chapters, output_path)
+        first = ncx.split('id="nav_ch_1"')[1].split("</navPoint>")[0]
+        assert 'playOrder="2"' in first
+
+    def test_second_chapter_is_play_order_three(self, sample_chapters, output_path):
+        ncx = self._ncx(sample_chapters, output_path)
+        second = ncx.split('id="nav_ch_2"')[1].split("</navPoint>")[0]
+        assert 'playOrder="3"' in second
+
+    def test_glossary_follows_the_chapters(self, sample_chapters, output_path):
+        ncx = self._ncx(sample_chapters, output_path, glossary={"王三": "Wang San"})
+        gloss = ncx.split('id="nav_glossary"')[1].split("</navPoint>")[0]
+        assert 'playOrder="4"' in gloss
+
+
+class TestEpubDerivedChapterIds:
+    """A chapter without an explicit number still gets a 1-based id."""
+
+    def test_missing_chapter_num_falls_back_to_one_based_index(self, output_path):
+        chapters = [
+            {"title": "First", "content": "Alpha text here."},
+            {"title": "Second", "content": "Beta text here."},
+        ]
+        build_epub(chapters, "Test", output_path=output_path)
+        with zipfile.ZipFile(output_path, "r") as zf:
+            names = zf.namelist()
+            assert "OEBPS/chapter_1.xhtml" in names
+            assert "OEBPS/chapter_2.xhtml" in names
+            opf = zf.read("OEBPS/content.opf").decode("utf-8")
+            assert 'idref="chapter_1"' in opf
+            assert 'idref="chapter_2"' in opf
