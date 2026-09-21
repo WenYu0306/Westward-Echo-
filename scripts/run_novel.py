@@ -15,6 +15,7 @@ from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
 from src.text_io import detect_and_read
 from src.circuit_breaker import CircuitBreakerOpenError
+from src import token_ledger
 
 # ═══════════════════════════════════════════════════════════════
 # Novel registry — add new books here
@@ -175,6 +176,19 @@ def main():
 
     segment_num = 1
     overall_t0 = time.monotonic()
+    run_calls = run_in = run_out = 0
+    run_cny = 0.0
+    run_unmetered = 0
+
+    def _chapter_usage(before: int):
+        """Tokens/cost of the calls made since row index ``before``."""
+        rows = token_ledger.ledger.rows(cfg["book_id"])[before:]
+        metered = [r for r in rows if r.get("metered")]
+        return (len(rows),
+                sum(r["input_tokens"] for r in metered),
+                sum(r["output_tokens"] for r in metered),
+                sum(r["cost_cny"] or 0.0 for r in rows if r.get("priced")),
+                sum(1 for r in rows if not r.get("metered")))
 
     import logging
     for name in ["httpx", "httpcore", "openai", "chromadb", "urllib3"]:
@@ -190,6 +204,7 @@ def main():
             ch_num = ch.index
             pos = i + 1
             is_sample = pos in sample_points
+            rows_before = len(token_ledger.ledger.rows(cfg["book_id"]))
 
             try:
                 result = agent.translate_chapter(
@@ -265,6 +280,14 @@ def main():
             else:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {len(tt)}c [F] {ok_flag}")
 
+            _calls, _in, _out, _cny, _unm = _chapter_usage(rows_before)
+            run_calls += _calls; run_in += _in; run_out += _out
+            run_cny += _cny; run_unmetered += _unm
+            if _calls:
+                warn = f" | \u26a0 unmetered={_unm}" if _unm else ""
+                print(f"     tokens {_in:,} in + {_out:,} out = {_in+_out:,}"
+                      f" | \u00a5{_cny:.4f}{warn}")
+
             exists = os.path.exists(out_file)
             if ch_num not in written_chapters and "TRUNCATED" not in ok_flag and "EMPTY" not in ok_flag:
                 with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
@@ -291,6 +314,9 @@ def main():
         print(f"  Segment {segment_num}: {start+1}-{batch_end}/{len(chapters)} "
               f"({pct:.0f}%) in {seg_elapsed:.0f}m | {len(glossary)} terms | "
               f"total: {total_elapsed:.0f}m | ETA: {remaining:.0f}m | quality: {len(quality_log)}")
+        print(f"  Tokens so far: {run_in:,} in + {run_out:,} out = {run_in+run_out:,}"
+              f" | \u00a5{run_cny:.2f} over {run_calls} calls"
+              + (f" | \u26a0 {run_unmetered} unmetered" if run_unmetered else ""))
         print()
 
         start = batch_end
@@ -301,6 +327,37 @@ def main():
     total_min = (time.monotonic() - overall_t0) / 60
     print(f"ALL DONE: {len(chapters)} chapters in {total_min:.0f}m")
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
+
+    # ── 成本台账：本次运行的真实 token 与花费（此前生产路径完全无记录）──
+    cost = token_ledger.summary(cfg["book_id"])
+    cost_path = os.path.join(cfg["output_dir"], "_cost.json")
+    json.dump({
+        "book_id": cfg["book_id"],
+        "chapters": len(chapters),
+        "calls": cost["calls"],
+        "input_tokens": cost["input_tokens"],
+        "output_tokens": cost["output_tokens"],
+        "cost_cny": cost["cost_cny"],
+        "unmetered_calls": cost["unmetered_calls"],
+        "unpriced_calls": cost["unpriced_calls"],
+        "per_node": cost["per_node"],
+        "per_model": cost["per_model"],
+        "minutes": round(total_min, 1),
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }, open(cost_path, "w"), ensure_ascii=False, indent=2)
+    print(f"Cost: {cost['input_tokens']:,} in + {cost['output_tokens']:,} out"
+          f" = {cost['input_tokens']+cost['output_tokens']:,} tokens"
+          f" | \u00a5{cost['cost_cny']:.2f}  ({cost['calls']} calls)")
+    if cost["unmetered_calls"]:
+        print(f"  WARNING: {cost['unmetered_calls']} calls returned no usage payload"
+              f" \u2014 real spend is higher than the figure above.")
+    if cost["unpriced_calls"]:
+        print(f"  WARNING: {cost['unpriced_calls']} calls used a model missing from"
+              f" MODEL_PRICES_CNY_PER_M \u2014 cost excludes them.")
+    for node, a in sorted(cost["per_node"].items(), key=lambda kv: -kv[1]["cost_cny"]):
+        print(f"    {node:<14}{a['calls']:>5} calls{a['input_tokens']:>12,} in"
+              f"{a['output_tokens']:>12,} out  \u00a5{a['cost_cny']:>8.2f}")
+    print(f"  -> {cost_path}")
 
 
 if __name__ == "__main__":

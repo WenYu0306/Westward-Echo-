@@ -111,6 +111,7 @@ class TranslationAgent:
     """High-level wrapper around the v0.15 reader-centric LangGraph pipeline."""
 
     def __init__(self, book_id: str = "default", api_key: str = ""):
+        self.book_id = book_id            # token ledger attribution key
         self.exact_store = ExactGlossary(book_id=book_id)
         self.semantic_store = SemanticGlossary(book_id=book_id)
         self.graph = build_graph(self.exact_store, self.semantic_store)
@@ -277,6 +278,9 @@ class TranslationAgent:
             "chapter_title": title,
             "chapter_content": content,
             "chapter_number": number,
+            # getattr: some callers build an agent via object.__new__ to skip
+            # chroma/sqlite side effects and never run __init__.
+            "book_id": getattr(self, "book_id", ""),
             "target_lang": lang,
             "genre": genre,
             "content_type": content_type,

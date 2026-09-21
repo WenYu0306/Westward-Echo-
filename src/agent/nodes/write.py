@@ -26,6 +26,7 @@ from ...config import (
 from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
+from ... import token_ledger
 from ..prompts.registry import get_prompt_set
 from ..prompts.translation import LANGUAGE_STYLE_NOTES
 from ..state import TranslatorState
@@ -47,6 +48,10 @@ def write_node(state: TranslatorState) -> dict:
     """
     chapter_number = state["chapter_number"]
     flash = state.get("use_flash_writer", False)
+    # Which model actually served this chapter. The GLM-1301 fallback below
+    # switches providers mid-chapter; without this the fallback call was booked
+    # against GLM and its cost landed on the wrong model.
+    used_model = GLM_MODEL
     api_key = state.get("api_key") or GLM_API_KEY
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
@@ -159,9 +164,16 @@ def write_node(state: TranslatorState) -> dict:
         response = breaker.call(
             _build_qwen_writer(api_key=fallback_key).invoke, messages
         )
+        used_model = QWEN_MODEL
         TranslationStats.record_api_success(target_lang)
 
-    _capture_response_tokens(response, tier="flash" if flash else "pro")
+    _capture_response_tokens(
+        response,
+        model=used_model,
+        tier="flash" if flash else "pro",
+        book_id=state.get("book_id", ""),
+        chapter=chapter_number,
+    )
 
     result = _parse_write_response(
         response.content,
@@ -233,7 +245,13 @@ def write_node(state: TranslatorState) -> dict:
                 TranslationStats.record_api_call(target_lang)
                 retry_response = breaker.call(llm.invoke, retry_messages)
                 TranslationStats.record_api_success(target_lang)
-                _capture_response_tokens(retry_response, tier="flash" if flash else "pro")
+                _capture_response_tokens(
+                    retry_response,
+                    model=GLM_MODEL,
+                    tier="flash" if flash else "pro",
+                    book_id=state.get("book_id", ""),
+                    chapter=chapter_number,
+                )
                 retry_result = _parse_write_response(
                     retry_response.content, chapter_number, target_lang
                 )
@@ -382,16 +400,26 @@ def _format_image_gaps(gaps: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def _capture_response_tokens(response, tier: str = "flash") -> None:
-    """Extract token usage from a LangChain AIMessage and record it."""
+def _capture_response_tokens(response, model: str, tier: str = "flash",
+                             *, book_id: str = "", chapter: int = 0) -> None:
+    """Record WRITE token usage against the model that actually served it.
+
+    The ledger always gets a row, even when the provider sent no usage payload
+    (recorded as unmetered, so the gap is countable). The legacy ``TranslationStats``
+    counter can only hold numbers, so it is updated only when the payload was
+    complete — half a usage payload is not a figure worth accumulating.
+    """
+    usage_in, usage_out = token_ledger.extract_usage(response)
+    token_ledger.record("write", model, usage_in, usage_out,
+                        book_id=book_id, chapter=chapter)
+    if usage_in is None or usage_out is None:
+        return
     try:
-        usage = response.response_metadata.get("token_usage", {})
-        if usage:
-            TranslationStats.record_tokens(
-                input_tokens=usage.get("prompt_tokens", 0),
-                output_tokens=usage.get("completion_tokens", 0),
-                tier=tier,
-            )
+        TranslationStats.record_tokens(
+            input_tokens=usage_in,
+            output_tokens=usage_out,
+            tier=tier,
+        )
     except Exception:
         pass
 

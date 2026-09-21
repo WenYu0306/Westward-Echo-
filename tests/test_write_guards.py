@@ -298,29 +298,6 @@ class TestChineseResidueHandling:
         assert "\u4f60\u597d" in self._run("zh-CN")
 
 
-class TestFormatImageGaps:
-    def test_empty_gaps_yield_the_placeholder(self):
-        from src.agent.nodes.write import _format_image_gaps
-        assert _format_image_gaps([]) == "(No image gaps detected — write freely.)"
-
-    def test_priorities_are_grouped(self):
-        from src.agent.nodes.write import _format_image_gaps
-        out = _format_image_gaps([
-            {"priority": "critical", "passage": "C1"},
-            {"priority": "high", "passage": "H1"},
-            {"priority": "medium", "passage": "M1"},
-        ])
-        assert "CRITICAL" in out and "C1" in out
-        assert "HIGH" in out and "H1" in out
-        assert "MEDIUM" in out and "M1" in out
-
-    def test_unknown_priority_is_omitted(self):
-        from src.agent.nodes.write import _format_image_gaps
-        out = _format_image_gaps([{"priority": "trivial", "passage": "T1"}])
-        assert "T1" not in out
-        assert "CRITICAL" not in out
-
-
 class TestFormatReadAnalysisFidelityBrief:
     def test_only_name_and_address_rules_reach_the_prompt(self):
         captured = {}
@@ -371,3 +348,431 @@ class TestGlossaryReachesCompletenessCheck:
             st["exact_glossary"] = {"\u5927\u8ba1": "Da Ji"}
             write_node(st)
         assert cc.call_args.args[2] == {"\u5927\u8ba1": "Da Ji"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Fallback-path guards. These were found by mutation testing: the
+# primary path was covered, the safety nets behind it were not — and a
+# safety net nobody tests is a safety net that can be silently deleted.
+# ═══════════════════════════════════════════════════════════════════
+
+class TestContentFilterDetection:
+    """`_is_content_filter_error` decides whether a GLM rejection falls back to
+    Qwen instead of losing the chapter. If it ever returns falsy, a 1301 kills
+    the chapter — the exact failure that lost 间客 chapter 1 on the GLM run."""
+
+    def test_zhipu_error_code_1301_is_detected(self):
+        from src.agent.nodes.write import _is_content_filter_error
+        exc = Exception("Error code: 400 - {'error': {'code': '1301', 'message': 'filtered'}}")
+        assert _is_content_filter_error(exc) is True
+
+    def test_content_filter_keyword_is_detected(self):
+        from src.agent.nodes.write import _is_content_filter_error
+        exc = Exception("Error code: 400 - {'contentFilter': [{'level': 1, 'role': 'assistant'}]}")
+        assert _is_content_filter_error(exc) is True
+
+    def test_chinese_unsafe_marker_is_detected(self):
+        from src.agent.nodes.write import _is_content_filter_error
+        assert _is_content_filter_error(Exception("内容不安全，已拦截")) is True
+
+    def test_timeout_is_not_a_content_filter(self):
+        from src.agent.nodes.write import _is_content_filter_error
+        assert _is_content_filter_error(Exception("Request timed out after 300s")) is False
+
+    def test_rate_limit_is_not_a_content_filter(self):
+        from src.agent.nodes.write import _is_content_filter_error
+        assert _is_content_filter_error(Exception("429 Too Many Requests")) is False
+
+    def test_auth_error_is_not_a_content_filter(self):
+        from src.agent.nodes.write import _is_content_filter_error
+        assert _is_content_filter_error(Exception("401 invalid api key")) is False
+
+
+class TestQwenFallbackWriterConfig:
+    """The fallback writer must carry the same guards as the primary one:
+    its whole purpose is to be used when the primary provider refuses."""
+
+    def _kwargs(self, api_key="sk-test"):
+        from src.agent.nodes.write import _build_qwen_writer
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls:
+            _build_qwen_writer(api_key=api_key)
+        return cls.call_args.kwargs
+
+    def test_model_is_the_configured_qwen_model(self):
+        from src.config import QWEN_MODEL
+        assert self._kwargs()["model"] == QWEN_MODEL
+
+    def test_temperature_is_zero_point_two(self):
+        assert self._kwargs()["temperature"] == 0.2
+
+    def test_max_tokens_is_16384(self):
+        assert self._kwargs()["max_tokens"] == 16384
+
+    def test_request_timeout_is_300(self):
+        assert self._kwargs()["request_timeout"] == 300
+
+    def test_retries_are_disabled_at_the_client(self):
+        assert self._kwargs()["max_retries"] == 0
+
+    def test_json_object_response_format_is_requested(self):
+        assert self._kwargs()["model_kwargs"] == {"response_format": {"type": "json_object"}}
+
+    def test_uses_thinking_budget_not_reasoning_effort(self):
+        """Qwen gets an explicit thinking_budget; reasoning_effort is GLM-only."""
+        from src.config import QWEN_THINKING_BUDGET
+        kw = self._kwargs()
+        assert kw["extra_body"] == {"thinking_budget": QWEN_THINKING_BUDGET}
+        assert "reasoning_effort" not in kw
+
+    def test_the_caller_supplied_key_is_the_one_used(self):
+        assert self._kwargs(api_key="sk-user-owned")["api_key"] == "sk-user-owned"
+
+
+class TestByokKeyPrecedence:
+    """A user-supplied key must win over the operator's key.
+
+    Mutation testing showed `state.get("api_key") or GLM_API_KEY` could be
+    inverted without a single test failing — which would silently bill the
+    operator for a BYOK user's chapters."""
+
+    def _constructed_kwargs(self, state):
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            mock_llm = MagicMock()
+            mock_llm.invoke.return_value = _Resp(
+                content='{"translated_text": "' + ("word " * 40) + '"}',
+                metadata={"finish_reason": "stop"})
+            cls.return_value = mock_llm
+            try:
+                write_node(state)
+            except Exception:
+                pass
+        return cls.call_args.kwargs if cls.call_args else {}
+
+    def test_user_key_overrides_the_operator_key(self):
+        st = _state(_LONG_SOURCE)
+        st["api_key"] = "sk-user-owned"
+        assert self._constructed_kwargs(st)["api_key"] == "sk-user-owned"
+
+    def test_operator_key_used_when_the_state_has_none(self):
+        from src.config import GLM_API_KEY
+        assert self._constructed_kwargs(_state(_LONG_SOURCE))["api_key"] == GLM_API_KEY
+
+
+class TestRetryPathChineseGuard:
+    """The Chinese-residue strip on the RETRY path had no test at all: only the
+    first response was covered. For a zh-CN target the strip must not run."""
+
+    def _run_retry(self, target_lang):
+        short = _Resp(content='{"translated_text": ""}', metadata={"finish_reason": "stop"})
+        retry = _Resp(
+            content='{"translated_text": "' + ("word " * 40) + '这里有中文"}',
+            metadata={"finish_reason": "stop"})
+
+        # The residue helpers are imported *inside* the function from
+        # output_guard, so they must be patched at their source module. Only the
+        # retry text carries Chinese — the empty first reply does not — so a
+        # pass here cannot come from the primary path.
+        def _has_chinese(text):
+            return "这里有中文" in text
+
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js, \
+             patch("src.output_guard.has_untranslated_chinese", side_effect=_has_chinese), \
+             patch("src.output_guard.strip_chinese_residue") as scr:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            scr.return_value = ("cleaned", 3)
+            mock_llm = MagicMock()
+            mock_llm.invoke.side_effect = [short, retry]
+            cls.return_value = mock_llm
+            st = _state(_LONG_SOURCE)
+            st["target_lang"] = target_lang
+            write_node(st)
+        return scr
+
+    def test_retry_strips_residue_for_english_target(self):
+        scr = self._run_retry("en-US")
+        assert scr.called, "retry text with Chinese residue was not stripped for en-US"
+
+    def test_retry_keeps_residue_for_chinese_target(self):
+        scr = self._run_retry("zh-CN")
+        assert scr.called is False, "residue must NOT be stripped when the target is Chinese"
+
+
+class TestFormatImageGaps:
+    def test_no_gaps_returns_a_placeholder(self):
+        from src.agent.nodes.write import _format_image_gaps
+        assert _format_image_gaps([]) == "(No image gaps detected — write freely.)"
+
+    def test_gap_fields_reach_the_prompt(self):
+        from src.agent.nodes.write import _format_image_gaps
+        out = _format_image_gaps([{
+            "priority": "critical", "passage": "PASSAGE-X",
+            "cn_reader_sees": "CN-SEES", "en_reader_gets": "EN-GETS",
+            "sensory_anchors": "ANCHOR-Z",
+        }])
+        for marker in ("PASSAGE-X", "CN-SEES", "EN-GETS", "ANCHOR-Z"):
+            assert marker in out, marker
+        assert "CRITICAL" in out
+
+    def test_priorities_are_separated(self):
+        from src.agent.nodes.write import _format_image_gaps
+        out = _format_image_gaps([
+            {"priority": "critical", "passage": "C1"},
+            {"priority": "medium", "passage": "M1"},
+        ])
+        assert out.index("C1") < out.index("M1")
+
+
+class TestCaptureHelpersSemantics:
+    """A complete payload feeds both the ledger and the legacy counters; an
+    incomplete one feeds only the ledger (where the gap stays countable)."""
+
+    def test_complete_payload_updates_both(self):
+        from src.agent.nodes import write as wmod
+        resp = _Resp(content="x", metadata={"token_usage": {
+            "prompt_tokens": 100, "completion_tokens": 50}})
+        with patch.object(wmod.token_ledger, "record") as led, \
+             patch.object(wmod.TranslationStats, "record_tokens") as legacy:
+            wmod._capture_response_tokens(resp, "glm-5.3-flash")
+        assert led.call_args.args == ("write", "glm-5.3-flash", 100, 50)
+        assert legacy.call_args.kwargs["input_tokens"] == 100
+        assert legacy.call_args.kwargs["output_tokens"] == 50
+
+    def test_missing_payload_records_unmetered_and_skips_legacy(self):
+        from src.agent.nodes import write as wmod
+        resp = _Resp(content="x", metadata={})
+        with patch.object(wmod.token_ledger, "record") as led, \
+             patch.object(wmod.TranslationStats, "record_tokens") as legacy:
+            wmod._capture_response_tokens(resp, "glm-5.3-flash")
+        assert led.call_args.args == ("write", "glm-5.3-flash", None, None)
+        assert legacy.called is False
+
+    def test_partial_payload_skips_the_legacy_counter(self):
+        from src.agent.nodes import write as wmod
+        resp = _Resp(content="x", metadata={"token_usage": {"prompt_tokens": 100}})
+        with patch.object(wmod.token_ledger, "record") as led, \
+             patch.object(wmod.TranslationStats, "record_tokens") as legacy:
+            wmod._capture_response_tokens(resp, "glm-5.3-flash")
+        assert led.call_args.args == ("write", "glm-5.3-flash", 100, None)
+        assert legacy.called is False, "half a payload must not be summed"
+
+    def test_read_helper_attributes_the_book_and_chapter(self):
+        from src.agent.nodes import read as rmod
+        resp = _Resp(content="x", metadata={"token_usage": {
+            "prompt_tokens": 7, "completion_tokens": 8}})
+        with patch.object(rmod.token_ledger, "record") as led, \
+             patch.object(rmod.TranslationStats, "record_tokens"):
+            rmod._capture_read_tokens(resp, book_id="difu", chapter=173)
+        assert led.call_args.args[0] == "read"
+        assert led.call_args.kwargs == {"book_id": "difu", "chapter": 173}
+
+
+class TestFidelityRulesFallback:
+    """When the language has no fidelity rules, the prompt must say so rather
+    than silently adjoining an empty string (mutation found this `or` could be
+    inverted with no test failing)."""
+
+    def _user_prompt(self, formatter_return):
+        with patch("src.agent.nodes.write.format_fidelity_for_prompt",
+                   return_value=formatter_return), \
+             patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            mock_llm = MagicMock()
+            mock_llm.invoke.return_value = _Resp(
+                content='{"translated_text": "' + ("word " * 40) + '"}',
+                metadata={"finish_reason": "stop"})
+            cls.return_value = mock_llm
+            write_node(_state(_LONG_SOURCE))
+        messages = mock_llm.invoke.call_args.args[0]
+        return messages[-1].content
+
+    def test_empty_rules_produce_an_explicit_placeholder(self):
+        prompt = self._user_prompt("")
+        assert "(No cultural fidelity rules for this language.)" in prompt
+
+    def test_real_rules_are_carried_through(self):
+        prompt = self._user_prompt("NAME-RULE-XYZ")
+        assert "NAME-RULE-XYZ" in prompt
+        assert "(No cultural fidelity rules for this language.)" not in prompt
+
+
+class TestFlashWriterFlagIsAccountingOnly:
+    """`use_flash_writer` used to look like a model switch. It is not: WRITE runs
+    on GLM_MODEL either way, and the flag only labelled the legacy counters
+    ("flash"/"pro"). These tests pin that the flag cannot change the model, so a
+    future reader cannot mistake it for a routing switch."""
+
+    def _run(self, state):
+        from src.agent.nodes import write as wmod
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js, \
+             patch.object(wmod.TranslationStats, "record_tokens") as legacy:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            mock_llm = MagicMock()
+            mock_llm.invoke.return_value = _Resp(
+                content='{"translated_text": "' + ("word " * 40) + '"}',
+                metadata={"finish_reason": "stop",
+                          "token_usage": {"prompt_tokens": 5, "completion_tokens": 6}})
+            cls.return_value = mock_llm
+            write_node(state)
+        return cls.call_args.kwargs, legacy
+
+    def test_absent_flag_defaults_to_off_and_pro_tier(self):
+        st = _state(_LONG_SOURCE)
+        st.pop("use_flash_writer")
+        kwargs, legacy = self._run(st)
+        assert legacy.call_args.kwargs["tier"] == "pro"
+
+    def test_flag_switches_only_the_accounting_label(self):
+        from src.config import GLM_MODEL
+        st = _state(_LONG_SOURCE)
+        st["use_flash_writer"] = True
+        kwargs, legacy = self._run(st)
+        assert kwargs["model"] == GLM_MODEL      # unchanged by the flag
+        assert legacy.call_args.kwargs["tier"] == "flash"
+
+    def test_model_is_identical_with_and_without_the_flag(self):
+        off = _state(_LONG_SOURCE); off["use_flash_writer"] = False
+        on = _state(_LONG_SOURCE); on["use_flash_writer"] = True
+        assert self._run(off)[0]["model"] == self._run(on)[0]["model"]
+
+
+class TestParseResponseFenceHandling:
+    """A fenced reply with a closing ``` takes the [1:-1] branch; one without a
+    closing fence must not lose its body. Mutation found the slice index was
+    free to change with nothing failing."""
+
+    def test_fenced_json_with_closing_fence_parses(self):
+        body = '{"translated_text": "hello world"}'
+        out = _parse_write_response("```json\n" + body + "\n```")
+        assert out["translated_text"] == "hello world"
+
+    def test_fenced_json_without_closing_fence_keeps_its_body(self):
+        body = '{"translated_text": "no closing fence"}'
+        out = _parse_write_response("```json\n" + body)
+        assert out["translated_text"] == "no closing fence"
+
+    def test_plain_json_is_unaffected(self):
+        out = _parse_write_response('{"translated_text": "plain"}')
+        assert out["translated_text"] == "plain"
+
+
+class TestFormatReadAnalysis:
+    def test_sections_are_joined_and_labelled(self):
+        from src.agent.nodes.write import _format_read_analysis
+        out = _format_read_analysis({
+            "emotional_arc": "ARC-XYZ",
+            "crafted_moments": ["MOMENT-1", "MOMENT-2"],
+            "pacing_notes": "PACE-ABC",
+        })
+        for marker in ("ARC-XYZ", "MOMENT-1", "MOMENT-2", "PACE-ABC"):
+            assert marker in out, marker
+        assert out.count("\n\n") >= 2        # sections are separated, not concatenated
+
+    def test_empty_analysis_is_empty_string(self):
+        from src.agent.nodes.write import _format_read_analysis
+        assert _format_read_analysis({}) == ""
+
+
+class TestImageGapPriorityBuckets:
+    """Each priority bucket must be selected by its own label."""
+
+    def test_high_priority_gap_reaches_the_prompt(self):
+        from src.agent.nodes.write import _format_image_gaps
+        out = _format_image_gaps([{"priority": "high", "passage": "HIGH-ONLY"}])
+        assert "HIGH-ONLY" in out
+
+    def test_high_bucket_does_not_swallow_critical(self):
+        from src.agent.nodes.write import _format_image_gaps
+        out = _format_image_gaps([{"priority": "critical", "passage": "CRIT-ONLY"}])
+        assert "HIGH" not in out.split("CRIT-ONLY")[0].replace("HIGH-ONLY", "")
+
+    def test_all_three_buckets_reach_the_prompt(self):
+        from src.agent.nodes.write import _format_image_gaps
+        out = _format_image_gaps([
+            {"priority": "critical", "passage": "P-CRIT"},
+            {"priority": "high", "passage": "P-HIGH"},
+            {"priority": "medium", "passage": "P-MED"},
+        ])
+        for marker in ("P-CRIT", "P-HIGH", "P-MED"):
+            assert marker in out, marker
+
+
+class TestFallbackWriterKeyPrecedence:
+    """The Qwen fallback (used only after GLM refuses with 1301) must also honour
+    a BYOK key. Mutation showed `state.get("api_key") or LLM_API_KEY` on that
+    path could be inverted with no test failing."""
+
+    def _fallback_call(self, state):
+        from src.agent.nodes import write as wmod
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js, \
+             patch("src.agent.nodes.write._build_qwen_writer") as builder:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            primary = MagicMock()
+            primary.invoke.side_effect = Exception(
+                "Error code: 400 - {'error': {'code': '1301'}}")
+            fallback = MagicMock()
+            fallback.invoke.return_value = _Resp(
+                content='{"translated_text": "' + ("word " * 40) + '"}',
+                metadata={"finish_reason": "stop"})
+            cls.return_value = primary
+            builder.return_value = fallback
+            write_node(state)
+        return builder.call_args.kwargs
+
+    def test_byok_key_is_used_for_the_fallback(self):
+        st = _state(_LONG_SOURCE)
+        st["api_key"] = "sk-user-owned"
+        assert self._fallback_call(st)["api_key"] == "sk-user-owned"
+
+    def test_operator_key_is_used_when_state_has_none(self):
+        from src.config import LLM_API_KEY
+        assert self._fallback_call(_state(_LONG_SOURCE))["api_key"] == LLM_API_KEY
+
+
+class TestFenceHandlingDoesNotPolluteTelemetry:
+    """A well-formed fenced reply must be parsed by Layer 1 (strict JSON).
+
+    Mutation testing surfaced a surviving mutant that changed the closing-fence
+    check from ``lines[-1]`` to ``lines[-2]``. The parsed chapter is identical —
+    which is why no wording test caught it — but the reply then falls through to
+    Layer 2 (regex rescue) and writes a ``parse_fallback`` event for text that
+    was never malformed. The error tracker is the record this project uses to
+    judge the toolchain, so false fallbacks there are a real defect, not a
+    harmless refactor.
+    """
+
+    def _parse(self, content):
+        from src.agent.nodes import write as wmod
+        with patch("src.error_tracker.record_event") as ev:
+            out = wmod._parse_write_response(content)
+        return out, ev
+
+    def test_well_formed_fenced_reply_writes_no_fallback_event(self):
+        body = '{"translated_text": "hello world"}'
+        out, ev = self._parse("```json\n" + body + "\n```")
+        assert out["translated_text"] == "hello world"
+        assert ev.called is False, (
+            "a perfectly closed fence was reported as a parser fallback: "
+            f"{ev.call_args.args[3] if ev.called else ''}"
+        )
+
+    def test_unfenced_reply_writes_no_fallback_event(self):
+        out, ev = self._parse('{"translated_text": "plain"}')
+        assert out["translated_text"] == "plain"
+        assert ev.called is False
+
+    def test_genuinely_broken_reply_still_reports_a_fallback(self):
+        """The event must still fire when the reply really is malformed."""
+        out, ev = self._parse('Here you go:\n```json\n{"translated_text": "rescued"}\n```')
+        assert out["translated_text"] == "rescued"
+        assert ev.called is True

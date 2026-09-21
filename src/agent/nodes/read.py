@@ -25,6 +25,7 @@ from ...cultural_rules import (
 from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
 from ...stats import TranslationStats
+from ... import token_ledger
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
 
@@ -155,7 +156,11 @@ def read_node(
         TranslationStats.record_api_call(target_lang)
         response = breaker.call(llm.invoke, messages)
         TranslationStats.record_api_success(target_lang)
-        _capture_read_tokens(response)
+        _capture_read_tokens(
+            response,
+            book_id=state.get("book_id", ""),
+            chapter=state.get("chapter_number", 0),
+        )
     except CircuitBreakerOpenError:
         TranslationStats.record_api_failure(target_lang)
         raise
@@ -181,16 +186,26 @@ def read_node(
     }
 
 
-def _capture_read_tokens(response) -> None:
-    """Record READ agent token usage — always Pro tier."""
+def _capture_read_tokens(response, *, book_id: str = "", chapter: int = 0) -> None:
+    """Record READ token usage — per node/chapter in the ledger, plus legacy counters.
+
+    The ledger row is written even when the provider sent no usage payload: it is
+    recorded as unmetered so the gap is countable instead of invisible.
+    """
+    usage_in, usage_out = token_ledger.extract_usage(response)
+    token_ledger.record("read", QWEN_MODEL, usage_in, usage_out,
+                        book_id=book_id, chapter=chapter)
+    # Half a usage payload is not a figure worth accumulating into the
+    # legacy counters; the ledger row above already carries whatever
+    # arrived, plus the fact that it was incomplete.
+    if usage_in is None or usage_out is None:
+        return
     try:
-        usage = response.response_metadata.get("token_usage", {})
-        if usage:
-            TranslationStats.record_tokens(
-                input_tokens=usage.get("prompt_tokens", 0),
-                output_tokens=usage.get("completion_tokens", 0),
-                tier="pro",
-            )
+        TranslationStats.record_tokens(
+            input_tokens=usage_in,
+            output_tokens=usage_out,
+            tier="pro",
+        )
     except Exception:
         pass
 

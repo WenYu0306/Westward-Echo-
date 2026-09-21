@@ -9,6 +9,7 @@ class TranslatorState(TypedDict):
     chapter_title: str
     chapter_content: str
     chapter_number: int
+    book_id: str                    # which book this chapter belongs to (token ledger key)
     target_lang: str                # e.g. "en-US"
     genre: str                      # e.g. "romance_ceo", "xianxia", "urban"
     content_type: str               # "novel" — the only validated prompt branch

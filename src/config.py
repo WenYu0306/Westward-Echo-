@@ -96,3 +96,19 @@ MODEL_MAP = {
     "fix":           GLM_FULL_MODEL,  # FIX — GLM 5.3 文字思考
     "review_terms":  QWEN_MODEL,      # REVIEW_TERMS — Qwen 3.8 max 判断
 }
+
+# ── 真实单价（元 / 百万 token，输入价, 输出价）──────────────────────
+# 唯一权威来源，供 src/token_ledger.py 算钱。抓取于 2026-09-22：
+#   https://docs.bigmodel.cn/cn/guide/start/pricing        (GLM)
+#   https://help.aliyun.com/zh/model-studio/model-pricing  (Qwen，中国内地/全球)
+# 智谱页与百炼页对 GLM-5.3 都写 8/28，已交叉验证。
+# 注意：stats.py 里那套 DeepSeek USD 价目是历史的，不要再拿来算钱。
+MODEL_PRICES_CNY_PER_M = {
+    "qwen3.8-max":       (12.0, 36.0),   # 0<Token<=1M，不阶梯
+    "qwen3.8-flash":     (0.8,  2.7),
+    "qwen3.7-flash":     (0.2,  0.8),    # 0<Token<=32K
+    "qwen3.8-max-prime": (24.0, 72.0),
+    "glm-5.3":           (8.0,  28.0),
+    "glm-5.3-flash":     (0.8,  2.8),
+    "glm-5.3-flashx":    (2.0,  7.0),
+}

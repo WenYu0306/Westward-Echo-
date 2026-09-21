@@ -25,6 +25,7 @@ from ..config import (
 )
 from ..job_store import job_store
 from ..stats import TranslationStats
+from .. import token_ledger
 from ..text_io import decode_bytes
 
 try:
@@ -221,7 +222,7 @@ async def _translate_accepted(
         import traceback as _tb
         try:
             chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-            agent = TranslationAgent(api_key=api_key)
+            agent = TranslationAgent(book_id=job_id, api_key=api_key)
             if preset_glossary_json:
                 try:
                     preset_terms = json.loads(preset_glossary_json)
@@ -320,15 +321,29 @@ async def _translate_accepted(
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
             job_store.complete_job(job_id, output_path, len(agent.exact_store))
-            # Log session cost estimate
+            # Log THIS job's real token usage and cost.
+            # Previously this logged TranslationStats.token_snapshot() — a
+            # process-global in-memory counter — which is why app.log contains
+            # "Tokens: 0 total" whenever the translation ran outside this
+            # process. The ledger is attributed per book/node/model and priced in
+            # CNY at current vendor rates.
             try:
-                snap = TranslationStats.token_snapshot()
+                job_book = getattr(agent, "book_id", "") or job_id
+                cost = token_ledger.summary(job_book)
+                Path(OUTPUT_DIR / f"{job_id}_cost.json").write_text(
+                    json.dumps({**cost, "job_id": job_id}, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
                 logger.info(
-                    "Job %s completed. Tokens: %s total, ~$%.4f estimated cost.",
-                    job_id, f"{snap['total']:,}", snap.get("estimated_cost_usd", 0),
+                    "Job %s completed. Tokens: %s in + %s out = %s, cost CNY %.4f"
+                    " (%s calls, %s unmetered, %s unpriced).",
+                    job_id, f"{cost['input_tokens']:,}", f"{cost['output_tokens']:,}",
+                    f"{cost['input_tokens'] + cost['output_tokens']:,}",
+                    cost["cost_cny"], cost["calls"], cost["unmetered_calls"],
+                    cost["unpriced_calls"],
                 )
             except Exception:
-                pass
+                logger.warning("Job %s: token ledger summary failed", job_id, exc_info=True)
         except Exception as e:
             logger.error("Sync translation failed for job %s: %s\n%s", job_id, e, _tb.format_exc())
             job_store.fail_job(job_id, str(e))
@@ -440,7 +455,7 @@ async def translate_multi(
                 _asyncio.set_event_loop(loop)
                 try:
                     chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-                    agent = TranslationAgent(api_key=api_key)
+                    agent = TranslationAgent(book_id=job_id, api_key=api_key)
                     prev_summary = ""
 
                     if preset_glossary_json:
@@ -913,14 +928,39 @@ def delete_job(job_id: str):
 
 @app.get("/jobs/{job_id}/cost")
 def get_job_cost(job_id: str):
-    """Return token usage and estimated cost for a job."""
+    """Return this job's real token usage and cost.
+
+    Read from the token ledger, which is attributed per book/node/model and
+    priced with the current vendor rates in ``config.MODEL_PRICES_CNY_PER_M``.
+
+    Previously this returned ``job_store.get_job_cost`` — a query against the
+    jobs table's token columns, which nothing ever wrote (``update_token_usage``
+    has no callers), so the endpoint reported 0 tokens for every job. Its
+    fallback prices were also DeepSeek's ($0.14/$0.28 per M), which do not apply
+    to the GLM/Qwen stack. Both vendors bill in CNY, so ``cost_cny`` is the
+    authoritative figure and ``estimated_cost_usd`` is reported as ``None``
+    rather than converted at an invented exchange rate.
+    """
     job = job_store.get_job(job_id)
     if job is None:
         return JSONResponse(status_code=404, content={"error": "Job not found", "job_id": job_id})
-    cost = job_store.get_job_cost(job_id)
+    s = token_ledger.summary(job_id)
     return {
         "job_id": job_id,
-        **cost,
+        "tokens_input": s["input_tokens"],
+        "tokens_output": s["output_tokens"],
+        "total": s["input_tokens"] + s["output_tokens"],
+        "cost_cny": s["cost_cny"],
+        "estimated_cost_usd": None,
+        "pricing_note": (
+            "cost_cny is authoritative (both vendors bill in CNY). "
+            "tokens are attributed per node/model from the token ledger."
+        ),
+        "calls": s["calls"],
+        "unmetered_calls": s["unmetered_calls"],
+        "unpriced_calls": s["unpriced_calls"],
+        "per_node": s["per_node"],
+        "per_model": s["per_model"],
     }
 
 

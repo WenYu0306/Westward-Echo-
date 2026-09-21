@@ -68,6 +68,10 @@ TARGETS = {
     "completeness": ("src/completeness.py", ["tests/test_completeness.py"]),
     # WRITE's output guards: token-ceiling truncation (_was_truncated) and the
     # Layer 5 prose-rescue/discard boundary. Fast, focused suite.
+    # Token accounting: the module that answers "how many tokens did chapter N
+    # actually use". Its whole job is arithmetic and counting, so a surviving
+    # mutant here means a wrong number could ship silently.
+    "token_ledger": ("src/token_ledger.py", ["tests/test_token_ledger.py"]),
     "write_guards": ("src/agent/nodes/write.py", [
         "tests/test_write_guards.py",
         "tests/test_translate_node.py",

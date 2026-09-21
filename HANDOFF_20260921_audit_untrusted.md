@@ -388,3 +388,178 @@ def _numbers_in(s):  # 阿拉伯数字 + 中文数字，两种读法都支持
 
 **本文件由一次独立审计产生，不是本次开发会话的自述。**
 **其中"不可信声明"与"工具链缺陷"两节，是对此前交接文档的更正，请优先采信。**
+
+---
+
+# 九、成本测算（2026-09-22 现抓单价 + 真实 token 实测）
+
+**完整推导见 `COST_MODEL_20260922.md`。这里只放结论和"怎么自己算"。**
+
+## 9.1 结论
+
+| | 章节 | 交付英文词 | 全量冷读+FIX | 出货配置(2.6%冷读) | 每千英文词 |
+|---|---|---|---|---|---|
+| 地府叫我小先生 | 2301 | 2,450,499 | **¥1,340 – 1,630** | ¥1,202 | ¥0.55 – 0.67 |
+| 无限恐怖 | 775 | 1,128,142 | **¥520 – 540** | ¥439 | ¥0.46 – 0.48 |
+| **合计** | 3076 | 3,578,641 | **¥1,860 – 2,170** | ¥1,641 | **¥0.52 – 0.61** |
+
+**≈ ¥0.5 / 千英文词。** 人译中译英 ¥100–300/千汉字 → 地府全书报价 ¥27.6万–82.9万，
+**机器成本是人译的 1/200 ~ 1/580。**
+
+成本结构（地府，全量冷读）：READ 62% / READBACK 17% / FIX 19% / **WRITE 不到 3%**。
+**READ 的输出 token 一项就占 49%** —— 每章约 8,575 tokens 的文化分析报告 × 2301 章 × ¥36/M。
+
+## 9.2 ⚠️ 贵的是档位，不是 token 量（决定性的那张表）
+
+同一批 token，只换模型档位：
+
+| 档位 | 地府 | 无限恐怖 | 合计 | 相对现状 |
+|---|---|---|---|---|
+| 现状：READ/READBACK = **qwen3.8-max**(12/36) | ¥1,441 | ¥534 | **¥1,974** | 100% |
+| READ=glm-5.3(8/28)，READBACK=qwen3.8-max | ¥1,218 | ¥450 | ¥1,668 | 84% |
+| **全 flash**（qwen3.8-flash 0.8/2.7） | ¥145 | ¥53 | **¥198** | **10%** |
+| 最便宜（qwen3.7-flash **0.2/0.8**） | ¥86 | ¥31 | **¥117** | **6%** |
+
+**token 一个没变，账单差 10–17 倍。** 所以"贵"不在翻译量、不在章节数，
+而在 `MODEL_MAP` 把 READ/READBACK/REVIEW_TERMS 三个节点挂在同一个常量 `QWEN_MODEL` 上，一动全变 max。
+`readback`/`review_terms` 早在 **c121f0b** 就是 qwen3.8-max（不是 291ded9 引入的）；
+**READBACK 只是"读得懂吗"的判断，根本不需要 max 档 —— 这是个没做的分级。**
+
+**试验阶段规矩（此前被违反过）**：探针/A-B/回归一律用 flash 档（③），
+`probe_nodes*.py` 已加成本闸门，`QWEN_MODEL` 含 `max` 时**直接退出码 2**，要跑须显式 `--allow-expensive`。
+
+## 9.3 单价（唯一权威来源，别再用旧价目）
+
+抓取于 2026-09-22，代码里在 `src/config.py` 的 `MODEL_PRICES_CNY_PER_M`：
+
+| 模型 | 输入 元/M | 输出 元/M | 来源 |
+|---|---|---|---|
+| qwen3.8-max | 12 | 36 | 百炼定价页（缓存命中按 10% 计费） |
+| qwen3.8-flash | 0.8 | 2.7 | 同上 |
+| qwen3.7-flash | 0.2 | 0.8 | 同上（≤32K） |
+| glm-5.3 | 8 | 28 | 智谱定价页（缓存命中 2.0） |
+| glm-5.3-flash | 0.8 | 2.8 | 同上 |
+
+- `https://docs.bigmodel.cn/cn/guide/start/pricing`（GLM）
+- `https://help.aliyun.com/zh/model-studio/model-pricing`（Qwen，中国内地/全球）
+- **两页对 GLM-5.3 都写 8/28，已交叉验证。**
+- 百炼 Batch API 输入输出均 5 折，**与缓存折扣互斥**。
+
+## 9.4 成本问题怎么自己算（不要再去调 API 烧钱）
+
+```bash
+python3 scripts/cost/estimate_offline.py        # ⭐ 默认先跑这个：零 API，秒级
+python3 scripts/cost/price_pipeline.py          # 基于实测点标定的逐节点账单
+python3 scripts/cost/validate_model.py          # 留一法误差带
+```
+- `scripts/cost/estimate_offline.py` 实测算出 ¥1,974，落在 API 实测带 ¥1,860–2,170 内（地府差 0.3%）。
+- **标定点数 vs 精度**：1 章（¥0.6）已定到量级；2 章（¥1.2）到 ±35%；8 章（¥5.05）只到 ±22%。
+- 瓶颈是 **READ 输出的内容波动**（实测 4,376–13,496 tokens，与章节长度几乎无关），
+  **多抽同书章节收不窄带宽**。要重新标定，抽 **1–2 章**即可，且**先报预算等批准**。
+
+## 9.5 本次测算的真实花费（记账，不藏）
+
+**Qwen 侧 ¥5.05**（8 个真实章节逐节点 hook：115,841 in + 101,652 out）。
+折合约 8.6 千英文词 ≈ 8 章地府的产出量。**这笔钱把百炼余额用光**，之后所有 Qwen 调用
+返回 `HTTP 400 Arrearage` —— 即"生产停摆"是我这次测算造成的，不是账号原本欠费。
+GLM 侧同日另用 191,931 tokens（另一账号，正常）。
+
+## 9.6 token 计量 bug（§六-6 的根因，代码侧现状）
+
+**此前**：token 用量只存在于**进程内内存计数器**，只在 Web job 结束打一行日志；
+`run_novel.py`（真正产出交付语料的路径）**一行都不记**；四个节点的 `_capture_*_tokens`
+全部 `except Exception: pass` **静默吞错**；`tier` 标签是 DeepSeek 的 flash/pro；
+`stats.py` 的价格是 DeepSeek USD 价。**所以"第 1238 章实际用了多少 token"此前无法回答。**
+
+**现状**：新增 `src/token_ledger.py` —— 每个 API 响应一行 JSONL，带
+book / chapter / node / model / input / output，用 `MODEL_PRICES_CNY_PER_M` 算人民币成本；
+读不到 usage 的响应记 `unmetered`（**计数可见，不再静默**）；未知模型记 `unpriced`（**不会静默算 0**）；
+写盘失败计数进 `write_failures`。
+`run_novel.py` 每章打印真实用量、结尾写出 `_cost.json`；Web 路径按 job 记账。
+
+**验证**：`tests/test_token_ledger.py` 37 项通过；变异 **44/44 全杀，0 幸存**。
+全套测试 **1042 passed**（**封死全部 IP socket + 假密钥**下通过 —— 证明测试套件零 API 调用，跑一次 ¥0）。
+
+**遗留**：`job_store.py:207` 与 `stats.py:53-57` 的旧价目表**仍在**（新台账不走它们，
+但还有别处引用）；`stats.py` 的 flash/pro 两档概念仍在。
+
+## 9.7 同一个 bug 的另一张脸：`/jobs/{id}/cost` 永远是 0（已修）
+
+`update_token_usage`（`job_store.py:179`）**从来没有调用者** → jobs 表的 token 列永远是 0 →
+`get_job_cost` 永远返回 0，而且里面硬编码的是 **DeepSeek 的 $0.14/$0.28 每 M**。
+
+**已改**：该接口改读 token 台账（`token_ledger.summary(job_id)`），返回真实
+`tokens_input/output/total` + **`cost_cny`（权威，两家都按人民币结算）** +
+`per_node`/`per_model`/`unmetered_calls`/`unpriced_calls`。
+`estimated_cost_usd` 现在返回 `None` 而不是拿一个虚构汇率换出来的数
+（`pricing_note` 字段说明原因）。
+
+**同时修**：Web job 造 agent 时 `TranslationAgent(book_id=job_id)`，此前全部 job 共用
+`book_id="default"` —— 意味着**词表/风格备忘录在不同书、不同 job 之间共享命名空间**，
+术语可以跨书串味。这是台账归属和词表隔离的双重修复。
+
+## 9.8 现在还没做的（如实交代，别再当"已完成"）
+
+| # | 项 | 为什么留着 |
+|---|---|---|
+| 1 | `stats.py` 的 flash/pro 计数器与 `use_flash_writer` 的 tier 标签**已成死重** | routes 已不再读 `token_snapshot`，四个节点的 `record_tokens` 现在没有消费者。删除涉及 stats 单测与 state 字段，**动手前先确认没有仪表盘引用** |
+| 2 | `job_store.update_token_usage` / `get_job_cost` 死代码仍在 | 接口已不调用它们；留着是为了不破坏未知第三方读取 |
+| 3 | `write_node` 仍有未钉住的行为（`use_flash_writer` 默认值、fidelity 空规则回落等） | 本轮已补测试，最终数字见 §10 |
+| 4 | 除 `token_ledger` / `write_guards` 之外的变异 target **尚未在修好字节偏移后重跑** | 见 §10 的进度表；这是接手者的第一件事 |
+
+---
+
+# 十、变异测试当前状态（修复前后对照）
+
+| target | 修复前 | 修复后 | 说明 |
+|---|---|---|---|
+| `token_ledger`（新增模块） | 36/43 killed，7 survived | **44/44 killed，0 survived** | 幸存者 drove 出 1 个真缺陷 + 6 个测试盲点 |
+| `write_guards`（`write.py`） | 41/62 killed，**21 survived** | **60/60 killed，0 survived**（三轮收敛） | 21 个幸存者里 5 处是**没被验证的安全网** |
+
+**全套测试：1090 passed**（在**封死全部 IP socket + 假密钥**下通过 → 证明测试套件零 API 调用，跑一次 ¥0）。
+
+## 10.1 `token_ledger` 幸存者 drove 出的真缺陷
+
+`mkdir(parents=True)` 被改成 `parents=False` **竟然没有测试失败** —— 意味着配置一个父目录不存在的
+台账路径时，它会**静默不落盘**，而内存汇总照样好看。台账最不能有的就是这个。
+**已修**：写盘失败计入 `summary()["write_failures"]`，并补"嵌套目录必须被创建"的测试。
+
+## 10.2 `write.py` 的 5 处真缺口（21 → 0 的过程）
+
+1. **`_is_content_filter_error` 一个测试都没有** —— 它决定 GLM 被拦后是否回退 Qwen；
+   恒返回假值就会直接丢章（就是《间客》run 1 丢第一章的原因）。
+2. **`_build_qwen_writer`（回退 writer）的 temperature / max_tokens / timeout / max_retries /
+   json 模式全都没被断言** —— 一个只在"主 provider 拒付"时才用的 writer，配置无人验证。
+3. **BYOK 密钥优先级**（主路径 + 回退路径两处）：`state.get("api_key") or GLM_API_KEY`
+   被反写成 `and` 也没有测试失败 —— 那会让自带密钥用户的账算到运营方头上。
+4. **重试路径的中文残留剥离**没有测试（只覆盖首次响应）；`!= "zh-CN"` 被反写会让中文目标也被剥离。
+5. `_format_read_analysis` / `_format_image_gaps` 的返回值和 `high` 优先级分桶无断言。
+
+## 10.3 唯一一个"看着像等价变异"的，实测**不是等价**（按铁律证明了）
+
+`write.py:509` 的 `lines[-1]` → `lines[-2]`：解析结果**完全相同**，所有措辞类断言都过。
+但手工实测证明它**有可观测差异**：
+
+| | 正常闭合围栏回复 | `parse_fallback` 遥测 |
+|---|---|---|
+| 原代码 | Layer 1（严格 JSON）解析 | **不写** |
+| 变异体 | Layer 2（正则兜底）解析 | **每次都写一条** |
+
+即：它会**给每个格式完全正确的回复都记一条 parse_fallback 事件** —— 污染项目用来判断
+工具链质量的那份遥测（就是第六节第 5 条抱怨过被污染的那套）。
+**已补测试**：合法闭合围栏必须不产生 fallback 事件、真正畸形的回复必须产生事件。
+
+> 本次三轮才收敛（21 → 6 → 1 → 0）。**每一轮都手工施加变异体复现**：
+> 第三轮那个幸存者的行号上有三处 `1`，工具报的位置与我手工改的位置**不是同一处**。
+> 铁律"必须验证变异真的生效"再次救了场。
+
+## 10.4 还没跑的（接手者第一件事）
+
+除 `fidelity`（已重跑 74/74）与本次两个 target 外，**其余 22 个 target 的变异数字
+仍受字节偏移 bug 影响，未重跑**（约 580 个变异体，按本次实测速率约 2–4 小时）：
+
+```bash
+python3 scripts/mutation_test.py          # 全部 target；串行；输出重定向到文件
+```
+
+⚠️ 变异期间**不要**同时跑 pytest / 改文件：脚本原地改写源文件。
