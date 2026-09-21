@@ -32,7 +32,6 @@ GLM_MODEL = os.getenv("GLM_MODEL", "glm-5.3-flash")       # WRITE 文字输出�
 GLM_FULL_MODEL = os.getenv("GLM_FULL_MODEL", "glm-5.3")   # READ/FIX 文字思考（深度）
 
 # 思考强度（GLM 用 reasoning_effort 档位；默认 max 贵 35 倍，必须显式设）
-GLM_READ_EFFORT = os.getenv("GLM_READ_EFFORT", "high")    # READ 深度理解找文化缺口
 GLM_WRITE_EFFORT = os.getenv("GLM_WRITE_EFFORT", "low")   # WRITE 忠实输出
 GLM_FIX_EFFORT = os.getenv("GLM_FIX_EFFORT", "high")      # FIX 深度修复
 
@@ -91,7 +90,7 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 #   - WRITE：GLM 5.3 flash — 文字输出（忠实编译，便宜10倍）
 #   - READBACK / REVIEW_TERMS：Qwen 3.8 max — 读取判断
 MODEL_MAP = {
-    "read":          GLM_FULL_MODEL,  # READ — GLM 5.3 文字思考
+    "read":          QWEN_MODEL,      # READ — Qwen 3.8 max（GLM 的内容过滤会拦真实网文）
     "write":         GLM_MODEL,       # WRITE — GLM 5.3 flash 文字输出
     "readback":      QWEN_MODEL,      # READBACK — Qwen 3.8 max 判断
     "fix":           GLM_FULL_MODEL,  # FIX — GLM 5.3 文字思考

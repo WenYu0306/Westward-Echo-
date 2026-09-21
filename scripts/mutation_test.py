@@ -23,6 +23,7 @@ any logic to confirm the new tests actually catch drift.
 """
 import ast
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -62,6 +63,17 @@ TARGETS = {
     "circuit_breaker": ("src/circuit_breaker.py", ["tests/test_fault_injection.py"]),
     "error_tracker": ("src/error_tracker.py", ["tests/test_error_tracker.py"]),
     "parse_utils": ("src/agent/parse_utils.py", ["tests/test_v15_pipeline.py"]),
+    # Scene-level completeness check: source-aware mirror for the WRITE prompt's
+    # "every scene must have an equivalent" bound. Pure logic, fast tests.
+    "completeness": ("src/completeness.py", ["tests/test_completeness.py"]),
+    # WRITE's output guards: token-ceiling truncation (_was_truncated) and the
+    # Layer 5 prose-rescue/discard boundary. Fast, focused suite.
+    "write_guards": ("src/agent/nodes/write.py", [
+        "tests/test_write_guards.py",
+        "tests/test_translate_node.py",
+        "tests/test_fault_injection.py",
+        "tests/test_completeness.py",
+    ]),
 }
 
 COMPARE_FLIP = {
@@ -134,6 +146,34 @@ def run_tests(test_files):
     return r.returncode
 
 
+# The file currently being mutated, and its pristine text. Kept at module level
+# so a signal handler can put the source back: SIGTERM ends a Python process
+# without unwinding, so `finally` never runs and a killed run used to leave a
+# mutation on disk. That is not theoretical — it left
+# `state.get('exact_glossary') and {}` in src/agent/nodes/write.py twice during
+# ordinary use. SIGKILL cannot be caught, hence the belt-and-braces refusal
+# check in run_one below.
+_INFLIGHT: dict = {"module": None, "original": None}
+
+
+def _install_restore_handler():
+    def _restore_and_exit(signum, _frame):
+        module, original = _INFLIGHT["module"], _INFLIGHT["original"]
+        if module is not None and original is not None:
+            try:
+                module.write_text(original, encoding="utf-8")
+                print(f"\n[signal {signum}] source restored before exit", flush=True)
+            except Exception as exc:  # pragma: no cover - best effort
+                print(f"\n[signal {signum}] RESTORE FAILED: {exc}", flush=True)
+        raise SystemExit(130)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, _restore_and_exit)
+        except (ValueError, OSError):  # not on the main thread
+            pass
+
+
 def run_one(key, module_rel, tests):
     module = ROOT / module_rel
     if not module.exists():
@@ -145,15 +185,36 @@ def run_one(key, module_rel, tests):
               flush=True)
         return 0, 0, 0
 
+    # A run killed mid-mutant leaves a mutated source file behind: SIGTERM ends
+    # the process without unwinding, so the `finally` below never restores it.
+    # The backup is meant to be the recoverable copy — but a SUBSEQUENT run
+    # overwrote it (backup.write_text below), capturing the already-mutated file
+    # as "original" and restoring that at the end. The corruption then became
+    # permanent and silent.
+    #
+    # Not hypothetical: a killed run left `state.get('exact_glossary') and {}`
+    # in src/agent/nodes/write.py and the following run baked it in. So refuse
+    # to start while a backup is present, and make the operator look. This check
+    # must come before the file is read, or the corrupted text becomes "original".
+    backup = module.with_name(module.name + ".mutation_backup")
+    if backup.exists():
+        print(f"\n=== {module_rel}: REFUSING TO RUN ===", flush=True)
+        print(f"  A leftover {backup.name} is present, which means a previous "
+              f"run was killed mid-mutant.", flush=True)
+        print(f"  {module_rel} may still contain a mutation. Diff it against "
+              f"{backup.name}, keep the correct version, delete the backup, "
+              f"then re-run.", flush=True)
+        return 0, 0, 0
+
     original = module.read_text(encoding="utf-8")
     mutants = mutants_for(original)
     print(f"\n=== {module_rel}: {len(mutants)} mutants ===", flush=True)
     survived = 0
     timed_out = 0
-    # A long run that is killed mid-mutant would otherwise leave a mutated
-    # source file behind. Keep a recoverable copy on disk for the whole run.
-    backup = module.with_name(module.name + ".mutation_backup")
+
     backup.write_text(original, encoding="utf-8")
+    _INFLIGHT["module"] = module
+    _INFLIGHT["original"] = original
     try:
         for desc, mutated in mutants:
             module.write_text(mutated, encoding="utf-8")
@@ -176,12 +237,15 @@ def run_one(key, module_rel, tests):
     finally:
         module.write_text(original, encoding="utf-8")
         backup.unlink(missing_ok=True)
+        _INFLIGHT["module"] = None
+        _INFLIGHT["original"] = None
     print(f"  -> {len(mutants) - survived - timed_out}/{len(mutants)} killed"
           f" ({survived} survived, {timed_out} timed out)", flush=True)
     return len(mutants), survived, timed_out
 
 
 def main():
+    _install_restore_handler()
     keys = sys.argv[1:] or list(TARGETS.keys())
     total = 0
     survived = 0

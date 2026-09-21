@@ -12,7 +12,17 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_MODEL, GLM_WRITE_EFFORT
+from ...completeness import check_completeness
+from ...config import (
+    GLM_API_KEY,
+    GLM_BASE_URL,
+    GLM_MODEL,
+    GLM_WRITE_EFFORT,
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    QWEN_MODEL,
+    QWEN_THINKING_BUDGET,
+)
 from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
@@ -50,7 +60,6 @@ def write_node(state: TranslatorState) -> dict:
         max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )
-
     # Format the READ analysis as context
     read_analysis = state.get("read_analysis", {})
     analysis_text = _format_read_analysis(read_analysis)
@@ -123,9 +132,34 @@ def write_node(state: TranslatorState) -> dict:
     except CircuitBreakerOpenError:
         TranslationStats.record_api_failure(target_lang)
         raise
-    except Exception:
+    except Exception as exc:
         TranslationStats.record_api_failure(target_lang)
-        raise
+        if not _is_content_filter_error(exc):
+            raise
+        # The safety layer rejected this chapter (Zhipu code 1301). Same-provider
+        # retry cannot help, and editing the source to slip past the filter would
+        # mean shipping a censored translation — the one thing this pipeline must
+        # not do. Fall back to the other configured provider for this chapter
+        # only, and record it so a corpus-level shift in filter behaviour is
+        # visible rather than silent.
+        logger.warning(
+            "WRITE ch%d: content filter rejected the chapter (1301) — retrying "
+            "once on %s", chapter_number, QWEN_MODEL,
+        )
+        try:
+            from ...error_tracker import record_event
+            record_event(None, chapter_number, "content_filter_fallback",
+                         f"GLM 1301 on ch{chapter_number}; retried on {QWEN_MODEL}",
+                         target_lang)
+        except Exception:
+            pass
+        fallback_key = state.get("api_key") or LLM_API_KEY
+        if not fallback_key:
+            raise
+        response = breaker.call(
+            _build_qwen_writer(api_key=fallback_key).invoke, messages
+        )
+        TranslationStats.record_api_success(target_lang)
 
     _capture_response_tokens(response, tier="flash" if flash else "pro")
 
@@ -136,6 +170,23 @@ def write_node(state: TranslatorState) -> dict:
     )
 
     translated_text = result.get("translated_text", "")
+
+    # A response cut off at the token ceiling is not a translation. Blank it so
+    # the empty-output retry below fires, instead of shipping the partial text.
+    truncated = _was_truncated(response)
+    if truncated:
+        logger.warning(
+            "WRITE ch%d: TRUNCATED response (finish_reason=%s, %d chars of "
+            "partial output discarded) — treating as failed output",
+            chapter_number, truncated, len(translated_text),
+        )
+        try:
+            from ...error_tracker import record_event
+            record_event(None, chapter_number, "output_truncated",
+                         f"WRITE finish_reason={truncated}", target_lang)
+        except Exception:
+            pass
+        translated_text = ""
 
     # Output quality guard: check for obvious garbage
     from ...output_guard import (
@@ -187,6 +238,14 @@ def write_node(state: TranslatorState) -> dict:
                     retry_response.content, chapter_number, target_lang
                 )
                 retry_text = retry_result.get("translated_text", "")
+                retry_truncated = _was_truncated(retry_response)
+                if retry_truncated:
+                    logger.warning(
+                        "WRITE ch%d retry%d: TRUNCATED again (finish_reason=%s) "
+                        "— discarding partial output", chapter_number,
+                        retry_num, retry_truncated,
+                    )
+                    retry_text = ""
                 if retry_text and len(retry_text.strip()) >= RETRY_THRESHOLD:
                     if has_untranslated_chinese(retry_text) and target_lang != "zh-CN":
                         retry_text, removed = strip_chinese_residue(retry_text)
@@ -207,6 +266,33 @@ def write_node(state: TranslatorState) -> dict:
                 "Next chapter will continue normally.",
                 chapter_number,
             )
+
+    # Scene-level completeness. WRITE may compress and cut, but the prompt
+    # requires every source scene to keep an equivalent, and until now nothing
+    # checked that: READBACK is blind to the source by design, and the word
+    # guard only counted output. Report-only for now — the thresholds were
+    # calibrated on 《地府》 and want a wider corpus before they gate a delivery.
+    try:
+        completeness = check_completeness(
+            state.get("chapter_content", ""),
+            translated_text,
+            state.get("exact_glossary") or {},
+        )
+        if completeness["flags"]:
+            try:
+                from ...error_tracker import record_event
+                record_event(
+                    None, chapter_number, "completeness",
+                    f"WRITE completeness flags: {','.join(completeness['flags'])} "
+                    f"(ratio={completeness['length_ratio']}, "
+                    f"dialogue {completeness['dialogue_src']}->"
+                    f"{completeness['dialogue_out']})",
+                    target_lang,
+                )
+            except Exception:
+                pass
+    except Exception as exc:  # never let an audit break the pipeline
+        logger.debug("WRITE ch%d: completeness check failed: %s", chapter_number, exc)
 
     return {
         "translated_text": translated_text,
@@ -310,6 +396,76 @@ def _capture_response_tokens(response, tier: str = "flash") -> None:
         pass
 
 
+# Providers report "I stopped because I hit the token ceiling" here.
+_TRUNCATED_FINISH_REASONS = {"length", "max_tokens", "max_output_tokens",
+                             "content_filter"}
+
+
+def _was_truncated(response) -> str:
+    """Return the truncating finish_reason, or "" if the response completed.
+
+    Nothing in this pipeline used to look at ``finish_reason``, so a response
+    cut off at ``max_tokens`` was indistinguishable from a complete one: the
+    multi-layer parser below would happily hand back the partial text (Layer 5
+    returns the raw content), and the chapter shipped short.
+
+    That is the failure the DeepSeek-era adversarial test recorded as "empty
+    translations with Chinese character residue" — see src/chapter_slicer.py.
+    Slicing reduced the odds but was never a detector, and its budget model was
+    calibrated for DeepSeek's context window, not for GLM/Qwen plus the
+    reasoning tokens the new stack spends.
+    """
+    try:
+        meta = getattr(response, "response_metadata", None) or {}
+        reason = meta.get("finish_reason")
+        if reason is None:
+            reason = (getattr(response, "additional_kwargs", None) or {}).get(
+                "finish_reason"
+            )
+        reason = str(reason or "").lower()
+        return reason if reason in _TRUNCATED_FINISH_REASONS else ""
+    except Exception:
+        return ""
+
+
+def _is_content_filter_error(exc: Exception) -> bool:
+    """True when the provider's safety layer rejected the request.
+
+    Zhipu returns HTTP 400 with ``code 1301`` and a ``contentFilter`` block:
+
+        {"contentFilter": [{"level": 1, "role": "assistant"}],
+         "error": {"code": "1301", "message": "系统检测到输入或生成内容可能包含不安全或敏感内容"}}
+
+    Retrying the same provider does not help — the filter is deterministic on
+    the same text — and rewriting the source to appease it would mean shipping
+    a censored translation. Measured behaviour: it rejects mainstream published
+    novels, not only profanity. Running 《间客》 (Mao Ni, published) through the
+    normal pipeline lost 1 of 2 chapters to this.
+    """
+    text = f"{type(exc).__name__}: {exc}"
+    return "1301" in text or "contentFilter" in text or "不安全" in text
+
+
+def _build_qwen_writer(*, api_key: str) -> ChatOpenAI:
+    """A WRITE client on the other configured provider, for filter fallback only.
+
+    Same generation parameters as the GLM writer so a fallback chapter is not
+    silently written in a different register. Qwen takes its reasoning budget as
+    an explicit token count (``thinking_budget``) rather than an effort tier.
+    """
+    return ChatOpenAI(  # type: ignore[call-arg]
+        model=QWEN_MODEL,
+        api_key=api_key,  # type: ignore[arg-type]
+        base_url=LLM_BASE_URL,
+        temperature=0.2,
+        max_tokens=16384,
+        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
+        request_timeout=300,
+        max_retries=0,
+        model_kwargs={"response_format": {"type": "json_object"}},
+    )
+
+
 def _parse_write_response(
     content: str,
     chapter_number: int = 0,
@@ -366,11 +522,35 @@ def _parse_write_response(
             "chapter_summary": "",
         }
 
-    # Layer 5: Raw content fallback
+    # Layer 5: the model ignored the JSON envelope and just wrote prose
+    # ("I'd be happy to translate this chapter for you! ... Su Nian woke up...").
+    # That is worth rescuing — but only when it actually looks like prose.
+    #
+    # The old behaviour stamped ANY unparseable response with
+    # translated_text = raw content, so a truncated or malformed reply became a
+    # "translation" that nothing downstream could tell from a real one. The
+    # token-ceiling case is now caught earlier by _was_truncated(); this guard
+    # covers the remaining ways a response can be junk (symbol soup, a stub,
+    # a non-language payload).
+    body = content.lstrip("```json").lstrip("```").strip()
+    latin_letters = len(re.findall(r"[A-Za-z]", body))
+    word_count = len(body.split())
+    if latin_letters >= 40 and word_count >= 10:
+        record_event(None, chapter_number, "parse_fallback",
+                     "Layer 5: prose rescue (no JSON envelope)", target_lang)
+        return {
+            "translated_text": body,
+            "new_terms_found": [],
+            "adaptation_notes": [],
+            "chapter_summary": "",
+        }
+
     record_event(None, chapter_number, "parse_fallback",
-                 "Layer 5: raw content fallback", target_lang)
+                 f"Layer 5: unparseable response discarded "
+                 f"({latin_letters} letters, {word_count} words)",
+                 target_lang)
     return {
-        "translated_text": content.lstrip("```json").lstrip("```").strip(),
+        "translated_text": "",
         "new_terms_found": [],
         "adaptation_notes": [],
         "chapter_summary": "",

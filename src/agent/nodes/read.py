@@ -10,7 +10,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_FULL_MODEL, GLM_READ_EFFORT
+from ...config import (
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    QWEN_MODEL,
+    QWEN_THINKING_BUDGET,
+)
 from ...cultural_rules import (
     format_fidelity_for_prompt,
     format_rules_as_bullets,
@@ -89,14 +94,17 @@ def read_node(
         - read_analysis: the READ agent's structured analysis (JSON)
         - context_signals: aggregated context signal text
     """
-    api_key = state.get("api_key") or GLM_API_KEY
+    api_key = state.get("api_key") or LLM_API_KEY
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=GLM_FULL_MODEL,
+        model=QWEN_MODEL,
         api_key=api_key,  # type: ignore[arg-type]
-        base_url=GLM_BASE_URL,
+        base_url=LLM_BASE_URL,
         temperature=0.3,
         max_tokens=16384,
-        reasoning_effort=GLM_READ_EFFORT,
+        # Qwen takes its reasoning budget as an explicit token count. It cannot
+        # be combined with reasoning_effort, which is why the GLM effort tier
+        # that used to be set here is gone rather than carried over.
+        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=900,
         max_retries=0,
     )

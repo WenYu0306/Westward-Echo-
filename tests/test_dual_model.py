@@ -1,8 +1,14 @@
-"""Three-provider model routing: GLM for 文字思考/输出, Qwen for 判断.
+"""Three-provider model routing.
 
-- READ / FIX → GLM 5.3 (full) + reasoning_effort=high
+- READ / READBACK / REVIEW_TERMS → Qwen 3.8 max + thinking_budget
 - WRITE → GLM 5.3 flash + reasoning_effort=low
-- READBACK / REVIEW_TERMS → Qwen 3.8 max + thinking_budget
+- FIX → GLM 5.3 (full) + reasoning_effort=high
+
+READ moved off GLM 5.3 because Zhipu's content filter rejects real web-novel
+chapters with code 1301. Measured: 《间客》 by Mao Ni — a mainstream published
+novel — lost 1 of 2 chapters to the filter on a normal run. Qwen takes its
+reasoning budget as ``thinking_budget`` and must NOT also receive
+``reasoning_effort``, so that parameter is expected to be absent for READ.
 """
 
 import json
@@ -48,7 +54,7 @@ def _minimal_state():
     }
 
 
-class TestReadUsesGlmFull:
+class TestReadUsesQwen:
     def test_read_node_model_and_base_url(self, monkeypatch):
         from src.agent.nodes.read import read_node
         from src.glossary.exact_store import ExactGlossary
@@ -61,12 +67,16 @@ class TestReadUsesGlmFull:
         )
         read_node(_minimal_state(), ExactGlossary(), SemanticGlossary())
 
-        assert captured["kwargs"]["model"] == "glm-5.3"
-        assert captured["kwargs"]["base_url"] == GLM_BASE_URL
-        assert captured["kwargs"]["api_key"] == GLM_API_KEY
-        assert captured["kwargs"]["reasoning_effort"] == "high"
+        assert captured["kwargs"]["model"] == "qwen3.8-max"
+        assert captured["kwargs"]["base_url"] == LLM_BASE_URL
+        assert captured["kwargs"]["api_key"] == LLM_API_KEY
+        assert captured["kwargs"]["extra_body"] == {"thinking_budget": 2048}
         assert captured["kwargs"]["temperature"] == 0.3
         assert captured["kwargs"]["max_tokens"] == 16384
+        assert captured["kwargs"]["request_timeout"] == 900
+        # Must NOT be set: Qwen uses thinking_budget instead, and the two
+        # cannot be combined.
+        assert "reasoning_effort" not in captured["kwargs"]
 
 
 class TestWriteUsesGlmFlash:
