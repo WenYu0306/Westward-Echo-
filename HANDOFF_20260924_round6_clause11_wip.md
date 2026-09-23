@@ -15,25 +15,26 @@ python3.11 -m pytest -q --no-header     # → 1299 passed, 4 deselected
 ```
 - **必须用 `python3.11`**，本机 `python3` 是 3.9
 - 1299 = 上轮基线 1280 + 本轮新增 `tests/test_prompt_personas.py` 的 19 个测试
-- 工作区改动**未提交**：**10 M + 2 ??**（详见 §五）
-- 上一个提交 `fc5c452`（条款5 残余）；再上 `67975f3`（条款1）
+- **工作区改动已全部提交**：`445ec8b`（条款11 本体）+ `65209b0`（本交接文档）；工作区干净
+- 提交历史：`445ec8b`（条款11）← `65209b0`（交接）← `fc5c452`（条款5 残余）← `67975f3`（条款1）
+- `write_guards` 变异 **60/60 killed，0 survived / 0 stale / 0 blocked**（改了 write.py 接线后重跑验证，源文件已还原、四指纹零污染）
 - `pytest` 裸跑**恒 ¥0**（conftest 封网，机器可检不变量）
 
 ---
 
-## ⚠️ 一、P0 悬空状态（下一位第一件事，别跳过）
+## 一、P0 悬空状态 —— ✅ 已清除（曾一度悬空，现已修并提交）
 
-**本轮删了 `cultural_rules.json` 的 ar-SA 配置（181 行/40 条），但引用 ar-SA 的两个脚本还没同步清理。** 这正是 `5bba508` 制造 adversarial_test 断头的同一模式（删 A 不同步 B），我修了历史断头却差点自己造一个新的。**当前状态不是崩溃，是"跑起来结果错"**：脚本跑 ar-SA 时 `load_rules("ar-SA",...)` 返回 `{}`（无规则）、`build_prompt_context` 的 ar-SA 不在 `_LANG_PROFILES` → 静默 fallback 到 en-US 措辞，即**用美式措辞、零文化规则跑阿拉伯语翻译**。
+**背景**：本轮删了 `cultural_rules.json` 的 ar-SA 配置（181 行/40 条）后，一度出现"配置已删、脚本引用未清"的悬空状态——正是 `5bba508` 制造 adversarial_test 断头的同一模式（删 A 不同步 B）。**当时故意不提交代码**，等清理完再一起提交。
 
-**必须同步清理（确切行号，均已 grep 核实）**：
-| 文件 | 位置 | 改法 |
-|---|---|---|
-| `scripts/test_multilang.py` | L1 docstring、L20 `[("es-ES",...),("ar-SA",...)]` | 删 ar-SA 元组元素，docstring 去掉 ar-SA |
-| `scripts/evaluate_native.py` | L4/L9 docstring、L39-42 `FIXTURE_MAP["ar-SA"]`、L164 `choices=[...,"ar-SA",...]` | 删 FIXTURE_MAP 的 ar-SA 键、choices 去掉 ar-SA、docstring 更正 |
+**现已全部清理并提交（`445ec8b`）**：
+| 文件 | 已改 |
+|---|---|
+| `scripts/test_multilang.py` | docstring 去 ar-SA；循环元组删 `("ar-SA",...)`，只留 es-ES |
+| `scripts/evaluate_native.py` | docstring 去 ar-SA（并更正过时的 "DeepSeek V4 Pro"→"evaluator model"）；`FIXTURE_MAP` 删 ar-SA 键；CLI `choices` 去 ar-SA |
 
-**注意**：这两个都是**裸露脚本（跑就花钱，条款6 清单内）**，改完只能 `py_compile` 静态验，**不能实跑验证**。
-**遗留 fixture**（未被 git 跟踪，删不删看下一位）：`tests/fixtures/jianke_ch1_ar_SA.md`、`tests/fixtures/eval_ar_SA.json`。
-**改完这些再一起提交本轮所有改动**，别把 P0 悬空状态提交进去。
+**验证**：两脚本 `py_compile` 通过（裸露脚本不实跑）；全项目 ar-SA 活引用清零（剩余全是解释性注释，有意保留说明为何废弃）；`evaluate_native.py` 剩余 fixture（`jianke_ch1_es_ES.md`、`jianke_ch1-5_en.md`）实测存在，未删出断头；`static_audit --include-src` 无新断头。
+
+**遗留 fixture**（未被 git 跟踪，删不删看下一位，属破坏性操作）：`tests/fixtures/jianke_ch1_ar_SA.md`、`tests/fixtures/eval_ar_SA.json`。
 
 ---
 
@@ -85,23 +86,23 @@ python3.11 -m pytest -q --no-header     # → 1299 passed, 4 deselected
 1. **P0：脚本层 ar-SA 同步清理**（见 §一，必须先做，否则工作区是半成品）。
 2. **de/fr 无 cultural_rules.json 规则** —— ⚠️ **不能简单回退到 en-US**：实测 en-US 与 es-ES 是**同键不同值**（17 条键相同、值分别是英文/西语术语），回退 en-US 会把**英文术语注入德/法语译文**。正确做法二选一（需用户定）：(a) 补 de/fr 的规则数据（大工程）；(b) 在 `load_rules` 加**显式语言回退层**并记 warning，且 fidelity 段目前**只有 en-US**（连 es-ES 都没有）。当前 de/fr 走 `load_rules` 返回 `{}`，READ 节点显示"(No genre-specific rules.)"，**不崩但无规则**。
 3. **`src/evaluator_prompts.py` 的 "sci-fi/mecha terminology" 硬编码未动** —— 4 个语种 profile 的 `focus_areas`（L21/64 等）都写死 sci-fi/mecha，`EVALUATOR_SYSTEM`（L90）第4条评分项也写死 "sci-fi/mecha terms"。这是 evaluator（打分器）的题材绑定，本轮只改了四节点 prompt，**evaluator 未参数化**。
-4. **`personas.py` 未进 mutation TARGETS** —— 新模块无变异覆盖（`scripts/mutation_test.py` 的 TARGETS 表）。
-5. **改了 `src/agent/nodes/write.py`（接线逻辑）→ 应重跑 `write_guards` 变异 target** 确认没引入存活变异体（write.py 在 TARGETS 里）。read/readback/fix 节点不在 TARGETS。prompts/*.py 也不在 TARGETS。
-6. **⚠️ 新 genre 文案的实际翻译质量未经 API 验证** —— 文案是我按各类型文学传统写的（folk_religion→village-ritual dread、scifi→idea-driven…），**接线通了、渲染对了，但"这些 genre 指引能否真的提升对应书的译文质量"需要真实 API 跑几章才知道**，按铁律6 须**先报预算等批准**。这是条款11 的最终验收缺口。
-7. **未提交**（因 P0 悬空，见 §一）。
+4. **`personas.py` 未进 mutation TARGETS** —— 新模块无变异覆盖（`scripts/mutation_test.py` 的 TARGETS 表）。read/readback/fix 节点、prompts/*.py 也都不在 TARGETS。
+5. ✅ **已完成**：改了 `write.py` 接线后重跑 `write_guards` 变异 → **60/60 killed，0 survived / 0 stale / 0 blocked**，接线未引入存活变异体。
+6. **⚠️ 新 genre 文案的实际翻译质量未经 API 验证** —— 文案是我按各类型文学传统写的（folk_religion→village-ritual dread、scifi→idea-driven…），**接线通了、渲染对了、变异绿了，但"这些 genre 指引能否真的提升对应书的译文质量"需要真实 API 跑几章才知道**，按铁律6 须**先报预算等批准**。这是条款11 的最终验收缺口，也是唯一剩下的实质项。
+7. ✅ **已提交**：P0 悬空清除后，本轮全部改动已提交 `445ec8b`，工作区干净。
 
 ---
 
 ## 四、15 条计划最新状态（权威见 TodoList）
 
 > 用户指定顺序：1 → 5 → 3 → 11 → 12 → 13 → 14 → 2 → 10 → 8 → 9 → 7 → 6 → 4（第15条附末尾）。
-> **条款1、5 已完成提交。当前在 11（进行中）。** 注意：用户本轮临时插队让先做 11（原顺序 11 在 3 之后，但 3 需 API 预算，故先推 11）。
+> **条款1、5、11 主体已完成并提交。** 注意：用户本轮临时插队让先做 11（原顺序 11 在 3 之后，但 3 需 API 预算，故先推 11）。
 
 | # | 条款 | 状态 | 下一步 |
 |---|---|---|---|
 | 1 | 工程审计 | ✅ 完成（`67975f3`，957/957 变异全杀） | — |
 | 5 | 交接验证+烂尾修复 | ✅ 完成（`fc5c452`） | 移交项见其 §七：剧本残留 2 脚本仍有 5 条断头，清完后 `scripts/static_audit.py` 可接 CI |
-| 11 | Agent 定位通用性 | 🟡 **进行中（本轮）** | 见 §一 P0 + §三 未做项 |
+| 11 | Agent 定位通用性 | 🟢 **主体完成并提交（`445ec8b`）** | 四节点 prompt 已参数化 + 接线 + 变异绿。剩：新 genre 文案的翻译质量需 API 验证（§三-6）、evaluator_prompts 未参数化、de/fr 无规则、personas 未进变异 TARGETS |
 | 3 | 模型变更质量回归 | 🟡 成本已重算 | 只剩质量回归，需真实 API → 先报预算 |
 | 12 | 思考链档位成本 | ⬜ | `MODEL_MAP` 三节点共用 `QWEN_MODEL`，READBACK 不需 max 档 |
 | 13 | TM/TB 知识资产 | ⬜ | TM 空白、FIX 回写闭环不存在、`scan_deliverable.py` 不存在 |
@@ -127,19 +128,20 @@ python3.11 -m pytest -q --no-header     # → 1299 passed, 4 deselected
 
 ---
 
-## 六、本轮改动文件清单（10 M + 2 ??，全部未提交）
+## 六、本轮改动文件清单（14 文件，已提交 `445ec8b`）
 
-**新增（2 ??）**：
+**新增（2）**：
 - `src/agent/prompts/personas.py` — genre×语种参数模块（build_prompt_context + 5 profile + GENERIC + 4 lang）
 - `tests/test_prompt_personas.py` — 19 测试，捕获 SystemMessage 验渲染无泄漏 + 参数真驱动 + 三方 genre 同步
 
-**源码改动（8 M）**：
+**源码改动（10 M）**：
 - `src/agent/prompts/read.py` / `write.py` / `readback.py` / `fix.py` — 硬编码→占位符，JSON 块花括号转义
 - `src/agent/nodes/read.py` / `write.py`（含 fallback 两处）/ `readback.py` / `fix.py` — 导入 build_prompt_context、渲染 system prompt、user prompt 补占位符
 - `src/cultural_rules.py` — `_GENRE_SIGNALS` 补 urban（16 关键词）
 - `cultural_rules.json` — 删 ar-SA 死配置（181 行/40 条，保字节手术）
+- `scripts/test_multilang.py` / `evaluate_native.py` — 同步清理 ar-SA 引用（P0）
 
-**未跑**：变异测试（改了 write.py 接线，应重跑 write_guards target）；本轮改动**未提交**。
+**已验证**：`write_guards` 变异 60/60 killed（0 survived/stale/blocked）；全量 1299 passed；static_audit 无新断头；四指纹零污染。均已提交。
 
 ---
 
@@ -158,18 +160,26 @@ python3.11 -m pytest -q --no-header     # → 1299 passed, 4 deselected
 
 ---
 
-## 八、下一位的最小启动路径
+## 八、条款11 剩余工作（P0 已清、代码已提交、变异已绿）
+
+已完成并提交的：P0 ar-SA 脚本清理、四节点参数化接线、write_guards 变异 60/60、
+全量 1299 passed、static_audit 无新断头。**工作区干净，可直接接着做下面任一项。**
 
 ```bash
-# 1. 先清 P0：ar-SA 脚本引用（§一），改完 py_compile 静态验，别实跑（裸露脚本花钱）
-# 2. 跑测试确认仍 1299 passed（或因删 ar-SA fixture 引用而变化）
-python3.11 -m pytest -q --no-header
-# 3. 重跑 write_guards 变异（改了 write.py 接线）。
-#    注意：mutation_test.py 用位置参数（sys.argv[1:]），不是 --target flag
-python3.11 scripts/mutation_test.py write_guards > /tmp/mut_wg.log 2>&1   # 串行
-# 4. 跑静态审计确认无新断头（尤其 personas.py 的 import）
-python3.11 scripts/static_audit.py --self-test   # 须 27/27
-python3.11 scripts/static_audit.py --include-src
-# 5. 清完 P0 + 验证通过后，一起提交本轮所有改动
+# 验证当前状态（都应绿）
+python3.11 -m pytest -q --no-header                    # → 1299 passed
+python3.11 scripts/static_audit.py --self-test         # → 27/27
 ```
-**未验证前不要提交。** 条款11 的"接线+文案"已完成，"质量验证（需 API 预算）+ de/fr 规则 + evaluator 参数化 + 变异重跑"未完成。
+
+**剩余项（按优先级）**：
+1. **新 genre 文案的翻译质量验证**（条款11 最终验收缺口，§三-6）——需真实 API 跑几章
+   对比"参数化前 vs 后"或不同 genre 指引的译文差异。**按铁律6 先报预算等批准**。
+2. **evaluator_prompts.py 参数化**（§三-3）——4 语种 focus_areas + EVALUATOR_SYSTEM
+   的 sci-fi/mecha 硬编码，与四节点同类问题，可复用 personas.build_prompt_context。
+3. **de/fr 的 cultural_rules.json 规则**（§三-2，待用户拍板）——补数据 vs 加显式语言
+   回退层。⚠️ 不能简单回退 en-US（同键不同值，会注入英文术语）。
+4. **personas.py 进 mutation TARGETS**（§三-4）——新模块目前无变异覆盖。
+
+**改 prompt/模板的铁律（本轮验证过，务必遵守）**：任何模板改动后，必须有捕获
+实际渲染文本的测试（不是只验 HumanMessage），否则 `{占位符}` 泄漏给模型时测试
+仍全绿。删任何配置/符号前先 `grep -rn` 全项目同步清理引用方。
