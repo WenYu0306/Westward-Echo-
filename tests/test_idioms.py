@@ -43,6 +43,67 @@ class TestDetectIdioms:
             assert isinstance(meaning, str), f"Value for {idiom!r} is not a string"
             assert len(meaning) > 0, f"Meaning for {idiom!r} is empty"
 
+    def test_no_idiom_is_a_prefix_of_another(self):
+        """The current table must keep the longest-match invariant loadable.
+
+        detect_idioms sorts by length DESCENDING and then re-sorts by first
+        position. That ordering only matters when one idiom is a prefix of
+        another (both start at the same index). The shipped table has no such
+        pair, so the descending sort is presently unobservable — which is exactly
+        why `reverse=True` -> `False` survived mutation testing.
+
+        This pins the precondition. If someone adds a prefix pair, this test
+        fails and forces them to think about ordering, and the test below then
+        starts exercising real behaviour rather than a hypothetical.
+        """
+        keys = list(COMMON_IDIOMS)
+        offenders = [
+            (short, long)
+            for short in keys
+            for long in keys
+            if short != long and long.startswith(short)
+        ]
+        assert offenders == [], f"idiom prefix pairs break longest-match: {offenders}"
+
+    def test_longest_idiom_wins_when_one_is_a_prefix_of_another(self, monkeypatch):
+        """The documented contract behind `reverse=True`, made observable.
+
+        Inject a prefix pair so two idioms share a first position. With the
+        descending length sort, the longer idiom is recorded first and therefore
+        comes first in the output; with `reverse=True` mutated to `False` the
+        shorter one is recorded first and the order flips. Without injection the
+        real table cannot distinguish the two — see the precondition test above.
+        """
+        import src.idioms as idioms_mod
+
+        monkeypatch.setattr(
+            idioms_mod,
+            "COMMON_IDIOMS",
+            {"画蛇": "draw a snake", "画蛇添足": "gild the lily"},
+        )
+        result = detect_idioms("他这是画蛇添足")
+
+        assert [r[0] for r in result] == ["画蛇添足", "画蛇"]
+
+    def test_prefix_pair_is_not_suppressed_by_dedup(self, monkeypatch):
+        """Both the long and the short idiom are reported — `seen` only
+        deduplicates identical strings, it does not suppress substrings.
+
+        This pins behaviour the code comment overstates: the comment on the
+        descending sort claims longer idioms are matched "before shorter
+        substrings", but nothing in the loop actually drops the shorter one.
+        If substring suppression is ever wanted, this test is the thing that
+        should start failing.
+        """
+        import src.idioms as idioms_mod
+
+        monkeypatch.setattr(
+            idioms_mod,
+            "COMMON_IDIOMS",
+            {"画蛇": "draw a snake", "画蛇添足": "gild the lily"},
+        )
+        assert len(detect_idioms("他这是画蛇添足")) == 2
+
 
 class TestBuildIdiomContext:
     """Tests for build_idiom_context()."""

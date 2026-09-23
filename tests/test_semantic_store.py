@@ -156,6 +156,49 @@ class TestConstructorReadiness:
         s = SemanticGlossary(persist_path=str(target), book_id="b")
         assert s._persist_path == str(target)
 
+    def test_store_is_not_ready_during_init(self, monkeypatch):
+        """The ``_ready = False`` at the top of __init__ is a fail-safe, not a
+        no-op — and it is observable WHILE _init_chroma runs.
+
+        Every writer (add_term / add_batch / search / count) gates on
+        ``if not self._ready``. The gate is only safe if the flag starts False:
+        ``client`` is still None until the line AFTER _init_chroma returns, and
+        get_or_create_collection asserts client is not None. A store that
+        reports ready before init completes would let a writer through the gate
+        and straight into that assert.
+
+        The existing readiness tests only check the flag AFTER construction, by
+        which point the success/failure branches have already overwritten it — so
+        they cannot see the initial value, which is why ``const bool->True at 65``
+        survived mutation testing. This observes the flag from inside the probe.
+        """
+        seen = {}
+
+        def probe(self, path):
+            seen["ready_during_init"] = self._ready
+            seen["client_during_init"] = self.client
+            return MagicMock()
+
+        monkeypatch.setattr(SemanticGlossary, "_init_chroma", probe)
+        monkeypatch.setattr(SemanticGlossary, "_last_retry_time", 0.0)
+
+        SemanticGlossary(persist_path="/tmp/unused-during-init", book_id="b")
+
+        assert seen["ready_during_init"] is False
+        assert seen["client_during_init"] is None
+
+    def test_writer_refuses_while_not_ready(self, monkeypatch):
+        """Pins the gate the flag protects: a not-ready store must not touch the
+        client. If the ready flag could be True with client still None, add_term
+        would reach get_or_create_collection and trip its assertion."""
+        s = _make_store("b", None)
+        s._ready = False
+
+        # Must return quietly (warn-and-skip), not raise on the None client.
+        s.add_term("无常", "Wuchang")
+
+        assert s._ready is False
+
 
 # ── try_recover / is_healthy ──────────────────────────────────────
 

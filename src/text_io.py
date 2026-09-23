@@ -12,6 +12,13 @@ ladder was inlined in ``routes.py`` while ``scripts/`` imported a second copy,
 and the two drifted apart until the scripts broke outright.
 """
 
+# Required: pyproject.toml pins the runtime to Python 3.9, where PEP 604 unions
+# (`str | None`) are evaluated at import time and raise TypeError. Every other
+# module using that syntax carries this import; this one was missing it, so
+# importing src.text_io — and therefore src.api.routes and the whole API — crashed
+# under 3.9 while tests happened to run on 3.11 and hid it.
+from __future__ import annotations
+
 from pathlib import Path
 
 # Ordered by likelihood for Chinese web novels.

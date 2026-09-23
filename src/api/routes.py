@@ -252,6 +252,12 @@ async def _translate_accepted(
                     start_i = 0
 
             import time as _t
+            # Chapters actually written vs skipped in THIS run. complete_job
+            # used to fire unconditionally after the loop, so a job that
+            # delivered 1 of 2 chapters was marked "completed" — the same false
+            # completion the CLI runner had.
+            delivered_count = 0
+            failed_indexes: list[int] = []
             for i in range(start_i, len(chapters_list)):
                 ch = chapters_list[i]
                 try:
@@ -282,9 +288,11 @@ async def _translate_accepted(
                             )
                         except Exception as e2:
                             logger.warning("Sync chapter %d failed after retry: %s", ch.index, e2)
+                            failed_indexes.append(ch.index)
                             continue
                     else:
                         logger.warning("Sync chapter %d failed: %s", ch.index, exc)
+                        failed_indexes.append(ch.index)
                         continue
                 tt = result.get("translated_text", "")
                 title_en = result.get("chapter_title_en", "")
@@ -300,16 +308,22 @@ async def _translate_accepted(
                         "Sync chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write",
                         ch.index, word_count, min_words,
                     )
+                    failed_indexes.append(ch.index)
                     continue
                 job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
-                display_title = title_en or ch.title[:60]
+                # ZERO-CHINESE RULE: ch.title is the Chinese heading, so it must
+                # not be the fallback. Fall back to a plain number instead.
+                display_title = title_en or f"Chapter {ch.index}"
                 exists = os.path.exists(output_path)
                 with open(output_path, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
-                        f.write(f"# {job_id} — English Translation\n\n")
+                        # Was hard-coded "English Translation" even for es-ES
+                        # jobs, which mislabels a Spanish deliverable.
+                        f.write(f"# {job_id} — {target_lang} Translation\n\n")
                     f.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
                     f.flush()
                     os.fsync(f.fileno())
+                delivered_count += 1
                 # ── Save checkpoint after every chapter ──
                 with Path(ckpt_path).open("w", encoding="utf-8") as ckpt_f:
                     json.dump({
@@ -320,7 +334,24 @@ async def _translate_accepted(
             glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
-            job_store.complete_job(job_id, output_path, len(agent.exact_store))
+            # Marking a job "completed" is a promise to the user that the
+            # deliverable is whole. When chapters were skipped the file is not
+            # whole, so report failure with the reason instead — the UI can then
+            # show which chapters are missing rather than offering a broken
+            # download as finished work.
+            if failed_indexes:
+                logger.warning(
+                    "Job %s delivered %d/%d chapters; %d failed: %s",
+                    job_id, delivered_count, len(chapters_list),
+                    len(failed_indexes), failed_indexes[:20],
+                )
+                job_store.fail_job(
+                    job_id,
+                    f"Incomplete: {delivered_count}/{len(chapters_list)} chapters "
+                    f"delivered. Failed chapter indexes: {failed_indexes[:20]}",
+                )
+            else:
+                job_store.complete_job(job_id, output_path, len(agent.exact_store))
             # Log THIS job's real token usage and cost.
             # Previously this logged TranslationStats.token_snapshot() — a
             # process-global in-memory counter — which is why app.log contains
@@ -494,6 +525,11 @@ async def translate_multi(
                             pass
 
                     flash_mode = translate_mode == "flash"
+                    # Per-language counters. These live in _run_translation, a
+                    # different function from _run_sync, so they must be bound
+                    # here — referencing the _run_sync names would NameError.
+                    delivered_count = 0
+                    failed_indexes: list[int] = []
                     for i in range(start_i, len(chapters_list)):
                         ch = chapters_list[i]
                         try:
@@ -536,10 +572,12 @@ async def translate_multi(
                                         ch.index, e2,
                                     )
                                     TranslationStats.record_chapter_failed(lang)
+                                    failed_indexes.append(ch.index)
                                     continue
                             else:
                                 logger.warning("Multi-lang chapter %d failed: %s", ch.index, exc)
                                 TranslationStats.record_chapter_failed(lang)
+                                failed_indexes.append(ch.index)
                                 continue
                         tt = result.get("translated_text", "")
                         title_en = result.get("chapter_title_en", "")
@@ -557,17 +595,26 @@ async def translate_multi(
                                 ch.index, word_count, min_words,
                             )
                             TranslationStats.record_chapter_failed(lang)
+                            failed_indexes.append(ch.index)
                             continue
                         job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
                         TranslationStats.record_chapter_complete(lang)
-                        display_title = title_en or ch.title[:60]
+                        # ZERO-CHINESE RULE: ch.title is the Chinese heading and
+                        # must not be the fallback. Note the field is named
+                        # title_en even though this path serves any target
+                        # language — see the generalisation work in 第11条.
+                        display_title = title_en or f"Chapter {ch.index}"
                         exists = os.path.exists(output_path)
                         with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
                             if not exists:
-                                fh.write(f"# {jid} — English Translation\n\n")
+                                # Was hard-coded "English Translation" on the
+                                # MULTI-LANGUAGE path, so an es-ES deliverable
+                                # was mislabelled as English.
+                                fh.write(f"# {jid} — {lang} Translation\n\n")
                             fh.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
                             fh.flush()
                             os.fsync(fh.fileno())
+                        delivered_count += 1
                         # ── Save checkpoint after every chapter ──
                         with Path(ckpt_path).open("w", encoding="utf-8") as ckpt_f:
                             json.dump({
@@ -575,7 +622,24 @@ async def translate_multi(
                                 "glossary_snapshot": agent.exact_store.snapshot(),
                                 "previous_summary": prev_summary,
                             }, ckpt_f, ensure_ascii=False)
-                    job_store.complete_job(jid, output_path, 0)
+                    # glossary_count was hard-coded 0 here, discarding the real
+                    # term count. And a partially delivered job must not be
+                    # marked completed.
+                    term_count = len(agent.exact_store)
+                    if failed_indexes:
+                        logger.warning(
+                            "Multi-lang job %s (%s) delivered %d/%d chapters; %d failed: %s",
+                            jid, lang, delivered_count, len(chapters_list),
+                            len(failed_indexes), failed_indexes[:20],
+                        )
+                        job_store.fail_job(
+                            jid,
+                            f"Incomplete: {delivered_count}/{len(chapters_list)} chapters "
+                            f"delivered for {lang}. Failed chapter indexes: "
+                            f"{failed_indexes[:20]}",
+                        )
+                    else:
+                        job_store.complete_job(jid, output_path, term_count)
                 except Exception as exc:
                     logger.error("Multi-lang sync translation failed for job %s: %s", jid, exc)
                     job_store.fail_job(jid, str(exc))

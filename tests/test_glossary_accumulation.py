@@ -129,6 +129,29 @@ def _mock_llm(response_str: str):
     return llm
 
 
+# An empty "reviews" list means every term passes with no correction, so
+# review_terms_node returns {} and leaves READ's decisions untouched — exactly
+# the pre-REVIEW_TERMS behaviour these tests were written against.
+REVIEW_TERMS_PASS = json.dumps({"reviews": []})
+
+
+@pytest.fixture(autouse=True)
+def _mock_review_terms():
+    """Stub the REVIEW_TERMS node so these tests never reach a real provider.
+
+    REVIEW_TERMS is a separate Qwen-judged node added after this file was
+    written, so none of the ``with patch(...)`` blocks below cover it. Left
+    unpatched it builds a real ChatOpenAI and calls the live API; the exception
+    then dies inside the LangGraph task and the test still "passed" — the
+    fake-green path conftest's _forbid_live_llm guard now catches. These tests
+    assert glossary/style accumulation, not term review, so a pass-through stub
+    restores their original intent.
+    """
+    with patch("src.agent.nodes.review_terms.ChatOpenAI",
+               return_value=_mock_llm(REVIEW_TERMS_PASS)):
+        yield
+
+
 class TestGlossaryAccumulation:
     """Verify that terms from chapter 1 are injected into chapter 2."""
 

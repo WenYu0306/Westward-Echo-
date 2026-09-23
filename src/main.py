@@ -10,7 +10,7 @@ from .api.editor import app as editor_api_router
 from .api.logging import logger
 from .api.review import app as review_api_router
 from .api.routes import app as api_router
-from .config import API_PORT, HOST, VERSION
+from .config import API_PORT, HEALTH_LIVE_LLM_PROBE, HOST, VERSION
 from .dashboard import DASHBOARD_PAGE, get_dashboard_data
 from .editor_ui import EDITOR_PAGE
 from .health import HealthChecker
@@ -27,7 +27,10 @@ def create_app() -> FastAPI:
     )
 
     # ── Startup health checks ──
-    health = HealthChecker()
+    # The live LLM probe costs money, so it is opt-in via HEALTH_LIVE_LLM_PROBE.
+    # Default False keeps create_app() free of billable calls — tests build the
+    # app through this same factory.
+    health = HealthChecker(live_llm=HEALTH_LIVE_LLM_PROBE)
     report = health.check_all()
 
     if report["status"] == "unhealthy":

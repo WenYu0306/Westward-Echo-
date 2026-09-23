@@ -9,8 +9,14 @@ load_dotenv()
 
 # --- Project root ---
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
-OUTPUT_DIR = ROOT_DIR / "output"
+
+# Both directories are env-overridable so the test suite can repoint every
+# derived path (token ledger, translation_events.db, jobs.db, style memos,
+# deliverables) at a throwaway directory. Without this, `pytest` writes real
+# rows into data/ and hundreds of stray job files into output/.
+# Production leaves these unset and keeps the repo-relative defaults.
+DATA_DIR = Path(os.getenv("XIDU_DATA_DIR", "") or ROOT_DIR / "data")
+OUTPUT_DIR = Path(os.getenv("XIDU_OUTPUT_DIR", "") or ROOT_DIR / "output")
 
 VERSION = "0.16.0"
 
@@ -51,6 +57,12 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # --- Auth ---
 API_KEY = os.getenv("API_KEY", "")  # Empty = auth disabled (dev mode)
+
+# --- Health checks ---
+# The LLM health probe makes a REAL (billable) 1-token call. /api/health is
+# unauthenticated and un-rate-limited, and the dashboard polls it every 5 s, so
+# the probe is off by default. Set to "true" only for a one-off startup check.
+HEALTH_LIVE_LLM_PROBE = os.getenv("HEALTH_LIVE_LLM_PROBE", "false").lower() == "true"
 
 # --- Logging ---
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

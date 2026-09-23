@@ -73,7 +73,12 @@ def batch_translate_terms(terms: list[dict], book_id: str) -> dict[str, str]:
     """
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
-    from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
+    # This path is live: scripts/run_novel.py --seed imports seed_glossary /
+    # seed_style_memo from here, and the old body pulled DEEPSEEK_API_KEY /
+    # DEEPSEEK_BASE_URL from src.config — names deleted in the 2026-09 provider
+    # switch. The import sat inside the function, so the module still loaded and
+    # the breakage only appeared at call time.
+    from src.config import GLM_API_KEY, GLM_BASE_URL, GLM_MODEL
 
     total = len(terms)
     translated: dict[str, str] = {}
@@ -97,9 +102,12 @@ def batch_translate_terms(terms: list[dict], book_id: str) -> dict[str, str]:
     )
 
     llm = ChatOpenAI(
-        model="deepseek-chat",
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
+        # Term rendering is a text-output task, the same shape as WRITE, so it
+        # uses the GLM flash tier. The old value was a hard-coded
+        # "deepseek-chat" — a model this project no longer has an account for.
+        model=GLM_MODEL,
+        api_key=GLM_API_KEY,
+        base_url=GLM_BASE_URL,
         temperature=0.1,
         max_tokens=8192,
         request_timeout=180,

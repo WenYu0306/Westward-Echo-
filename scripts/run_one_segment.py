@@ -55,6 +55,14 @@ def main():
     segment_num = 1
     overall_t0 = time.monotonic()
 
+    # Must be initialised outside the loop: when every chapter is already
+    # checkpointed the `while` body never runs, and the summary print at the end
+    # referenced `glossary` before assignment → UnboundLocalError.
+    glossary = agent.exact_store.to_dict()
+    # Chapters that failed and were skipped. "ALL DONE" must not be printed as if
+    # every chapter was delivered — that is what made the progress report untrustworthy.
+    failed_positions: list = []
+
     # --- Turn off HTTP noise ---
     import logging
     for name in ["httpx", "httpcore", "openai", "chromadb", "urllib3"]:
@@ -85,10 +93,12 @@ def main():
                 )
             except CircuitBreakerOpenError:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] CIRCUIT OPEN - sleep 30s")
+                failed_positions.append(pos)
                 time.sleep(30)
                 continue
             except Exception as e:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e}")
+                failed_positions.append(pos)
                 continue
 
             tt = result.get("translated_text", "")
@@ -123,11 +133,25 @@ def main():
                 model_tag = "[F]"  # Flash
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {len(tt)}c {model_tag} {ok_flag}")
 
+            # Do not write an empty/stub translation into the deliverable: that
+            # is how 空章/符号章 ended up mixed into finished books. The old code
+            # computed ok_flag, printed "EMPTY", and wrote the chapter anyway.
+            if len(tt.split()) < 50:
+                print(f"  [{pos}/{len(chapters)} Ch{ch_num}] EMPTY/STUB "
+                      f"({len(tt.split())}w) — not written")
+                failed_positions.append(pos)
+                continue
+
             exists = os.path.exists(out_file)
+            # ZERO-CHINESE RULE: the deliverable is for English readers, so a
+            # Chinese chapter title must never land in it. Use the translated
+            # title the pipeline produced and fall back to a plain number, not
+            # to ch.title (which is Chinese).
+            title_en = result.get("chapter_title_en") or f"Chapter {ch_num}"
             with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
                 if not exists:
                     f.write("# 无限恐怖 — English Translation\n\n")
-                f.write(f"## Chapter {ch_num}: {ch.title[:60]}\n\n{tt}\n\n---\n\n")
+                f.write(f"## Chapter {ch_num}: {title_en}\n\n{tt}\n\n---\n\n")
 
         # --- Checkpoint ---
         json.dump({
@@ -156,10 +180,25 @@ def main():
             time.sleep(2)
 
     total_min = (time.monotonic() - overall_t0) / 60
-    print(f"ALL DONE: {len(chapters)} chapters in {total_min:.0f}m")
+    delivered = len(chapters) - len(failed_positions)
+    # Never claim "ALL DONE" when chapters were skipped: that is the exact
+    # behaviour that made this project's progress reports untrustworthy
+    # (a run that delivered 1 of 2 chapters printed "100%" and "ALL DONE").
+    if failed_positions:
+        print(f"INCOMPLETE: {delivered}/{len(chapters)} chapters delivered "
+              f"in {total_min:.0f}m — {len(failed_positions)} failed/skipped")
+        preview = failed_positions[:20]
+        suffix = "..." if len(failed_positions) > 20 else ""
+        print(f"  Failed chapter positions: {preview}{suffix}")
+    else:
+        print(f"ALL DONE: {delivered}/{len(chapters)} chapters in {total_min:.0f}m")
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
     print(f"Output: {out_file}")
     print(f"Quality: {quality_file}")
+    # Non-zero exit lets a caller (CI, a wrapper script) detect the gap instead
+    # of trusting the printed word "DONE".
+    if failed_positions:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

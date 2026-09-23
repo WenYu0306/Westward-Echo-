@@ -46,7 +46,10 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not requires_api_key'"
+# Both markers mean "this test talks to a real provider", i.e. it costs money.
+# Default runs exclude them, so `pytest` alone is always ¥0.
+addopts = "-m 'not requires_api_key and not live_api'"
 markers = [
-    "requires_api_key: tests that need a real DEEPSEEK_API_KEY",
+    "requires_api_key: legacy live-API marker (needs a real provider key)",
+    "live_api: test intentionally makes real, billable LLM calls; run only after the cost has been announced, via `pytest -m live_api`",
 ]

@@ -176,41 +176,21 @@ total_chapters, status)
         )
         conn.commit()
 
-    def update_token_usage(self, job_id: str, input_tokens: int, output_tokens: int):
-        """Increment token counters for a job (for per-job cost tracking)."""
-        conn = _get_conn()
-        conn.execute(
-            """UPDATE jobs
-               SET tokens_input = tokens_input + ?,
-                   tokens_output = tokens_output + ?
-               WHERE job_id = ?""",
-            (input_tokens, output_tokens, job_id),
-        )
-        conn.commit()
-
-    def get_job_cost(self, job_id: str) -> dict:
-        """Return {tokens_input, tokens_output, total, estimated_cost_usd} for a job.
-
-        Uses DeepSeek V4 pricing: $0.14/M input, $0.28/M output (Flash).
-        """
-        conn = _get_conn()
-        row = conn.execute(
-            "SELECT tokens_input, tokens_output FROM jobs WHERE job_id = ?",
-            (job_id,),
-        ).fetchone()
-        if not row:
-            return {"tokens_input": 0, "tokens_output": 0, "total": 0, "estimated_cost_usd": 0.0}
-
-        _in = row["tokens_input"] or 0
-        _out = row["tokens_output"] or 0
-        total = _in + _out
-        cost = (_in / 1_000_000) * 0.14 + (_out / 1_000_000) * 0.28
-        return {
-            "tokens_input": _in,
-            "tokens_output": _out,
-            "total": total,
-            "estimated_cost_usd": round(cost, 4),
-        }
+    # ── token / cost accounting ──────────────────────────────────────
+    #
+    # update_token_usage() and get_job_cost() were deleted here. update_token_usage
+    # had ZERO callers in the entire codebase, so the jobs table's tokens_input /
+    # tokens_output columns were permanently 0; get_job_cost then read those
+    # always-zero columns and priced them at DeepSeek's $0.14/$0.28 per M — a
+    # provider abandoned in 2026-09. The result was an endpoint that always
+    # reported "$0.0000" for every job.
+    #
+    # The columns are left in the schema (dropping them needs a migration, and
+    # _row_to_dict returns dict(row) so their presence is harmless). They are
+    # inert. Authoritative per-job usage and cost come from
+    # src/token_ledger.py: token_ledger.summary(book_id), which records the real
+    # model per call and prices it in CNY from config.MODEL_PRICES_CNY_PER_M.
+    # GET /api/jobs/{job_id}/cost already reads that, not these columns.
 
     # ── glossary presets (translation memory across books) ──
 
@@ -396,10 +376,23 @@ total_chapters, status)
         These are terms a human reviewer has explicitly approved.
         They should NEVER be overwritten by the Agent and MUST be
         used as-is in translations.
+
+        Returns {} when the glossary table does not exist yet. That table is
+        created by glossary/exact_store.py, not by this module, so it is absent
+        on a fresh database until the first ExactGlossary is constructed — and
+        write_node calls this before that is guaranteed. "No human-confirmed
+        terms yet" is a legitimate state, not an error: the old code raised
+        sqlite3.OperationalError there, which propagated out of the LangGraph
+        task and failed the chapter.
         """
         from .config import CHECKPOINT_DB_PATH
         conn = sqlite3.connect(CHECKPOINT_DB_PATH)
         try:
+            exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='exact_glossary'"
+            ).fetchone()
+            if not exists:
+                return {}
             rows = conn.execute(
                 """SELECT term_cn, term_en
                    FROM exact_glossary

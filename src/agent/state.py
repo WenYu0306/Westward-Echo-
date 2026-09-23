@@ -30,9 +30,18 @@ class TranslatorState(TypedDict):
     previous_chapter_summary: str   # From previous chapter → injected into next
 
     # === Quality ===
+    # quality_score is a MEASUREMENT, not a default. It starts at 0.0 meaning
+    # "nobody has read this chapter yet" and is only set by readback_node
+    # (PASS=5.0, NEEDS_FIX=2.0, unparseable response=0.0). It used to start at
+    # 5.0, which made fast-mode chapters look perfect while never being read —
+    # downstream averaging then reported a quality score nobody ever measured.
     quality_score: float
     quality_issues: list[str]
     retranslation_count: int
+    # Authoritative flag: True means READBACK never ran for this chapter, so
+    # quality_score carries no information. Downstream must check this before
+    # treating a score as evidence of quality.
+    readback_skipped: bool
 
     # === Glossary snapshot (for checkpoint) ===
     glossary_snapshot_json: str     # JSON string of exact glossary for SQLite checkpoint

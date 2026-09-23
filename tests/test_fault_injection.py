@@ -855,7 +855,9 @@ class TestTranslationStatsUnderFaults:
         assert ts["input"] == 3000
         assert ts["output"] == 1300
         assert ts["total"] == 4300
-        assert ts["estimated_cost_usd"] > 0
+        # No cost figure: stats cannot attribute a model, so any price here was
+        # wrong. Cost lives in token_ledger (per model, CNY).
+        assert "estimated_cost_usd" not in ts
 
     def test_snapshot_includes_all_fields(self):
         from src.stats import TranslationStats
@@ -866,10 +868,11 @@ class TestTranslationStatsUnderFaults:
             "throughput_chapters_per_minute", "error_rates_per_language",
             "chapters_per_language", "uptime_seconds",
             "tokens_input", "tokens_output", "tokens_total",
-            "estimated_cost_usd",
         ]
         for key in expected_keys:
             assert key in snap, f"Missing key: {key}"
+        # The stale per-provider cost field must be gone, not just unasserted.
+        assert "estimated_cost_usd" not in snap
 
 
 class TestBackpressureDefaults:

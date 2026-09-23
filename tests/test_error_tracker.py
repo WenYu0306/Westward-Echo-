@@ -136,6 +136,51 @@ class TestConnectionBootstrap:
             conn.close()
         assert nested.exists()
 
+    def test_connection_created_in_one_thread_is_usable_in_another(
+        self, tmp_path, monkeypatch
+    ):
+        """``check_same_thread=False`` is load-bearing, not cargo-cult.
+
+        Mirror of the job_store test for the same reason: connections come from
+        ``threading.local()``, so in today's call graph none crosses a thread
+        boundary and the flag looks removable. Flipping it to ``True`` makes
+        sqlite3 raise ``ProgrammingError`` on any off-thread use, and nothing
+        else in the suite touched that path — which is why ``const bool->True
+        at 25`` survived mutation testing.
+
+        Note this module ALSO holds a module-level ``_conn`` built at import time
+        (for the schema bootstrap). That connection is likewise usable off its
+        creating thread only because of this flag, so the flag is doing real work
+        in two places, not one.
+        """
+        import threading
+
+        import src.error_tracker as et
+
+        monkeypatch.setattr(et, "DB_PATH", str(tmp_path / "cross_thread.db"))
+        monkeypatch.setattr(et._local, "conn", None, raising=False)
+
+        conn = et._get_conn()  # created on THIS thread
+        errors: dict = {}
+
+        def worker():
+            try:
+                conn.execute("SELECT 1").fetchone()
+            except Exception as exc:  # noqa: BLE001 - recorded, asserted below
+                errors["exc"] = exc
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+
+        try:
+            assert "exc" not in errors, (
+                f"connection could not be used from another thread: {errors.get('exc')!r}"
+            )
+        finally:
+            monkeypatch.setattr(et._local, "conn", None, raising=False)
+            conn.close()
+
 
 # ── Window and limit defaults ─────────────────────────────────────
 

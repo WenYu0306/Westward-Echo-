@@ -297,9 +297,13 @@ class TranslationAgent:
             # Context
             "previous_chapter_summary": prev_summary,
             # Quality / feedback
-            "quality_score": 5.0,
+            # 0.0 = "not measured". readback_node is the only writer of a real
+            # score. The old 5.0 initial value meant fast-mode chapters (which
+            # skip READBACK) reported a perfect score nobody ever gave them.
+            "quality_score": 0.0,
             "quality_issues": [],
             "retranslation_count": 0,
+            "readback_skipped": skip_readback,
             "glossary_snapshot_json": "",
             # v0.15 reader-centric fields
             "read_analysis": {},
@@ -388,8 +392,12 @@ class TranslationAgent:
             "new_terms_found": all_new_terms,
             "adaptation_notes": final_result.get("adaptation_notes", []),
             "chapter_summary": final_result.get("chapter_summary", ""),
-            "quality_score": final_result.get("quality_score", 5.0),
+            # No 5.0 fallback: if the score was never measured it must stay 0.0
+            # and readback_skipped must say so. A silent 5.0 default is what made
+            # fast-mode chapters look reviewed.
+            "quality_score": final_result.get("quality_score", 0.0),
             "quality_issues": final_result.get("quality_issues", []),
+            "readback_skipped": final_result.get("readback_skipped", True),
             "glossary_snapshot_json": final_result.get("glossary_snapshot_json", "{}"),
         }
 

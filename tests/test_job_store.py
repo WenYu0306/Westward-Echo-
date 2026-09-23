@@ -128,44 +128,37 @@ class TestJobQuery:
 
 # ── Token tracking ────────────────────────────────────────────────
 
-class TestTokenTracking:
-    def test_update_token_usage(self, store):
+class TestTokenColumnsAreInert:
+    """The jobs table's token columns must stay zero.
+
+    update_token_usage() and get_job_cost() were deleted: the writer had zero
+    callers, so both columns were permanently 0, and the reader priced those
+    zeros at DeepSeek's abandoned USD rates. These tests exist so nobody
+    reintroduces a cost figure sourced from columns nothing populates — real
+    per-job cost comes from token_ledger.summary(), exercised by
+    tests/test_token_ledger.py and the /jobs/{id}/cost endpoint test.
+    """
+
+    def test_new_job_token_columns_start_at_zero(self, store):
         jid = store.create_job("test.txt", "en-US", 10)
-        store.update_token_usage(jid, 1000, 500)
-        store.update_token_usage(jid, 2000, 300)
-        cost = store.get_job_cost(jid)
-        assert cost["tokens_input"] == 3000
-        assert cost["tokens_output"] == 800
-        assert cost["total"] == 3800
+        job = store.get_job(jid)
+        assert job["tokens_input"] == 0
+        assert job["tokens_output"] == 0
 
-    def test_get_job_cost_nonexistent(self, store):
-        cost = store.get_job_cost("deadbeef")
-        assert cost["total"] == 0
-        assert cost["estimated_cost_usd"] == 0.0
-
-    def test_get_job_cost_calculation(self, store):
+    def test_complete_job_does_not_populate_token_columns(self, store):
         jid = store.create_job("test.txt", "en-US", 1)
-        store.update_token_usage(jid, 1_000_000, 1_000_000)
-        cost = store.get_job_cost(jid)
-        # Flash pricing: $0.14/M in, $0.28/M out
-        assert cost["estimated_cost_usd"] == pytest.approx(0.42, rel=0.01)
+        store.complete_job(jid, "/tmp/out.md", 5)
+        job = store.get_job(jid)
+        assert job["status"] == "complete"
+        assert job["tokens_input"] == 0
+        assert job["tokens_output"] == 0
 
-    def test_cost_is_rounded_to_four_decimals_exactly(self, store):
-        # 1000 input tokens at $0.14/M = $0.00014 → rounds to $0.0001. Carrying
-        # more precision than the API reports would misstate micro-costs.
-        jid = store.create_job("small.txt", "en-US", 1)
-        store.update_token_usage(jid, 1_000, 0)
-        assert store.get_job_cost(jid)["estimated_cost_usd"] == 0.0001
+    def test_no_token_writer_method_remains(self, store):
+        """Deleting the writer is only durable if it stays deleted."""
+        assert not hasattr(store, "update_token_usage")
 
-    def test_one_million_input_tokens_costs_fourteen_cents(self, store):
-        jid = store.create_job("rates-in.txt", "en-US", 1)
-        store.update_token_usage(jid, 1_000_000, 0)
-        assert store.get_job_cost(jid)["estimated_cost_usd"] == 0.14
-
-    def test_one_million_output_tokens_costs_twenty_eight_cents(self, store):
-        jid = store.create_job("rates-out.txt", "en-US", 1)
-        store.update_token_usage(jid, 0, 1_000_000)
-        assert store.get_job_cost(jid)["estimated_cost_usd"] == 0.28
+    def test_no_deepseek_priced_cost_method_remains(self, store):
+        assert not hasattr(store, "get_job_cost")
 
 
 # ── Glossary presets ─────────────────────────────────────────────
@@ -342,6 +335,33 @@ class TestConfirmedTerms:
 
         assert store.get_confirmed_terms("en-US") == {}
 
+    def test_returns_empty_dict_when_glossary_table_absent(self, store, tmp_path, monkeypatch):
+        """The branch the two tests above never reach.
+
+        Both existing cases construct an ExactGlossary first, which CREATES the
+        exact_glossary table — so they exercise "table exists, nothing confirmed"
+        and never "table does not exist at all". That missing-table branch is the
+        one the docstring says matters most: write_node calls this before any
+        ExactGlossary is guaranteed to exist, and the old code raised
+        sqlite3.OperationalError there and failed the whole chapter.
+
+        Pointing at a database that has no such table forces the branch. A fresh
+        sqlite3.connect creates an empty file, so sqlite_master has no rows and
+        `exists` is None. Mutation testing found `return {}` -> `return None`
+        survived here; asserting the exact empty dict (not merely falsiness) is
+        what kills it, since None is falsy too and would pass an `== {}` check
+        written as `not result`.
+        """
+        import src.config as config
+
+        db = tmp_path / "no_glossary_table.db"
+        monkeypatch.setattr(config, "CHECKPOINT_DB_PATH", str(db))
+
+        result = store.get_confirmed_terms("en-US")
+
+        assert result == {}
+        assert isinstance(result, dict)
+
 
 # ── Connection bootstrap ──────────────────────────────────────────
 
@@ -356,3 +376,48 @@ class TestConnectionBootstrap:
 
         assert js.JobStore().create_job("boot.txt", "en-US", 1)
         assert nested.exists()
+
+    def test_connection_created_in_one_thread_is_usable_in_another(
+        self, tmp_path, monkeypatch
+    ):
+        """``check_same_thread=False`` is load-bearing, not cargo-cult.
+
+        Connections are handed out through ``threading.local()``, so in the
+        current call graph no connection ever crosses a thread boundary and the
+        flag looks removable. It is not: flipping it to the default ``True``
+        makes sqlite3 raise ``ProgrammingError`` the moment a connection built
+        on one thread is used on another, and nothing else in the suite
+        exercises that path — which is exactly why ``const bool->True at 26``
+        survived mutation testing.
+
+        This test pins the capability the flag buys. The module deliberately
+        allows a connection to be used off its creating thread; if that ever
+        stops being true, this test should fail and the flag should go with it.
+        """
+        import threading
+
+        import src.job_store as js
+
+        monkeypatch.setattr(js, "DB_PATH", str(tmp_path / "cross_thread.db"))
+        monkeypatch.setattr(js._local, "conn", None, raising=False)
+
+        conn = js._get_conn()  # created on THIS thread
+        errors: dict = {}
+
+        def worker():
+            try:
+                conn.execute("SELECT 1").fetchone()
+            except Exception as exc:  # noqa: BLE001 - recorded, asserted below
+                errors["exc"] = exc
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+
+        try:
+            assert "exc" not in errors, (
+                f"connection could not be used from another thread: {errors.get('exc')!r}"
+            )
+        finally:
+            monkeypatch.setattr(js._local, "conn", None, raising=False)
+            conn.close()

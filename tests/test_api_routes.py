@@ -2,6 +2,13 @@
 
 Covers validation, job lifecycle, downloads, presets, projects, and security.
 Uses FastAPI TestClient with the real app (mocked LLM + Celery disabled).
+
+These tests assert HTTP-layer behaviour only (status codes, job lifecycle,
+path traversal). They never assert on translated prose, so the translation
+itself is stubbed by ``_stub_translate_chapter`` — without that stub the
+upload tests ran the real five-node pipeline against the live provider in a
+background thread, billed it, and still passed because the thread swallows
+exceptions. That is the fake-green path; do not remove the stub.
 """
 
 import json
@@ -11,6 +18,44 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture(autouse=True)
+def _stub_translate_chapter(monkeypatch):
+    """Stub TranslationAgent.translate_chapter so no test reaches a provider.
+
+    Returns the shape routes.py actually consumes: ``translated_text``,
+    ``chapter_title_en``, ``chapter_summary``, ``pre_filter_text``. The stubbed
+    text is long enough to clear the truncation guard in routes.py (which
+    requires >= max(50, src_chars/10) words), so chapters are really written and
+    job-lifecycle assertions still exercise the full success path.
+    """
+    from src.agent.graph import TranslationAgent
+
+    calls: list = []
+
+    def _fake(self, **kwargs):
+        calls.append(kwargs)
+        body = ("The grey sky pressed down on the town. "
+                "He pushed the door open and stepped inside. ") * 8
+        return {
+            "translated_text": body,
+            "pre_filter_text": body,
+            "chapter_title_en": "Stubbed Chapter",
+            "chapter_summary": "A stubbed chapter used by API-layer tests.",
+            "quality_score": 4.5,
+            "glossary": {},
+        }
+
+    monkeypatch.setattr(TranslationAgent, "translate_chapter", _fake, raising=True)
+    yield calls
+
+    # This stub is torn down BEFORE conftest's _forbid_live_llm (module fixtures
+    # unwind first). routes.py leaves daemon threads running, and one that wakes
+    # up after the stub is gone calls the real pipeline. Drain while the stub is
+    # still installed.
+    from tests.conftest import drain_background_threads
+    drain_background_threads()
 
 
 @pytest.fixture
@@ -369,7 +414,14 @@ class TestCost:
         assert r2.status_code == 200
         cost = r2.json()
         assert "tokens_input" in cost
-        assert "estimated_cost_usd" in cost
+        # cost_cny is the authoritative figure (both vendors bill in CNY); the
+        # USD field must be explicitly None rather than an invented conversion.
+        assert "cost_cny" in cost
+        assert cost["estimated_cost_usd"] is None
+        assert "pricing_note" in cost
+        # The stubbed pipeline records no real usage, so totals must be zero
+        # rather than some fabricated non-zero number.
+        assert cost["total"] == cost["tokens_input"] + cost["tokens_output"]
 
 
 # ═══════════════════════════════════════════════════════════════════

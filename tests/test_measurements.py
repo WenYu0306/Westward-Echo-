@@ -1,6 +1,10 @@
 """Unit tests for src/measurements.py — Chinese unit detection and hint building."""
 
 from src.measurements import (
+    UNITS,
+    _CN_DIGITS,
+    _UNIT_RENDERERS,
+    _example_for,
     _format_number,
     _parse_chinese_number,
     _parse_chinese_simple,
@@ -263,3 +267,147 @@ class TestFormatNumberBoundaries:
 
     def test_fractional_thousands_keep_one_decimal(self):
         assert _format_number(1_234.5) == "1,234.5"
+
+
+class TestCunUnit:
+    """寸 was silently dropped: detected, then never rendered.
+
+    The regex character class and the hint loop each carried their own
+    hand-written copy of the unit list, and 寸 was in neither. Any chapter
+    containing "三寸" therefore got a "## MEASUREMENT LOCALIZATION" header with
+    zero unit lines under it, and _example_for(phrase, "寸") raised KeyError.
+    These tests pin the fix and the single-source-of-truth structure that
+    prevents the same drift recurring.
+    """
+
+    def test_cun_is_detected(self):
+        assert detect_measurements("剑出三寸") == {"寸": ["三寸"]}
+
+    def test_cun_has_a_scale_and_gloss(self):
+        # 1 chi = 10 cun, and 尺 is 0.33 m, so 寸 is 0.033 m.
+        assert UNITS["寸"]["scale"] == 0.033
+        assert "cun" in UNITS["寸"]["en"]
+
+    def test_cun_renders_centimetres_and_inches(self):
+        assert _example_for("三寸", "寸") == (
+            '- 三寸 → ~9.9 cm / ~3.9 in (not "3 cun")'
+        )
+
+    def test_cun_appears_in_the_built_hint(self):
+        result = build_measurements_hint("剑出三寸，重七寸")
+        assert "- 三寸 → ~9.9 cm" in result
+        assert "- 七寸 → ~23.1 cm" in result
+
+    def test_hint_is_never_a_header_without_units(self):
+        """The original bug: header emitted, no unit line under it."""
+        for unit in UNITS:
+            hint = build_measurements_hint(f"约三{unit}左右")
+            body = [ln for ln in hint.split("\n") if ln.startswith("- ")]
+            assert body, f"{unit} produced a hint header with no unit line"
+
+    def test_units_and_renderers_share_the_same_keys(self):
+        """Every detected unit must have a renderer, or the degradation path
+        silently handles it. Keys drifting apart is how 寸 went missing."""
+        assert set(UNITS) == set(_UNIT_RENDERERS)
+
+
+class TestGenericFallbackPaths:
+    """Both non-bespoke branches of _example_for.
+
+    These are the lines a mutation run reported as surviving: the unparseable-
+    numeral path and the no-renderer path. The latter is defensive today (every
+    unit has a renderer) but must still be proven to work, since its whole
+    purpose is to catch the next unit someone adds.
+    """
+
+    def test_unparseable_numeral_falls_back_to_the_hint(self):
+        assert _example_for("零零尺", "尺") == (
+            "- 零零尺 → [Convert to 'foot' (~1 ft) naturally]"
+        )
+
+    def test_unparseable_numeral_falls_back_for_every_unit(self):
+        for unit, meta in UNITS.items():
+            out = _example_for(f"零零{unit}", unit)
+            assert meta["hint"] in out, f"{unit}: generic hint not surfaced"
+
+    def test_unit_without_renderer_degrades_to_generic(self):
+        """Remove a renderer and confirm the unit still produces a line."""
+        saved = _UNIT_RENDERERS.pop("亩")
+        try:
+            out = _example_for("三亩", "亩")
+            assert out.startswith("- 三亩 → ~")
+            assert UNITS["亩"]["en"] in out
+            assert UNITS["亩"]["hint"] in out
+        finally:
+            _UNIT_RENDERERS["亩"] = saved
+
+    def test_restored_renderer_gives_the_bespoke_line(self):
+        # Guards the finally-block above: mutation testing runs in-process, so a
+        # leaked removal would corrupt every later test.
+        assert _example_for("三亩", "亩") == (
+            '- 三亩 → ~0.2 hectares / ~0.0 acres (not "3 mu")'
+        )
+
+
+class TestChineseDigitValues:
+    """Each digit's integer value.
+
+    Mutation testing found 4→5, 6→7, 7→8, 8→9 and 9→10 all surviving: the suite
+    exercised composite numerals whose values happened to stay correct, but never
+    pinned the individual digits. A wrong digit is a wrong number in a prompt
+    handed to the translator.
+    """
+
+    def test_every_digit_maps_to_its_own_value(self):
+        expected = {
+            "零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+            "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+            "百": 100, "千": 1000,
+        }
+        assert _CN_DIGITS == expected
+
+    def test_single_digits_parse_to_themselves(self):
+        for ch, val in (("四", 4), ("六", 6), ("七", 7), ("八", 8), ("九", 9)):
+            assert _parse_chinese_number(ch) == val
+
+    def test_digits_inside_compounds_keep_their_value(self):
+        # A digit error here shifts the converted magnitude shown to the model.
+        assert _parse_chinese_number("三千五百") == 3500
+        assert _parse_chinese_number("七十二") == 72
+        assert _parse_chinese_number("九十八") == 98
+        assert _parse_chinese_number("四百六十三") == 463
+
+
+class TestNestedMultiplierBehaviour:
+    """Repeated 万/亿 are not composable, and the two branches disagree.
+
+    ``split(..., 1)`` is what makes them disagree, and mutating that 1 to 2 was
+    reported as surviving — nothing pinned either behaviour. Documented here
+    rather than silently "fixed": nested multipliers are vanishingly rare in
+    novel prose, and changing the arithmetic is a semantic decision, not a test
+    fix. What matters is that the asymmetry is visible and stable.
+
+    KNOWN DEFECT: 亿亿 returns 2e8 where 万万 returns None. The 亿 branch
+    recurses through _parse_chinese_number (so the trailing 亿 is itself parsed
+    as 1e8 and ADDED), while the 万 branch calls the non-recursive
+    _parse_chinese_simple (so the trailing 万 is rejected outright). Neither is
+    mathematically right for a nested multiplier; 一亿亿 should be 1e16.
+    """
+
+    def test_wan_wan_is_rejected(self):
+        assert _parse_chinese_number("一万万") is None
+
+    def test_yi_yi_is_double_counted_not_composed(self):
+        # Pins the current (wrong) value so a change is a deliberate decision.
+        assert _parse_chinese_number("一亿亿") == 200_000_000
+
+    def test_bare_multipliers_default_to_one(self):
+        assert _parse_chinese_number("万") == 10_000
+        assert _parse_chinese_number("亿") == 100_000_000
+
+    def test_single_multiplier_still_correct(self):
+        # The regression that matters in practice: nested forms must not have
+        # broken the overwhelmingly common single-multiplier case.
+        assert _parse_chinese_number("三万") == 30_000
+        assert _parse_chinese_number("三亿") == 300_000_000
+        assert _parse_chinese_number("十五亿") == 1_500_000_000

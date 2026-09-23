@@ -41,21 +41,23 @@ class TranslationStats:
     _recent_api_calls: list[tuple] = []    # [(timestamp, lang, success), ...]
     _max_recent = 200
 
-    # Token / cost tracking (per model tier)
-    _tokens_input_flash: int = 0
-    _tokens_output_flash: int = 0
-    _tokens_input_pro: int = 0
-    _tokens_output_pro: int = 0
+    # Token accounting (session totals).
+    #
+    # The old design split this into "flash" / "pro" buckets and priced them at
+    # DeepSeek V4 USD rates. Both halves are now wrong:
+    #   * the tiers no longer exist — READ runs qwen3.8-max and was still being
+    #     bucketed as "pro", while FIX runs glm-5.3 and was bucketed as "flash";
+    #   * DeepSeek was abandoned in 2026-09, so the USD constants priced models
+    #     nobody calls.
+    # snapshot() fed this straight to the dashboard, which is why the dashboard
+    # displayed a cost figure computed from the wrong prices AND the wrong
+    # model mapping. Authoritative cost now comes from src/token_ledger.py
+    # (per-call, per-model, priced in CNY at current vendor rates).
+    _tokens_input: int = 0
+    _tokens_output: int = 0
 
     # Session start time
     _start_time: float = time.monotonic()
-
-    # Pricing constants (DeepSeek V4, USD per million tokens, cache-miss)
-    # Source: https://api-docs.deepseek.com/quick_start/pricing/ (2026-07)
-    _PRICE_FLASH_INPUT_PER_M = 0.14   # deepseek-v4-flash
-    _PRICE_FLASH_OUTPUT_PER_M = 0.28
-    _PRICE_PRO_INPUT_PER_M = 0.435    # deepseek-v4-pro
-    _PRICE_PRO_OUTPUT_PER_M = 0.87
 
     @classmethod
     def record_api_call(cls, lang: str = "en-US"):
@@ -110,56 +112,46 @@ class TranslationStats:
         cls.record_failure(lang)
 
     @classmethod
-    def record_tokens(cls, input_tokens: int, output_tokens: int, tier: str = "flash"):
-        """Accumulate token usage from an LLM API response.
+    def record_tokens(cls, input_tokens: int, output_tokens: int, tier: str = ""):
+        """Accumulate session token totals from an LLM API response.
 
-        Args:
-            input_tokens: prompt tokens consumed
-            output_tokens: completion tokens generated
-            tier: ``"flash"`` (DeepSeek V4 Flash) or ``"pro"`` (DeepSeek V4 Pro)
+        ``tier`` is accepted and ignored. It used to select a DeepSeek
+        "flash"/"pro" bucket; those tiers no longer exist and the mapping had
+        drifted from reality (READ on qwen3.8-max was bucketed as "pro", FIX on
+        glm-5.3 as "flash"), so per-tier figures were meaningless. Callers still
+        pass it — keeping the parameter avoids touching five call sites for a
+        value that no longer carries information.
+
+        Per-model attribution lives in src/token_ledger.py, which records the
+        model name on every call and prices it in CNY at current vendor rates.
         """
         with cls._lock:
-            if tier == "pro":
-                cls._tokens_input_pro += input_tokens
-                cls._tokens_output_pro += output_tokens
-            else:
-                cls._tokens_input_flash += input_tokens
-                cls._tokens_output_flash += output_tokens
+            cls._tokens_input += input_tokens
+            cls._tokens_output += output_tokens
 
     @classmethod
     def token_snapshot(cls) -> dict:
-        """Return {total, input, output, estimated_cost_usd} for the session."""
+        """Return session token totals.
+
+        Deliberately contains no cost figure. This class cannot know which model
+        served a call (it only ever saw a stale tier label), so any price it
+        computed would be wrong — and it used to be wrong by a wide margin,
+        using DeepSeek USD rates for GLM/Qwen traffic. Read cost from
+        ``token_ledger.summary()`` instead.
+        """
         with cls._lock:
-            flash_in = cls._tokens_input_flash
-            flash_out = cls._tokens_output_flash
-            pro_in = cls._tokens_input_pro
-            pro_out = cls._tokens_output_pro
-            total = flash_in + flash_out + pro_in + pro_out
-            cost = (
-                (flash_in / 1_000_000) * cls._PRICE_FLASH_INPUT_PER_M
-                + (flash_out / 1_000_000) * cls._PRICE_FLASH_OUTPUT_PER_M
-                + (pro_in / 1_000_000) * cls._PRICE_PRO_INPUT_PER_M
-                + (pro_out / 1_000_000) * cls._PRICE_PRO_OUTPUT_PER_M
-            )
             return {
-                "total": total,
-                "input": flash_in + pro_in,
-                "output": flash_out + pro_out,
-                "flash_input": flash_in,
-                "flash_output": flash_out,
-                "pro_input": pro_in,
-                "pro_output": pro_out,
-                "estimated_cost_usd": round(cost, 4),
+                "total": cls._tokens_input + cls._tokens_output,
+                "input": cls._tokens_input,
+                "output": cls._tokens_output,
             }
 
     @classmethod
     def reset_tokens(cls):
         """Reset token counters (e.g. at start of a new job)."""
         with cls._lock:
-            cls._tokens_input_flash = 0
-            cls._tokens_output_flash = 0
-            cls._tokens_input_pro = 0
-            cls._tokens_output_pro = 0
+            cls._tokens_input = 0
+            cls._tokens_output = 0
 
     @classmethod
     def snapshot(cls) -> dict:
@@ -209,21 +201,12 @@ class TranslationStats:
                 "session_start": time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ", time.gmtime(cls._start_time)
                 ),
-                "tokens_input": cls._tokens_input_flash + cls._tokens_input_pro,
-                "tokens_output": cls._tokens_output_flash + cls._tokens_output_pro,
-                "tokens_total": (
-                    cls._tokens_input_flash + cls._tokens_input_pro
-                    + cls._tokens_output_flash + cls._tokens_output_pro
-                ),
-                "tokens_flash_input": cls._tokens_input_flash,
-                "tokens_flash_output": cls._tokens_output_flash,
-                "tokens_pro_input": cls._tokens_input_pro,
-                "tokens_pro_output": cls._tokens_output_pro,
-                "estimated_cost_usd": round(
-                    (cls._tokens_input_flash / 1_000_000) * cls._PRICE_FLASH_INPUT_PER_M
-                    + (cls._tokens_output_flash / 1_000_000) * cls._PRICE_FLASH_OUTPUT_PER_M
-                    + (cls._tokens_input_pro / 1_000_000) * cls._PRICE_PRO_INPUT_PER_M
-                    + (cls._tokens_output_pro / 1_000_000) * cls._PRICE_PRO_OUTPUT_PER_M,
-                    4,
-                ),
+                # Session token totals only. No cost figure and no per-tier
+                # buckets: the tiers were DeepSeek's and the USD prices priced a
+                # provider this project no longer calls. dashboard.py exposed
+                # this dict, so it used to show a wrong amount. Authoritative
+                # cost: src/token_ledger.py summary (per model, CNY).
+                "tokens_input": cls._tokens_input,
+                "tokens_output": cls._tokens_output,
+                "tokens_total": cls._tokens_input + cls._tokens_output,
             }

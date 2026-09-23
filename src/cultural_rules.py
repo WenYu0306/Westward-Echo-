@@ -82,8 +82,12 @@ _GENRE_SIGNALS: dict[str, list[str]] = {
 
 # Minimum total signal count across all genres to consider it a match
 _MIN_GENRE_SIGNALS = 5
-# Minimum unique terms (any genre) before we report a best guess
-_MIN_UNIQUE_TERMS = 3
+# NOTE: a sibling constant `_MIN_UNIQUE_TERMS = 3` used to sit here, documented as
+# "minimum unique terms before we report a best guess". Nothing ever read it —
+# detect_genre only compares `score >= _MIN_GENRE_SIGNALS` — so the promise in its
+# comment was never implemented and mutating 3→4 was provably unkillable. Removed
+# rather than registered as equivalent: an unreachable knob is not a behaviour to
+# preserve, and keeping it invites the next reader to believe the guard exists.
 
 
 def detect_genre(text: str) -> tuple[str, int]:

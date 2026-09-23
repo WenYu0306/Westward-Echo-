@@ -1,7 +1,216 @@
-"""Shared fixtures for Westward Echo integration tests."""
+"""Shared fixtures for Westward Echo integration tests.
+
+Two autouse guards make "tests cost ¥0" an enforced invariant instead of a
+claim in a handoff doc:
+
+* ``_block_outbound_network`` — any TCP connect to a non-loopback address fails.
+* ``_forbid_live_llm`` — every node's ``ChatOpenAI`` is replaced by a guard that
+  records the attempt and raises. Violations are checked at teardown and fail
+  the test, so a leak can no longer hide inside a background thread that
+  swallows exceptions.
+
+A test that genuinely needs a real provider must opt in explicitly::
+
+    @pytest.mark.live_api
+    def test_...(): ...
+
+and be run with ``-m live_api`` after the cost has been announced.
+"""
 import json
+import os
+import socket
+import tempfile
+import threading
+import traceback
 
 import pytest
+
+# ── Redirect every write path BEFORE src is imported ────────────────────
+# config.DATA_DIR / OUTPUT_DIR and the DB_PATH constants derived from them are
+# evaluated at import time, so these must be set here rather than in a fixture.
+# Previously `pytest` appended real rows to data/token_ledger.jsonl, mutated
+# data/translation_events.db, and dropped hundreds of job files into output/.
+_TEST_TMP = tempfile.mkdtemp(prefix="westward-echo-tests-")
+os.environ["XIDU_DATA_DIR"] = os.path.join(_TEST_TMP, "data")
+os.environ["XIDU_OUTPUT_DIR"] = os.path.join(_TEST_TMP, "output")
+os.environ["XIDU_TOKEN_LEDGER"] = os.path.join(_TEST_TMP, "data", "token_ledger.jsonl")
+os.environ["CHECKPOINT_DB_PATH"] = os.path.join(_TEST_TMP, "data", "checkpoints.db")
+# .env pins CHROMA_PERSIST_PATH to the real repo path and it does not follow
+# DATA_DIR, so redirect it explicitly or tests write the real vector store.
+os.environ["CHROMA_PERSIST_PATH"] = os.path.join(_TEST_TMP, "data", "chroma")
+os.makedirs(os.environ["XIDU_DATA_DIR"], exist_ok=True)
+os.makedirs(os.environ["XIDU_OUTPUT_DIR"], exist_ok=True)
+
+# Poison credentials at import time, before src.config reads the environment.
+# A test that forgot to mock then fails auth instead of billing the real account.
+for _secret_var in (
+    "DEEPSEEK_API_KEY", "GLM_API_KEY", "LLM_API_KEY", "QWEN_API_KEY",
+    "DASHSCOPE_API_KEY", "OPENAI_API_KEY",
+):
+    os.environ[_secret_var] = "sk-FAKE-TESTS-MUST-MOCK"
+# CHROMA_HOST is a hostname, not a secret; poisoning it makes chromadb dial a
+# nonsense host and produces misleading failures.
+os.environ.pop("CHROMA_HOST", None)
+
+# Every module that did ``from langchain_openai import ChatOpenAI`` holds its own
+# reference, so the guard has to be installed per-module.
+_LLM_MODULES = (
+    "src.agent.nodes.read",
+    "src.agent.nodes.review_terms",
+    "src.agent.nodes.write",
+    "src.agent.nodes.readback",
+    "src.agent.nodes.fix",
+)
+
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "", "testserver"}
+_real_connect = socket.socket.connect
+_real_connect_ex = socket.socket.connect_ex
+_real_create_connection = socket.create_connection
+_net_violations: list = []
+
+
+def _is_local(addr) -> bool:
+    """True for AF_UNIX paths, socketpair, and loopback targets."""
+    if isinstance(addr, (bytes, str)):
+        return True
+    if not isinstance(addr, tuple) or not addr:
+        return True
+    host = addr[0]
+    if isinstance(host, bytes):
+        host = host.decode("utf-8", "replace")
+    return host in _LOOPBACK_HOSTS
+
+
+def _blocked_connect(self, addr):
+    if not _is_local(addr):
+        _net_violations.append(addr)
+        raise RuntimeError(
+            f"conftest: test tried to reach {addr!r}. Tests must not call real "
+            "APIs — mock the LLM or mark the test @pytest.mark.live_api."
+        )
+    return _real_connect(self, addr)
+
+
+def _blocked_connect_ex(self, addr):
+    if not _is_local(addr):
+        _net_violations.append(addr)
+        raise RuntimeError(
+            f"conftest: test tried to reach {addr!r}. Tests must not call real APIs."
+        )
+    return _real_connect_ex(self, addr)
+
+
+def _blocked_create_connection(address, *args, **kwargs):
+    if not _is_local(address):
+        _net_violations.append(address)
+        raise RuntimeError(
+            f"conftest: test tried to reach {address!r}. Tests must not call real APIs."
+        )
+    return _real_create_connection(address, *args, **kwargs)
+
+
+@pytest.fixture(autouse=True)
+def _block_outbound_network():
+    """Fail any attempt to reach a routable address during a test."""
+    socket.socket.connect = _blocked_connect            # type: ignore[assignment]
+    socket.socket.connect_ex = _blocked_connect_ex      # type: ignore[assignment]
+    socket.create_connection = _blocked_create_connection  # type: ignore[assignment]
+    del _net_violations[:]
+    yield
+    socket.socket.connect = _real_connect               # type: ignore[assignment]
+    socket.socket.connect_ex = _real_connect_ex         # type: ignore[assignment]
+    socket.create_connection = _real_create_connection  # type: ignore[assignment]
+    attempts = list(_net_violations)
+    del _net_violations[:]
+    if attempts:
+        pytest.fail(
+            f"test made {len(attempts)} outbound connection attempt(s): "
+            f"{attempts[:5]}. Tests must not spend money.",
+            pytrace=False,
+        )
+
+
+class _LiveLLMGuard:
+    """Stand-in for ChatOpenAI that refuses to exist.
+
+    Instantiating one means some code path reached a real provider. The attempt
+    is recorded (so teardown can fail the test even when the caller swallows the
+    exception, as routes.py's background thread does) and then raised.
+    """
+
+    def __init__(self, *args, **kwargs):
+        model = kwargs.get("model") or (args[0] if args else "?")
+        stack = "".join(traceback.format_stack()[-18:-1])
+        _llm_violations.append((model, stack))
+        raise RuntimeError(
+            f"conftest: a test constructed a real ChatOpenAI (model={model!r}). "
+            "Tests must mock the LLM — use the mock_translate_invoke fixture, "
+            "patch the node's ChatOpenAI, or mark the test @pytest.mark.live_api "
+            "and announce the cost first."
+        )
+
+
+_llm_violations: list = []
+
+
+def drain_background_threads(timeout: float = 10.0) -> None:
+    """Wait for threads started since ``snapshot_threads`` to finish.
+
+    routes.py launches daemon threads and returns immediately, so without this a
+    straggler wakes up after the test's own mocks are torn down and builds a real
+    client. Call it from a fixture teardown *while the mocks are still active*.
+    """
+    for t in threading.enumerate():
+        if t in _known_threads or t is threading.current_thread():
+            continue
+        t.join(timeout=timeout)
+    _known_threads.update(threading.enumerate())
+
+
+_known_threads: set = set(threading.enumerate())
+
+
+@pytest.fixture(autouse=True)
+def _forbid_live_llm(request):
+    """Replace each node's ChatOpenAI with a guard unless the test opts out."""
+    if request.node.get_closest_marker("live_api"):
+        yield
+        return
+
+    import importlib
+
+    saved = {}
+    for mod_name in _LLM_MODULES:
+        try:
+            mod = importlib.import_module(mod_name)
+        except Exception:  # pragma: no cover - module genuinely unavailable
+            continue
+        if hasattr(mod, "ChatOpenAI"):
+            saved[(mod, mod_name)] = mod.ChatOpenAI
+            mod.ChatOpenAI = _LiveLLMGuard  # type: ignore[assignment]
+
+    del _llm_violations[:]
+    yield
+
+    # Drain stragglers BEFORE restoring the real ChatOpenAI, otherwise a late
+    # thread wakes up, builds a real client, and the violation gets blamed on
+    # whatever test runs next (and may be billed after this test "passed").
+    drain_background_threads()
+
+    for (mod, mod_name), original in saved.items():
+        mod.ChatOpenAI = original  # type: ignore[assignment]
+
+    violations = list(_llm_violations)
+    del _llm_violations[:]
+    if violations:
+        models = sorted({v[0] for v in violations})
+        pytest.fail(
+            f"test triggered {len(violations)} real LLM construction(s) "
+            f"(models={models}). This is the fake-green path: the test passed "
+            "before only because the exception died in a background thread. "
+            f"First call site:\n{violations[0][1]}",
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)

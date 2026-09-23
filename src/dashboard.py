@@ -10,8 +10,10 @@ from .config import (
     API_PORT,
     CHAPTER_COOLDOWN_SECONDS,
     HOST,
+    MODEL_MAP,
     RATE_LIMIT_ENABLED,
     RATE_LIMIT_RPM,
+    VERSION,
 )
 from .health import HealthChecker, check_memory
 from .stats import TranslationStats
@@ -212,7 +214,7 @@ function render(data){
     {label:'Queue Depth',value:fmt(bp.queue_depth),sub:bp.backpressured?'<span class="error-high">BACKPRESSURE</span>':'/'+fmt(bp.max_queue_depth)},
     {label:'Memory',value:memory.percent!=null?memory.percent+'%':'—',sub:memory.used_gb!=null?memory.used_gb+' / '+memory.total_gb+' GB':''},
     {label:'Rate Limit',value:config.rate_limit_enabled?'ON':'OFF',sub:config.rate_limit_rpm+' RPM'},
-    {label:'Config',value:'v0.16.0',sub:'DeepSeek V4 / Celery'},
+    {label:'Config',value:'v'+(config.version||'0.16.0'),sub:(config.model_stack||'GLM + Qwen')+' / Celery'},
   ].map(function(c){
     return '<div class="card"><div class="card-label">'+c.label+'</div><div class="card-value">'+c.value+'</div><div class="card-sub">'+c.sub+'</div></div>';
   }).join('');
@@ -284,5 +286,10 @@ def get_dashboard_data() -> dict:
             "chapter_cooldown_seconds": CHAPTER_COOLDOWN_SECONDS,
             "host": HOST,
             "port": API_PORT,
+            # Real values, so the Config card no longer hard-codes a provider
+            # this project abandoned in 2026-09 ("DeepSeek V4 / Celery").
+            "version": VERSION,
+            "model_stack": " + ".join(sorted(set(MODEL_MAP.values()))),
+            "model_map": dict(MODEL_MAP),
         },
     }

@@ -126,8 +126,23 @@ class StyleMemoStore:
             body = "\n".join(recent)
             block = f"{header}\n{body}"
 
-            if len(block) > budget:
-                block = block[:budget]
+            # No per-block truncation here. There used to be
+            #     if len(block) > budget: block = block[:budget]
+            # and it was provably redundant: when it fired, budget dropped to
+            # exactly 0, so the `budget <= 200` check broke the loop on the next
+            # iteration and the result was a single block that the final
+            # `result[:max_chars]` below then cut anyway. The outer cut is the
+            # binding constraint on both paths, so the inner one only ever
+            # removed characters the outer one would have removed. Verified by
+            # exhaustive enumeration over 5,250 (drawer, entry-count, entry-
+            # length, max_chars, per_drawer_recent, content) combinations: zero
+            # output differences.
+            #
+            # `len(block) > budget` -> `<=` survived mutation testing precisely
+            # because nothing could observe it. A condition no input can
+            # distinguish is not a behaviour worth keeping; it is a permanent
+            # non-zero survivor count, which is what trains the next reader to
+            # stop believing the number.
             parts.append(block)
             budget -= len(block)
 

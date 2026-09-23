@@ -32,22 +32,32 @@ class HealthChecker:
 
     The report has three overall statuses:
     - healthy:   all checks pass
-    - degraded:  Chroma or DeepSeek check fails but core functionality works
+    - degraded:  Chroma or LLM check fails but core functionality works
     - unhealthy: disk full, SQLite locked, or config missing — app should not start
+
+    ⚠️ Cost rule: ``check_all()`` backs ``GET /api/health`` (no auth, no rate
+    limit) and the dashboard, which polls every 5 seconds. It must never spend
+    money. The live LLM probe is opt-in only — see :meth:`check_llm_api`.
     """
 
     def __init__(
         self,
         exact_store=None,
         semantic_store: Optional["SemanticGlossary"] = None,
+        live_llm: bool = False,
     ):
         """Stores allow the checker to probe live subsystems.
 
         If stores are not supplied, checks that depend on them gracefully
         report a degraded result rather than crashing.
+
+        ``live_llm=True`` opts in to a real (billable) 1-token LLM call. It
+        defaults to False so the unauthenticated ``/api/health`` endpoint and
+        the 5-second dashboard poll cannot silently burn API credits.
         """
         self._exact_store = exact_store
         self._semantic_store = semantic_store
+        self._live_llm = live_llm
 
     # ── public entry point ──────────────────────────────────────────
 
@@ -118,20 +128,38 @@ class HealthChecker:
             return {"status": "error", "message": str(exc), "latency_ms": elapsed, "critical": True}
 
     def check_config(self) -> dict:
-        """Verify all required environment variables are present."""
+        """Verify the environment variables the pipeline actually uses.
+
+        Both providers are load-bearing in MODEL_MAP: Qwen (LLM_*) serves
+        READ/READBACK/REVIEW_TERMS and GLM (GLM_*) serves WRITE/FIX. Either one
+        missing means the pipeline genuinely cannot run, so both are critical.
+
+        This used to require DEEPSEEK_API_KEY — a provider the project abandoned
+        in 2026-09. The stale requirement made the check pass on an unused key
+        while never validating a single credential that is really called, and it
+        made a fresh GLM+Qwen-only deployment refuse to start.
+        """
         start = time.monotonic()
 
+        # Read from the environment (not module-level constants) so this reports
+        # what a deployment actually has, and so tests can inject values.
         critical_vars = {
-            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY", ""),
+            "LLM_API_KEY": os.getenv("LLM_API_KEY", ""),
+            "GLM_API_KEY": os.getenv("GLM_API_KEY", ""),
         }
         optional_vars = {
-            "DEEPSEEK_BASE_URL": os.getenv("DEEPSEEK_BASE_URL", ""),
             "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY", ""),
             "REDIS_URL": os.getenv("REDIS_URL", ""),
+        }
+        # Retired 2026-09. Present in .env but read by nothing in src/.
+        deprecated_vars = {
+            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY", ""),
+            "DEEPSEEK_BASE_URL": os.getenv("DEEPSEEK_BASE_URL", ""),
         }
 
         missing_critical = [k for k, v in critical_vars.items() if not v]
         missing_optional = [k for k, v in optional_vars.items() if not v]
+        stale = [k for k, v in deprecated_vars.items() if v]
 
         elapsed = round((time.monotonic() - start) * 1000, 1)
 
@@ -142,10 +170,18 @@ class HealthChecker:
                 "latency_ms": elapsed,
                 "critical": True,
             }
+        notes = []
         if missing_optional:
+            notes.append(f"Missing optional: {', '.join(missing_optional)}")
+        if stale:
+            notes.append(
+                f"Deprecated vars still set (unused since the DeepSeek removal): "
+                f"{', '.join(stale)}"
+            )
+        if notes:
             return {
                 "status": "warn",
-                "message": f"Missing optional: {', '.join(missing_optional)}",
+                "message": " | ".join(notes),
                 "latency_ms": elapsed,
             }
         return {"status": "ok", "message": "All required env vars present", "latency_ms": elapsed}
@@ -180,11 +216,17 @@ class HealthChecker:
             return {"status": "error", "message": str(exc), "latency_ms": elapsed, "critical": True}
 
     def check_llm_api(self) -> dict:
-        """Test the primary LLM provider with a minimal 1-token call.
+        """Report whether the LLM provider is *configured*, without calling it.
 
-        Probes LLM_BASE_URL + QWEN_MODEL (the Qwen 3.8 max judging tier) — the
-        same OpenAI-compatible base_url READBACK/REVIEW_TERMS use, so this
-        check reflects whether the judging nodes will actually work.
+        Probing LLM_BASE_URL + QWEN_MODEL (the Qwen 3.8 max judging tier) with a
+        real 1-token call is the same OpenAI-compatible base_url
+        READBACK/REVIEW_TERMS use — but it costs money on every invocation, and
+        ``check_all()`` backs an unauthenticated endpoint plus a dashboard that
+        polls every 5 seconds. So the real call now requires ``live_llm=True``.
+
+        The default path is a zero-cost configuration check: it verifies the key
+        is present and the base_url is well formed, which catches the failure
+        mode that actually takes production down (missing/rotated credential).
         """
         start = time.monotonic()
         try:
@@ -193,9 +235,31 @@ class HealthChecker:
                 return {
                     "status": "error", "message": "LLM_API_KEY not set",
                     "latency_ms": elapsed,
+                    "critical": True,
                 }
 
             base_url = LLM_BASE_URL.rstrip("/")
+            if not base_url.startswith(("http://", "https://")):
+                elapsed = round((time.monotonic() - start) * 1000, 1)
+                return {
+                    "status": "error",
+                    "message": f"LLM_BASE_URL is not a usable URL: {LLM_BASE_URL!r}",
+                    "latency_ms": elapsed,
+                    "critical": True,
+                }
+
+            if not self._live_llm:
+                elapsed = round((time.monotonic() - start) * 1000, 1)
+                return {
+                    "status": "ok",
+                    "message": (
+                        f"configured ({QWEN_MODEL} @ {base_url}); live probe skipped "
+                        "— pass live_llm=True to spend a real call"
+                    ),
+                    "latency_ms": elapsed,
+                    "live_probe": False,
+                }
+
             url = f"{base_url}/chat/completions"
 
             payload = {
@@ -215,22 +279,29 @@ class HealthChecker:
             elapsed = round((time.monotonic() - start) * 1000, 1)
 
             if resp.status_code == 200:
-                return {"status": "ok", "message": "LLM API responding", "latency_ms": elapsed}
+                return {"status": "ok", "message": "LLM API responding", "latency_ms": elapsed,
+                        "live_probe": True}
             else:
                 body = resp.text[:200]
                 return {
                     "status": "error",
                     "message": f"HTTP {resp.status_code}: {body}",
                     "latency_ms": elapsed,
+                    "live_probe": True,
                 }
         except httpx.TimeoutException:
             elapsed = round((time.monotonic() - start) * 1000, 1)
             return {
-                "status": "warn", "message": "LLM API timed out (5s)", "latency_ms": elapsed
+                "status": "error", "message": "LLM API timed out (5s)", "latency_ms": elapsed,
+                "live_probe": True,
             }
         except Exception as exc:
+            # Do NOT downgrade to "warn": a failed live probe means the judging
+            # nodes cannot reach the provider. Silently reporting warn here is
+            # what let /api/health pass while every real call was failing.
             elapsed = round((time.monotonic() - start) * 1000, 1)
-            return {"status": "warn", "message": str(exc), "latency_ms": elapsed}
+            return {"status": "error", "message": f"{type(exc).__name__}: {exc}",
+                    "latency_ms": elapsed, "live_probe": True}
 
     def check_chroma(self, exact_store=None,
                      semantic_store: Optional["SemanticGlossary"] = None) -> dict:

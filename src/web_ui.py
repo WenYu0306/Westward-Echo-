@@ -967,14 +967,11 @@ function renderJobDetail(job){
   h+='<div class="job-detail-card"><div class="job-detail-card-label">目标语言</div><div class="job-detail-card-value">'+langLabel+'</div></div>';
   h+='<div class="job-detail-card"><div class="job-detail-card-label">总章节</div><div class="job-detail-card-value">'+job.total_chapters+'</div></div>';
   if(job.glossary_count)h+='<div class="job-detail-card"><div class="job-detail-card-label">术语数</div><div class="job-detail-card-value">'+job.glossary_count+'</div></div>';
-  // Show cost if token data exists
-  if(job.tokens_input||job.tokens_output){
-    const totalTokens=(job.tokens_input||0)+(job.tokens_output||0);
-    const cost=((job.tokens_input||0)/1e6*0.14+(job.tokens_output||0)/1e6*0.28).toFixed(4);
-    const kIn=Math.round((job.tokens_input||0)/1000);
-    const kOut=Math.round((job.tokens_output||0)/1000);
-    h+='<div class="job-detail-card" style="flex:2"><div class="job-detail-card-label">成本估算</div><div class="job-detail-card-value" style="font-size:13px">~$'+cost+' | '+totalTokens.toLocaleString()+' tokens ('+kIn+'K in / '+kOut+'K out)</div></div>';
-  }
+  // No cost card here. This function is synchronous, and the cost used to be
+  // computed from job.tokens_input/output — columns nothing ever wrote (so the
+  // branch never rendered) — priced at DeepSeek's $0.14/$0.28 per M, which does
+  // not apply to the GLM/Qwen stack. Real cost is fetched from /api/jobs/{id}/cost
+  // in loadJobResults(), which reads the token ledger and reports CNY.
   h+='<div class="job-detail-card"><div class="job-detail-card-label">创建时间</div><div class="job-detail-card-value" style="font-size:13px">'+(job.created_at||'—')+'</div></div>';
   h+=extraCards;
   h+='</div>';
@@ -1078,15 +1075,25 @@ async function loadJobResults(jobId, job){
   }catch(e){/* ignore */}
   // Report
   const glossaryCount=job.glossary_count||0;
-  // Build cost line
+  // Cost comes from /api/jobs/{id}/cost, which reads the token ledger and
+  // prices each call by its real model in CNY. The previous code read
+  // job.tokens_input/output — columns nothing ever wrote, so this branch never
+  // rendered — and priced them at DeepSeek's $0.14/$0.28 per M, which does not
+  // apply to the GLM/Qwen stack.
   let costLine='';
-  if(job.tokens_input||job.tokens_output){
-    const totalTokens=(job.tokens_input||0)+(job.tokens_output||0);
-    const cost=((job.tokens_input||0)/1e6*0.14+(job.tokens_output||0)/1e6*0.28).toFixed(2);
-    const kIn=Math.round((job.tokens_input||0)/1000);
-    const kOut=Math.round((job.tokens_output||0)/1000);
-    costLine='<tr><td>成本估算</td><td><strong>~$'+cost+'</strong> | '+totalTokens.toLocaleString()+' tokens ('+kIn+'K in / '+kOut+'K out)</td></tr>';
-  }
+  try{
+    const cr=await fetch('/api/jobs/'+jobId+'/cost');
+    if(cr.ok){
+      const cd=await cr.json();
+      if(cd.total>0){
+        const kIn=Math.round((cd.tokens_input||0)/1000);
+        const kOut=Math.round((cd.tokens_output||0)/1000);
+        costLine='<tr><td>成本（实测）</td><td><strong>¥'+Number(cd.cost_cny||0).toFixed(2)+'</strong> | '+cd.total.toLocaleString()+' tokens ('+kIn+'K in / '+kOut+'K out)</td></tr>';
+        if(cd.unmetered_calls)costLine+='<tr><td>未计量调用</td><td>'+cd.unmetered_calls+' 次（实际花费高于上值）</td></tr>';
+        if(cd.unpriced_calls)costLine+='<tr><td>未计价调用</td><td>'+cd.unpriced_calls+' 次（模型不在价目表中，未计入）</td></tr>';
+      }
+    }
+  }catch(e){/* cost is supplementary — never block the report */}
   $('#job-out-report').innerHTML='<h2>翻译概况</h2><table><tr><th>指标</th><th>数值</th></tr><tr><td>总章节</td><td><strong>'+job.total_chapters+'</strong></td></tr><tr><td>术语数</td><td><strong>'+glossaryCount+'</strong></td></tr><tr><td>目标语言</td><td>'+job.target_lang+'</td></tr><tr><td>完成时间</td><td>'+(job.completed_at||'—')+'</td></tr>'+costLine+'</table>';
 }
 

@@ -143,6 +143,19 @@ def main():
 
     sample_points = cfg["sample_points_fn"](total_chapters)
 
+    # --limit N fallback. Every sample_points_fn starts at position 10 (or 3/5),
+    # so `--limit 1` / `--limit 2` produced an EMPTY sample set: the "quick
+    # validation mode" ran the whole pipeline with no cold read and no quality
+    # record at all. Always cold-read the first chapter, and the last one when
+    # the run is longer than that.
+    if total_chapters and not (sample_points & set(range(1, total_chapters + 1))):
+        sample_points = sample_points | {1}
+        if total_chapters > 1:
+            sample_points = sample_points | {total_chapters}
+        print(f"NOTE: no configured sample point falls within {total_chapters} "
+              f"chapter(s) — cold-reading position(s) "
+              f"{sorted(sample_points & set(range(1, total_chapters + 1)))} instead.")
+
     print(f"Source: {cfg['name']} — {total_chapters} chapters, {cfg['genre']}")
 
     ckpt_file = os.path.join(cfg["output_dir"], "_checkpoint.json")
@@ -150,6 +163,16 @@ def main():
     glossary_file = os.path.join(cfg["output_dir"], "_glossary.json")
     quality_file = os.path.join(cfg["output_dir"], "_quality.json")
     os.makedirs(cfg["output_dir"], exist_ok=True)
+
+    # Title for the deliverable's H1. cfg["name"] is Chinese ("无限恐怖"), and
+    # writing it into an English deliverable breaks the project's #1 quality
+    # rule. Prefer an explicit "name_en"; otherwise fall back to the ASCII
+    # book_id rather than inventing a translation nobody approved.
+    deliverable_title = cfg.get("name_en") or cfg["book_id"].replace("_", " ").title()
+    if not cfg.get("name_en"):
+        print(f"NOTE: no 'name_en' configured for {cfg['book_id']!r} — the "
+              f"deliverable H1 uses the ASCII fallback {deliverable_title!r} "
+              f"instead of the Chinese title {cfg['name']!r}.")
 
     quality_log = []
     if os.path.exists(quality_file):
@@ -164,6 +187,17 @@ def main():
                 written_chapters.add(int(_m.group(1)))
 
     agent = TranslationAgent(book_id=cfg["book_id"])
+
+    # Chapters skipped in THIS run (error, circuit open, or truncated/empty).
+    # Progress must be computed from what was actually delivered, not from how
+    # far the loop got — a run that delivered 1 of 2 chapters used to print
+    # "100%" and "ALL DONE".
+    failed_positions: list[int] = []
+
+    # Must be bound before the loop: on a fully-checkpointed resume the `while`
+    # body never executes, and the summary print below dereferences `glossary`.
+    # Without this, that path died with UnboundLocalError.
+    glossary = agent.exact_store.to_dict()
 
     start = 0
     prev = ""
@@ -219,6 +253,7 @@ def main():
                 )
             except CircuitBreakerOpenError:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] CIRCUIT OPEN - sleep 30s")
+                failed_positions.append(pos)
                 time.sleep(30)
                 continue
             except Exception as e:
@@ -240,9 +275,11 @@ def main():
                         )
                     except Exception as e2:
                         print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e2} (after retry)")
+                        failed_positions.append(pos)
                         continue
                 else:
                     print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e}")
+                    failed_positions.append(pos)
                     continue
 
             tt = result.get("translated_text", "")
@@ -253,10 +290,16 @@ def main():
             min_words = max(50, src_chars / 10)
 
             ok_flag = "OK"
+            # min_words is max(50, src/10), so it is always >= 50: any output
+            # shorter than 50 words is already caught by the TRUNCATED branch
+            # below. The old `elif word_count < 50: ok_flag = "EMPTY"` was
+            # therefore unreachable dead code — collapsed into one judgement.
             if word_count < min_words:
-                ok_flag = f"TRUNCATED ({word_count}w < {min_words:.0f}w)"
-            elif word_count < 50:
-                ok_flag = "EMPTY"
+                kind = "EMPTY" if word_count == 0 else "TRUNCATED"
+                ok_flag = f"{kind} ({word_count}w < {min_words:.0f}w)"
+                # Not written to the deliverable (see the guard below), but it
+                # must still count as a failure so the summary is honest.
+                failed_positions.append(pos)
 
             fb = result.get("readback_feedback", {})
             if is_sample and fb:
@@ -292,8 +335,13 @@ def main():
             if ch_num not in written_chapters and "TRUNCATED" not in ok_flag and "EMPTY" not in ok_flag:
                 with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
-                        f.write(f"# {cfg['name']} — English Translation\n\n")
-                    display_title = title_en or ch.title[:60]
+                        f.write(f"# {deliverable_title} — English Translation\n\n")
+                    # ZERO-CHINESE RULE. `ch.title` is the Chinese chapter
+                    # heading, so it must never be the fallback: real
+                    # deliverables shipped with "## Chapter 0: Prologue（楔子）"
+                    # and "# 地府叫我小先生 — English Translation". Fall back to a
+                    # plain ASCII number instead of inventing a translation.
+                    display_title = title_en or f"Chapter {ch_num}"
                     f.write(f"## Chapter {ch_num}: {display_title}\n\n{tt}\n\n---\n\n")
                 written_chapters.add(ch_num)
                 last_written = i
@@ -308,10 +356,14 @@ def main():
         json.dump(glossary, open(glossary_file, "w"), ensure_ascii=False, indent=2)
 
         seg_elapsed = (time.monotonic() - t0) / 60
-        pct = 100 * batch_end / len(chapters)
+        # Progress reflects chapters actually delivered, not how far the loop
+        # scanned. batch_end/len(chapters) used to report "100%" even when half
+        # the chapters had been skipped.
+        pct = 100 * len(written_chapters) / len(chapters)
         total_elapsed = (time.monotonic() - overall_t0) / 60
         remaining = total_elapsed / batch_end * (len(chapters) - batch_end)
-        print(f"  Segment {segment_num}: {start+1}-{batch_end}/{len(chapters)} "
+        print(f"  Segment {segment_num}: {start+1}-{batch_end}/{len(chapters)} scanned, "
+              f"{len(written_chapters)} delivered "
               f"({pct:.0f}%) in {seg_elapsed:.0f}m | {len(glossary)} terms | "
               f"total: {total_elapsed:.0f}m | ETA: {remaining:.0f}m | quality: {len(quality_log)}")
         print(f"  Tokens so far: {run_in:,} in + {run_out:,} out = {run_in+run_out:,}"
@@ -325,7 +377,26 @@ def main():
             time.sleep(2)
 
     total_min = (time.monotonic() - overall_t0) / 60
-    print(f"ALL DONE: {len(chapters)} chapters in {total_min:.0f}m")
+    delivered = len(written_chapters)
+    scanned = len(chapters)
+    # "ALL DONE" is only true when every scanned chapter reached the
+    # deliverable. The old line printed the scanned count unconditionally, so a
+    # run that delivered 1 of 2 chapters reported "ALL DONE: 2 chapters".
+    incomplete = (delivered < scanned) or bool(failed_positions)
+    if incomplete:
+        print(f"INCOMPLETE: {delivered}/{scanned} chapters delivered in "
+              f"{total_min:.0f}m — {scanned - delivered} missing")
+        if failed_positions:
+            preview = sorted(set(failed_positions))[:20]
+            suffix = "..." if len(set(failed_positions)) > 20 else ""
+            print(f"  Failed/skipped positions: {preview}{suffix}")
+        missing = sorted(set(range(1, scanned + 1))
+                         - {c for c in written_chapters})[:20]
+        if missing:
+            print(f"  Chapters absent from the deliverable: {missing}"
+                  f"{'...' if delivered < scanned - 20 else ''}")
+    else:
+        print(f"ALL DONE: {delivered}/{scanned} chapters in {total_min:.0f}m")
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
 
     # ── 成本台账：本次运行的真实 token 与花费（此前生产路径完全无记录）──
@@ -333,7 +404,10 @@ def main():
     cost_path = os.path.join(cfg["output_dir"], "_cost.json")
     json.dump({
         "book_id": cfg["book_id"],
-        "chapters": len(chapters),
+        "chapters": delivered,
+        "chapters_scanned": scanned,
+        "chapters_failed": sorted(set(failed_positions)),
+        "complete": not incomplete,
         "calls": cost["calls"],
         "input_tokens": cost["input_tokens"],
         "output_tokens": cost["output_tokens"],
@@ -359,6 +433,10 @@ def main():
               f"{a['output_tokens']:>12,} out  \u00a5{a['cost_cny']:>8.2f}")
     print(f"  -> {cost_path}")
 
+    # Non-zero exit lets a caller (CI, a wrapper, cron) detect the gap instead
+    # of trusting the word "DONE" in stdout.
+    return 1 if incomplete else 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

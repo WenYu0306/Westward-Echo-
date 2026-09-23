@@ -24,7 +24,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+from src.config import LLM_API_KEY, LLM_BASE_URL, QWEN_MODEL
 from src.evaluator_prompts import EVALUATOR_PROFILES, EVALUATOR_SYSTEM
 
 # ---------------------------------------------------------------------------
@@ -92,18 +92,24 @@ def evaluate_translation(
         f"## Translation to Evaluate\n\n{translation_text}"
     )
 
-    # Use the quality_score model (V4 Pro) — evaluation needs reasoning depth
+    # Native-speaker evaluation is a judgement task (like READBACK /
+    # REVIEW_TERMS), so it uses the Qwen judging tier. The old code read
+    # MODEL_MAP["quality_score"], a key that does not exist — this script was
+    # wired to DeepSeek and never re-pointed after the provider switch, so it
+    # raised KeyError the moment it ran. thinking_budget is passed instead of
+    # reasoning_effort: on this endpoint the two cannot be set together.
     llm = ChatOpenAI(
-        model=MODEL_MAP["quality_score"],
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
+        model=QWEN_MODEL,
+        api_key=LLM_API_KEY,
+        base_url=LLM_BASE_URL,
         temperature=0.0,
         max_tokens=4096,  # Same as quality_check for consistency
+        extra_body={"thinking_budget": 2048},
     )
 
     print(f"\n{'=' * 60}")
     print(f"Evaluating {target_lang} ({profile['language_name']})")
-    print(f"Model: {MODEL_MAP['quality_score']}")
+    print(f"Model: {QWEN_MODEL}")
     print(f"Editor: {profile['persona'].split(',')[0].replace('You are ', '')}")
     print(f"{'=' * 60}")
 
@@ -161,9 +167,13 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not DEEPSEEK_API_KEY:
-        print("[ERROR] DEEPSEEK_API_KEY is not set. Check your .env file.")
+    if not LLM_API_KEY:
+        print("[ERROR] LLM_API_KEY is not set. Check your .env file.")
         sys.exit(1)
+
+    # Repo rule: live API calls must be announced, never silent.
+    print("[NOTE] This script makes REAL, billable LLM calls "
+          f"({QWEN_MODEL}, one per language evaluated).")
 
     langs = list(FIXTURE_MAP) if args.lang == "all" else [args.lang]
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

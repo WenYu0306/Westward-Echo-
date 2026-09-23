@@ -78,6 +78,14 @@ TARGETS = {
         "tests/test_fault_injection.py",
         "tests/test_completeness.py",
     ]),
+    # Health checks gate startup and back /api/health plus the dashboard's
+    # 5-second poll. A surviving mutant here means either a billable probe can
+    # sneak back in, or a broken provider can still report healthy — both are
+    # exactly the fake-green failure this audit exists to prevent.
+    "health": ("src/health.py", ["tests/test_health.py"]),
+    # stats.py feeds the dashboard's live metrics, so a surviving mutant means
+    # a wrong number gets displayed as fact.
+    "stats": ("src/stats.py", ["tests/test_stats.py"]),
 }
 
 COMPARE_FLIP = {
@@ -86,6 +94,33 @@ COMPARE_FLIP = {
     ast.Gt: ast.LtE, ast.LtE: ast.Gt,
     ast.In: ast.NotIn, ast.NotIn: ast.In,
     ast.Is: ast.IsNot, ast.IsNot: ast.Is,
+}
+
+
+# ── Proven-equivalent mutants ────────────────────────────────────────────
+# Some mutations cannot be killed by ANY test, because no input distinguishes
+# the mutant from the original. Reporting those as "survived blind spots" is
+# itself a false signal: it leaves a permanent non-zero count that trains the
+# next operator to ignore the number, which is exactly how the fake-green
+# defects this suite exists to catch stayed hidden for so long.
+#
+# An entry here must carry a proof. It is a claim that the mutant is
+# semantically identical, NOT a place to park a hard-to-test branch — a branch
+# that is merely awkward to reach belongs in the test file, not here.
+#
+# Entries are verified every run: one that matches no generated mutant is
+# reported as STALE (usually because the line number moved) rather than being
+# silently skipped, so the list cannot quietly rot into hiding real survivors.
+EQUIVALENT_MUTANTS = {
+    ("src/stats.py", "const 2->3 at 194"): (
+        "round(throughput, 2) -> round(throughput, 3). throughput is "
+        "recent_5m / 5.0 where recent_5m is an int (sum of 1s over the "
+        "completions window), and _max_recent caps it at 200. An integer "
+        "divided by 5 has at most one decimal digit (0/.2/.4/.6/.8), so "
+        "rounding to 2 or 3 decimals yields the identical decimal and hence "
+        "the identical float. Verified by exhaustive enumeration over "
+        "k = 0..2000: zero values of k where round(k/5.0, 2) != round(k/5.0, 3)."
+    ),
 }
 
 
@@ -203,12 +238,12 @@ def run_one(key, module_rel, tests):
     module = ROOT / module_rel
     if not module.exists():
         print(f"\n=== {module_rel}: SKIPPED (module no longer exists) ===", flush=True)
-        return 0, 0, 0
+        return 0, 0, 0, 0, 0, 1
     missing = [t for t in tests if not (ROOT / t).exists()]
     if missing:
         print(f"\n=== {module_rel}: SKIPPED (test file(s) gone: {', '.join(missing)}) ===",
               flush=True)
-        return 0, 0, 0
+        return 0, 0, 0, 0, 0, 1
 
     # A run killed mid-mutant leaves a mutated source file behind: SIGTERM ends
     # the process without unwinding, so the `finally` below never restores it.
@@ -229,11 +264,36 @@ def run_one(key, module_rel, tests):
         print(f"  {module_rel} may still contain a mutation. Diff it against "
               f"{backup.name}, keep the correct version, delete the backup, "
               f"then re-run.", flush=True)
-        return 0, 0, 0
+        # Not a pass: the source may still carry a mutation, so the gate
+        # rendered no verdict. Returning zeros here is how a corrupted module
+        # would get reported as clean.
+        return 0, 0, 0, 0, 0, 1
 
     original = module.read_text(encoding="utf-8")
     mutants = mutants_for(original)
     print(f"\n=== {module_rel}: {len(mutants)} mutants ===", flush=True)
+
+    # Split out the mutants proven unkillable, and check every registry entry
+    # for this module actually matched something. An entry that matched nothing
+    # means the line moved or the expression was edited — the proof no longer
+    # applies to any real mutant, and leaving it registered would let a genuine
+    # survivor hide behind a stale excuse.
+    registry = {d: p for (m, d), p in EQUIVALENT_MUTANTS.items() if m == module_rel}
+    matched = set()
+    killable = []
+    equivalent = []
+    for desc, mutated in mutants:
+        if desc in registry:
+            matched.add(desc)
+            equivalent.append(desc)
+        else:
+            killable.append((desc, mutated))
+    stale = sorted(set(registry) - matched)
+    for desc in stale:
+        print(f"  [STALE-EQUIVALENCE] registered as unkillable but no longer "
+              f"generated: {desc!r}. The proof may no longer apply — re-derive "
+              f"it or remove the entry.", flush=True)
+
     survived = 0
     timed_out = 0
 
@@ -241,7 +301,7 @@ def run_one(key, module_rel, tests):
     _INFLIGHT["module"] = module
     _INFLIGHT["original"] = original
     try:
-        for desc, mutated in mutants:
+        for desc, mutated in killable:
             module.write_text(mutated, encoding="utf-8")
             try:
                 rc = run_tests(tests)
@@ -264,9 +324,15 @@ def run_one(key, module_rel, tests):
         backup.unlink(missing_ok=True)
         _INFLIGHT["module"] = None
         _INFLIGHT["original"] = None
-    print(f"  -> {len(mutants) - survived - timed_out}/{len(mutants)} killed"
-          f" ({survived} survived, {timed_out} timed out)", flush=True)
-    return len(mutants), survived, timed_out
+    killed = len(killable) - survived - timed_out
+    print(f"  -> {killed}/{len(killable)} killed"
+          f" ({survived} survived, {timed_out} timed out"
+          f"{f', {len(equivalent)} proven-equivalent skipped' if equivalent else ''}"
+          f"{f', {len(stale)} STALE' if stale else ''})", flush=True)
+    # len(killable) is the denominator, not len(mutants): counting an exempted
+    # mutant as killed would let the summary report 100% while a real mutant sat
+    # untested underneath it.
+    return len(killable), len(equivalent), survived, timed_out, len(stale), 0
 
 
 def main():
@@ -275,21 +341,40 @@ def main():
     total = 0
     survived = 0
     timed_out = 0
+    stale = 0
+    blocked = 0
+    equivalent = 0
     for key in keys:
         if key not in TARGETS:
             print(f"unknown module: {key}", flush=True)
             continue
         module_rel, tests = TARGETS[key]
-        n, s, t = run_one(key, module_rel, tests)
+        n, eq, s, t, st, bl = run_one(key, module_rel, tests)
         total += n
+        equivalent += eq
         survived += s
         timed_out += t
+        stale += st
+        blocked += bl
     print(f"\n========== SUMMARY ==========", flush=True)
-    print(f"total mutants: {total}", flush=True)
+    print(f"mutants exercised: {total}", flush=True)
+    print(f"proven-equivalent (exempt, not exercised): {equivalent}", flush=True)
     print(f"survived (blind spots): {survived}", flush=True)
-    print(f"timed out: {timed_out}", flush=True)
+    print(f"timed out (no verdict): {timed_out}", flush=True)
+    print(f"stale equivalence claims: {stale}", flush=True)
+    print(f"blocked (no verdict rendered): {blocked}", flush=True)
     print(f"killed: {total - survived - timed_out}", flush=True)
+
+    # A gate that cannot fail is documentation, not a gate. Every rule this
+    # project added after the audit is enforced in code for the same reason:
+    # "survived must be zero" is worthless if nothing refuses to run red.
+    if survived or timed_out or stale or blocked:
+        print("\nFAIL: unresolved mutation results above.", flush=True)
+        return 1
+    print("\nOK: every generated mutant was killed or is registered with a proof.",
+          flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

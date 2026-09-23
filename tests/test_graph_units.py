@@ -358,9 +358,23 @@ class TestMakeState:
         assert state["genre"] == "romance_ceo"
         assert state["content_type"] == "novel"
 
-    def test_quality_score_starts_at_five(self):
+    def test_quality_score_starts_unmeasured(self):
+        """0.0 means "nobody has read this chapter yet".
+
+        This used to assert 5.0 — i.e. the fake-green default was locked in as
+        expected behaviour. A fast-mode chapter skips READBACK, so it kept the
+        5.0 initial value and reported a perfect score no cold reader ever gave
+        it; downstream averaging then measured nothing at all.
+        """
         a = bare_agent()
-        assert a._make_state(**make_state_kwargs())["quality_score"] == 5.0
+        assert a._make_state(**make_state_kwargs())["quality_score"] == 0.0
+
+    def test_readback_skipped_flag_tracks_skip_readback(self):
+        """The flag is how downstream tells "cold read passed" from "never read"."""
+        a = bare_agent()
+        assert a._make_state(**make_state_kwargs())["readback_skipped"] is False
+        kwargs = {**make_state_kwargs(), "skip_readback": True}
+        assert a._make_state(**kwargs)["readback_skipped"] is True
 
     def test_quality_issues_start_empty(self):
         a = bare_agent()
@@ -711,7 +725,13 @@ class TestTranslateSplit:
         assert flags, "split should have run"
         assert all(skip is False and flash is False for skip, flash in flags)
 
-    def test_split_quality_score_defaults_to_five(self):
+    def test_split_quality_score_stays_unmeasured_when_absent(self):
+        """A segment result with no quality_score must merge to 0.0, not 5.0.
+
+        5.0 was the fake-green default: it reported "cold reader gave this a
+        perfect score" for a chapter no cold reader ever saw. The merge must
+        stay honest — absent means unmeasured.
+        """
         content = "\n\n".join(f"段落{i}" + "字" * 900 for i in range(7))
         agent = bare_agent()
 
@@ -724,7 +744,9 @@ class TestTranslateSplit:
         agent._translate_once = fake_once
         out = agent.translate_chapter(chapter_title="长章", chapter_content=content,
                                       chapter_number=1)
-        assert out["quality_score"] == 5.0
+        assert out["quality_score"] == 0.0
+        # And the flag must say the score carries no information.
+        assert out["readback_skipped"] is True
 
     def test_split_returns_a_merged_dict(self):
         out = None

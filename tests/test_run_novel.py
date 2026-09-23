@@ -1,0 +1,343 @@
+"""Regression tests for scripts/run_novel.py — the real production runner.
+
+This script produces the delivered corpus, so every defect here ships to
+readers. Locked down here:
+
+* progress/ALL DONE reported the *scanned* count, so a run that delivered 1 of
+  2 chapters printed "100%" and "ALL DONE".
+* Chinese titles landed in the English deliverable (H1 book title and the
+  ``ch.title`` chapter-heading fallback) — the project's own #1 quality rule.
+* ``glossary`` was bound only inside the ``while``, so a fully-checkpointed
+  resume crashed with UnboundLocalError at the summary print.
+* ``--limit N`` never cold-read anything: every ``sample_points_fn`` starts at
+  position 10, so short validation runs had an empty sample set.
+* the ``elif word_count < 50`` branch was unreachable dead code.
+"""
+
+import importlib.util
+import json
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_SCRIPT = _REPO_ROOT / "scripts" / "run_novel.py"
+
+GOOD = ("The grey sky pressed down on the town and the wind carried dust "
+        "through the empty street. ") * 6
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location("run_novel_under_test", _SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class _FakeChapter:
+    def __init__(self, index, title, content):
+        from src.chapter_splitter import ParagraphTag
+        self.index = index
+        self.title = title
+        self.content = content
+        self.word_count = len(content)
+        self.action = ParagraphTag.CHAPTER
+
+
+@pytest.fixture
+def runner(monkeypatch, tmp_path):
+    """Load run_novel.py with its output dir and novel source redirected to tmp.
+
+    No provider is reachable: TranslationAgent is replaced by a recorder whose
+    translate_chapter returns canned results, and split_chapters/detect_and_read
+    are stubbed.
+    """
+    mod = _load_module()
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    monkeypatch.setattr(mod, "detect_and_read",
+                        lambda p: ("第一章 测试\n\n苏念醒来。\n", "utf-8"))
+
+    def _install(novel_cfg, chapters, results):
+        monkeypatch.setitem(mod.NOVELS, "unit_test_book", novel_cfg)
+        monkeypatch.setattr(mod, "split_chapters", lambda text: list(chapters))
+
+        queue = list(results)
+
+        class _FakeStore:
+            def __init__(self):
+                self._d = {"苏念": "Su Nian"}
+
+            def to_dict(self):
+                return dict(self._d)
+
+            def snapshot(self):
+                return json.dumps(self._d)
+
+        class _FakeAgent:
+            def __init__(self, book_id=None, **kwargs):
+                self.book_id = book_id
+                self.exact_store = _FakeStore()
+
+            def load_glossary_snapshot(self, snapshot):
+                pass
+
+            def translate_chapter(self, **kwargs):
+                if not queue:
+                    return {"translated_text": "", "chapter_title_en": "",
+                            "chapter_summary": ""}
+                item = queue.pop(0)
+                if isinstance(item, Exception):
+                    raise item
+                return item
+
+        monkeypatch.setattr(mod, "TranslationAgent", _FakeAgent)
+
+    def _run(argv):
+        monkeypatch.setattr(mod.sys, "argv", ["run_novel.py", *argv])
+        # token_ledger.summary hits data/token_ledger.jsonl; conftest already
+        # repoints XIDU_TOKEN_LEDGER into tmp, so this is safe and real.
+        return mod.main()
+
+    return {"mod": mod, "install": _install, "run": _run, "out_dir": out_dir,
+            "tmp": tmp_path}
+
+
+def _cfg(out_dir, **overrides):
+    cfg = {
+        "name": "测试之书",
+        "path": "unused.txt",
+        "genre": "urban",
+        "book_id": "unit_test_book",
+        "output_dir": str(out_dir),
+        "output_file": "unit_test_en.md",
+        "expected_chapters": None,
+        # Mirrors the real functions: first sample point is position 10.
+        "sample_points_fn": lambda total: frozenset(range(10, total + 1, 50)),
+    }
+    cfg.update(overrides)
+    return cfg
+
+
+def _deliverable(out_dir):
+    p = Path(out_dir) / "unit_test_en.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
+# ═══════════════════════════════════════════════════════════════
+# Zero-Chinese rule in the deliverable
+# ═══════════════════════════════════════════════════════════════
+
+class TestZeroChineseInDeliverable:
+    def test_chinese_book_title_not_written(self, runner):
+        """Real corpus shipped '# 地府叫我小先生 — English Translation'."""
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章 测试", "苏念醒来。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "The Grey Sky",
+                            "chapter_summary": "Su Nian wakes."}])
+        runner["run"](["unit_test_book"])
+
+        body = _deliverable(runner["out_dir"])
+        assert "测试之书" not in body
+        assert body.startswith("# Unit Test Book — English Translation")
+
+    def test_explicit_name_en_is_preferred(self, runner):
+        runner["install"](_cfg(runner["out_dir"], name_en="The Book of Tests"),
+                          [_FakeChapter(1, "第一章 测试", "苏念醒来。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "One",
+                            "chapter_summary": ""}])
+        runner["run"](["unit_test_book"])
+
+        assert _deliverable(runner["out_dir"]).startswith(
+            "# The Book of Tests — English Translation")
+
+    def test_chinese_chapter_title_not_used_as_fallback(self, runner):
+        """When the pipeline gives no English title, fall back to ASCII — not
+        to the Chinese heading. Real corpus had '## Chapter 0: Prologue（楔子）'."""
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(7, "第七章 钟楼街的游行", "苏念醒来。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "",
+                            "chapter_summary": ""}])
+        runner["run"](["unit_test_book"])
+
+        body = _deliverable(runner["out_dir"])
+        assert "钟楼街" not in body
+        assert "第七章" not in body
+        assert "## Chapter 7: Chapter 7" in body
+
+    def test_no_cjk_anywhere_in_deliverable(self, runner):
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章 测试", "苏念醒来。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "The Grey Sky",
+                            "chapter_summary": ""}])
+        runner["run"](["unit_test_book"])
+
+        cjk = [c for c in _deliverable(runner["out_dir"]) if "\u4e00" <= c <= "\u9fff"]
+        assert not cjk, f"deliverable contains CJK: {cjk}"
+
+
+# ═══════════════════════════════════════════════════════════════
+# Honest progress reporting
+# ═══════════════════════════════════════════════════════════════
+
+class TestProgressIsHonest:
+    def test_failed_chapter_is_not_reported_as_done(self, runner, capsys):
+        """The documented incident: 1 of 2 delivered, printed '100%' + ALL DONE."""
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章", "苏念醒来。" * 200),
+                           _FakeChapter(2, "第二章", "天空是灰色的。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "One",
+                            "chapter_summary": ""},
+                           RuntimeError("content filter 1301")])
+        rc = runner["run"](["unit_test_book"])
+
+        assert rc == 1, "incomplete run must exit non-zero"
+        out = capsys.readouterr().out
+        assert "INCOMPLETE: 1/2" in out
+        assert "ALL DONE" not in out
+
+    def test_cost_json_records_the_gap(self, runner):
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章", "苏念醒来。" * 200),
+                           _FakeChapter(2, "第二章", "天空是灰色的。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "One",
+                            "chapter_summary": ""},
+                           RuntimeError("boom")])
+        runner["run"](["unit_test_book"])
+
+        cost = json.loads((runner["out_dir"] / "_cost.json").read_text(encoding="utf-8"))
+        assert cost["chapters"] == 1
+        assert cost["chapters_scanned"] == 2
+        assert cost["complete"] is False
+        assert 2 in cost["chapters_failed"]
+
+    def test_full_success_reports_all_done(self, runner, capsys):
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章", "苏念醒来。" * 200)],
+                          [{"translated_text": GOOD, "chapter_title_en": "One",
+                            "chapter_summary": ""}])
+        rc = runner["run"](["unit_test_book"])
+
+        assert rc == 0
+        assert "ALL DONE: 1/1" in capsys.readouterr().out
+
+    def test_truncated_chapter_counts_as_failure(self, runner, capsys):
+        """A stub/truncated translation must not ship AND must not be counted
+        as delivered — this is how 空章/截断章 hid in finished books."""
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章", "苏念醒来。" * 200)],
+                          [{"translated_text": "Too short.", "chapter_title_en": "One",
+                            "chapter_summary": ""}])
+        rc = runner["run"](["unit_test_book"])
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "TRUNCATED" in out or "EMPTY" in out
+        assert "## Chapter 1" not in _deliverable(runner["out_dir"])
+
+
+# ═══════════════════════════════════════════════════════════════
+# Resume path: the UnboundLocalError crash
+# ═══════════════════════════════════════════════════════════════
+
+class TestResumeDoesNotCrash:
+    def test_nothing_left_to_translate(self, runner, capsys):
+        runner["install"](_cfg(runner["out_dir"]), [], [])
+        rc = runner["run"](["unit_test_book"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "ALL DONE: 0/0" in out
+        assert "Glossary: 1 terms" in out
+
+    def test_checkpoint_says_everything_done(self, runner, capsys):
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章", "苏念醒来。")], [])
+        # last_idx=0 → start=1 → while body never runs → old code crashed on
+        # `glossary` in the summary print.
+        (runner["out_dir"] / "_checkpoint.json").write_text(
+            json.dumps({"last_idx": 0, "glossary_snapshot": "{}",
+                        "previous_summary": ""}), encoding="utf-8")
+        # A consistent resume: the checkpoint says chapter 1 shipped, and the
+        # deliverable really contains it. written_chapters is rebuilt by parsing
+        # the deliverable, so both halves must agree.
+        (runner["out_dir"] / "unit_test_en.md").write_text(
+            "# Unit Test Book — English Translation\n\n"
+            "## Chapter 1: Already Done\n\nExisting text.\n\n---\n\n",
+            encoding="utf-8")
+
+        rc = runner["run"](["unit_test_book"])
+
+        assert rc == 0, "a complete resume must not report INCOMPLETE"
+        out = capsys.readouterr().out
+        assert "ALL DONE: 1/1" in out
+        assert "Glossary: 1 terms" in out
+        # Resume must not rewrite or duplicate the already-delivered chapter.
+        body = _deliverable(runner["out_dir"])
+        assert body.count("## Chapter 1:") == 1
+
+    def test_checkpoint_claims_done_but_deliverable_is_missing(self, runner, capsys):
+        """Inconsistent state must be flagged, not silently accepted.
+
+        The checkpoint says chapter 1 shipped; the deliverable has no such
+        chapter. Trusting the checkpoint alone is exactly how a book can be
+        declared finished while chapters are absent from what the reader gets.
+        """
+        runner["install"](_cfg(runner["out_dir"]),
+                          [_FakeChapter(1, "第一章", "苏念醒来。")], [])
+        (runner["out_dir"] / "_checkpoint.json").write_text(
+            json.dumps({"last_idx": 0, "glossary_snapshot": "{}",
+                        "previous_summary": ""}), encoding="utf-8")
+
+        rc = runner["run"](["unit_test_book"])
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "INCOMPLETE: 0/1" in out
+        assert "Chapters absent from the deliverable: [1]" in out
+
+
+# ═══════════════════════════════════════════════════════════════
+# --limit N must still cold-read something
+# ═══════════════════════════════════════════════════════════════
+
+class TestLimitModeStillColdReads:
+    def _positions(self, mod, monkeypatch, runner, n_chapters, limit):
+        """Run with N chapters and return which positions were sampled."""
+        chapters = [_FakeChapter(i + 1, f"第{i+1}章", "苏念醒来。" * 200)
+                    for i in range(n_chapters)]
+        results = [{"translated_text": GOOD, "chapter_title_en": f"C{i+1}",
+                    "chapter_summary": "", "readback_feedback": {
+                        "verdict": "PASS", "would_keep_reading": True,
+                        "overall_impression": "fine",
+                        "comprehension_issues": [], "engagement_gaps": []}}
+                   for i in range(n_chapters)]
+        runner["install"](_cfg(runner["out_dir"]), chapters, results)
+        monkeypatch.setattr(mod.sys, "argv",
+                            ["run_novel.py", "unit_test_book", "--limit", str(limit)])
+        mod.main()
+        qlog = runner["out_dir"] / "_quality.json"
+        if not qlog.exists():
+            return []
+        return [q["ch_position"] for q in json.loads(qlog.read_text(encoding="utf-8"))]
+
+    def test_limit_2_cold_reads_both_ends(self, runner, monkeypatch):
+        """Documented defect: sample set was empty for N<10, so the 'quick
+        validation mode' ran with no quality check whatsoever."""
+        mod = runner["mod"]
+        positions = self._positions(mod, monkeypatch, runner, n_chapters=2, limit=2)
+        assert positions, "no cold read happened in --limit 2 mode"
+        assert set(positions) == {1, 2}
+
+    def test_limit_1_cold_reads_chapter_one(self, runner, monkeypatch):
+        mod = runner["mod"]
+        positions = self._positions(mod, monkeypatch, runner, n_chapters=1, limit=1)
+        assert positions == [1]
+
+    def test_full_run_keeps_configured_sample_points(self, runner, monkeypatch):
+        """The fallback must not disturb a normal long run."""
+        mod = runner["mod"]
+        positions = self._positions(mod, monkeypatch, runner, n_chapters=12, limit=12)
+        assert positions == [10], "configured sampling changed for a long run"
