@@ -139,84 +139,6 @@
         "target": "explotación 996 (trabajar de 9 a 9, 6 días por semana)",
         "note": "Mantener el número 996 y añadir explicación entre paréntesis la primera vez"
       }
-    },
-    "ar-SA": {
-      "穿越": {
-        "target": "انتقال",
-        "note": "Transmigration across worlds. Transliterate as 'intiqal' when explaining the genre the first time",
-        "cultural_note": "El concepto de transmigración entre mundos es aceptable en la ficción árabe contemporánea, aunque debe evitarse cualquier implicación de reencarnación religiosa"
-      },
-      "穿书": {
-        "target": "الانتقال إلى رواية",
-        "note": "Specific sub-genre: entering the world of a book. Explain on first occurrence"
-      },
-      "系统": {
-        "target": "النظام",
-        "note": "Capitalize as 'An-Nizam' in English contexts. Treat as a proper noun"
-      },
-      "打脸": {
-        "target": "صفعة مهينة",
-        "note": "A humiliating, public defeat of the antagonist. Not a literal slap — convey the social dimension of the humiliation",
-        "cultural_note": "En la cultura árabe, la humillación pública es un tema muy serio. Traducir con suficiente gravedad; evitar trivializar el conflicto"
-      },
-      "装逼": {
-        "target": "تباهٍ / استعراض",
-        "note": "Colloquial term for showing off. Choose based on context intensity"
-      },
-      "龙傲天": {
-        "target": "البطل الذي لا يُقهر",
-        "note": "The invincible hero archetype. Convey both the power and the arrogance"
-      },
-      "白莲花": {
-        "target": "المتظاهرة بالبراءة",
-        "note": "The one who fakes innocence. Culturally sensitive — convey the hypocrisy without vulgarity",
-        "cultural_note": "En la ficción árabe, la hipocresía es un rasgo de villano muy reconocible. El término debe reflejar duplicidad, no solo inocencia fingida"
-      },
-      "玛丽苏": {
-        "target": "ماري سو",
-        "note": "Transliteration of Mary Sue — explain as a perfect, idealized character on first occurrence"
-      },
-      "吃瓜群众": {
-        "target": "المتفرجون",
-        "note": "Onlookers who enjoy the drama from the sidelines"
-      },
-      "牛逼": {
-        "target": "عبقري / أسطوري",
-        "note": "Extremely impressive. Avoid vulgar expressions; use 'legendary' or 'brilliant' level praise",
-        "cultural_note": "Evitar expresiones vulgares o blasfemas. Usar elogios de intensidad alta pero culturalmente aceptables"
-      },
-      "卧槽": {
-        "target": "يا إلهي! / تباً!",
-        "note": "Chinese expletive. 'Ya Ilahi!' is milder and broadly acceptable; 'Tabban!' is stronger. Never use religious profanity",
-        "cultural_note": "Absolutamente prohibido usar blasfemias religiosas. 'Ya Ilahi' (Oh Dios mío) solo en contextos muy ligeros; evitar si hay riesgo de ofensa"
-      },
-      "金手指": {
-        "target": "قدرة خارقة / غش إلهي",
-        "note": "The protagonist's cheat-like special ability. 'Qudra Khariqa' (extraordinary ability) is safer than 'ghish ilahi' (divine cheat)",
-        "cultural_note": "Evitar 'غش إلهي' (divine cheat) ya que trivializa lo divino. Preferir 'قدرة خارقة' (extraordinary ability)"
-      },
-      "备胎": {
-        "target": "خيار احتياطي",
-        "note": "Literally 'spare tire' — the backup romantic option"
-      },
-      "社畜": {
-        "target": "عبد الشركة",
-        "note": "Corporate slave. Strong term — conveys dehumanization of extreme work culture",
-        "cultural_note": "El término 'عبد' (esclavo) es muy fuerte en árabe. Úsalo con moderación y solo cuando el tono de la obra lo justifique"
-      },
-      "带球跑": {
-        "target": "الهروب بالحمل",
-        "note": "Fleeing while pregnant. A romance genre trope — the heroine escapes while carrying the hero's child",
-        "cultural_note": "El embarazo fuera del matrimonio es un tema muy delicado. Si la obra lo trata con ligereza, considerar si la audiencia árabe lo aceptará. En traducción, mantener el hecho sin añadir juicio moral"
-      },
-      "暖男": {
-        "target": "شخص لطيف ودافئ",
-        "note": "A warm, caring, emotionally-available male character. Not the 'bad boy' archetype"
-      },
-      "996": {
-        "target": "استغلال 996 (العمل من 9 صباحاً إلى 9 مساءً، 6 أيام في الأسبوع)",
-        "note": "Keep the number 996 and explain in parentheses on first occurrence"
-      }
     }
   },
   "genres": {
@@ -247,23 +169,6 @@
         "父凭子贵": {
           "target": "padre por obra y gracia del hijo",
           "note": "Inversión del tropo 'madre por el hijo': un hombre obtiene estatus y valor gracias a su paternidad"
-        }
-      },
-      "ar-SA": {
-        "霸总": {
-          "target": "المدير ألفا",
-          "note": "The alpha CEO archetype. 'Al-Mudir Alfa' — the dominant, possessive, powerful CEO",
-          "cultural_note": "El concepto del CEO dominante puede chocar con valores culturales sobre el liderazgo. Traducir manteniendo el tono del género, pero suavizar comportamientos excesivamente controladores si es necesario"
-        },
-        "八零年代": {
-          "target": "الأرياف العربية في الثمانينات",
-          "note": "Adapt to local equivalent — rural Arab setting of the 1980s. Convey the socio-economic atmosphere of the era, not just the decade",
-          "cultural_note": "Adaptar el contexto rural a un entorno árabe culturalmente reconocible. La década de los 80 en el mundo árabe tiene connotaciones específicas de modernización y cambio social que pueden servir como telón de fondo"
-        },
-        "父凭子贵": {
-          "target": "أب بفضل ابنه",
-          "note": "A father who gains status through his son. This reverses the traditional 'mother honored through son' trope",
-          "cultural_note": "En la cultura árabe, el hijo varón ya confiere estatus al padre tradicionalmente. Este tropo invierte la dinámica de género habitual — manejar con sensibilidad cultural"
         }
       }
     },
@@ -430,92 +335,6 @@
         "道友": {
           "target": "Compañero Daoísta",
           "note": "Tratamiento neutral entre cultivadores de igual rango"
-        }
-      },
-      "ar-SA": {
-        "修真": {
-          "target": "زراعة / Cultivation",
-          "note": "Use 'Zira'a' (cultivation) or keep the English 'Cultivation'. Explain the concept on first occurrence",
-          "cultural_note": "El concepto de cultivación espiritual tiene paralelos en el sufismo islámico (tazkiyat al-nafs), lo que puede facilitar su comprensión. Sin embargo, evitar mezclar explícitamente con conceptos religiosos"
-        },
-        "修仙": {
-          "target": "الزراعة الخالدة",
-          "note": "Immortal cultivation — 'Az-Zira'a Al-Khalida'. The pursuit of immortality through spiritual practice",
-          "cultural_note": "La búsqueda de la inmortalidad física puede ser teológicamente problemática. Enmarcarlo claramente como un elemento de un mundo de ficción fantástica alternativa, no como una aspiración real"
-        },
-        "飞升": {
-          "target": "الصعود",
-          "note": "Ascension — 'As-Su'ud'. The transcendence to a higher realm. Convey the awe and gravity of the moment"
-        },
-        "渡劫": {
-          "target": "المحنة السماوية",
-          "note": "Heavenly Tribulation — 'Al-Mihna As-Samawiyya'. A divine test the cultivator must survive",
-          "cultural_note": "El concepto de prueba divina es familiar en la tradición islámica (ibtila'). Traducir de manera que evoque el peso espiritual de la prueba sin trivializarla"
-        },
-        "金丹": {
-          "target": "النواة الذهبية",
-          "note": "Golden Core — 'An-Nawat Adh-Dhahabiyya'. A cultivation stage. Describe visually as a golden spiritual core forming within"
-        },
-        "元婴": {
-          "target": "الروح الناشئة",
-          "note": "Nascent Soul — 'Ar-Ruh An-Nashi'a'. Advanced cultivation stage. 'Ruh' (soul/spirit) is a loaded term — use with care",
-          "cultural_note": "El término 'Ruh' (alma/espíritu) tiene un significado teológico profundo en el Islam. Usarlo aquí es aceptable en un contexto de fantasía claramente ficticia, pero mantener la distinción con el concepto religioso real"
-        },
-        "门派": {
-          "target": "طائفة",
-          "note": "Sect — 'Ta'ifa'. A cultivation clan or school. Not 'faction' or 'school'"
-        },
-        "丹田": {
-          "target": "دانتيان / Dantian",
-          "note": "Keep untranslated. Explain once: 'the spiritual energy center within the body'"
-        },
-        "师兄": {
-          "target": "الأخ الأكبر",
-          "note": "Male senior disciple. Must use 'Al-Akh Al-Akbar', not just the name"
-        },
-        "师姐": {
-          "target": "الأخت الكبرى",
-          "note": "Female senior disciple. Must use 'Al-Ukht Al-Kubra'"
-        },
-        "社会摇": {
-          "target": "رقص الشارع الصيني",
-          "note": "Chinese street dance viral phenomenon. Explain briefly on first occurrence"
-        },
-        "师叔": {
-          "target": "العم القتالي (الأصغر من المعلم)",
-          "note": "Must use 'Al-Amm Al-Qitali', NEVER transliterate as 'Shishu'"
-        },
-        "师伯": {
-          "target": "العم القتالي (الأكبر من المعلم)",
-          "note": "Must use 'Al-Amm Al-Qitali', NEVER transliterate"
-        },
-        "师父": {
-          "target": "المعلم",
-          "note": "Must be 'Al-Mu'allim', NEVER 'Shifu' or 'teacher'"
-        },
-        "师尊": {
-          "target": "المعلم الموقر",
-          "note": "More formal than 师父 — 'Al-Mu'allim Al-Muwaqqar'"
-        },
-        "师弟": {
-          "target": "الأخ الأصغر",
-          "note": "Male junior disciple — 'Al-Akh Al-Asghar'"
-        },
-        "师妹": {
-          "target": "الأخت الصغرى",
-          "note": "Female junior disciple — 'Al-Ukht As-Sughra'"
-        },
-        "前辈": {
-          "target": "الأكبر / الفاضل الأكبر",
-          "note": "Respectful address for any cultivator of higher rank"
-        },
-        "晚辈": {
-          "target": "الأصغر / هذا الأصغر",
-          "note": "Self-deprecating humble address"
-        },
-        "道友": {
-          "target": "رفيق الداو",
-          "note": "Neutral address between cultivators of equal standing — 'Rafiq Ad-Dao'"
         }
       }
     },

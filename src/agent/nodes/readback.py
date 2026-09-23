@@ -15,6 +15,7 @@ from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import LLM_API_KEY, LLM_BASE_URL, QWEN_MODEL, QWEN_THINKING_BUDGET
 from ...stats import TranslationStats
 from ... import token_ledger
+from ..prompts.personas import build_prompt_context
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def readback_node(state: TranslatorState) -> dict:
-    """READBACK: Cold-read the English chapter as a naive American reader.
+    """READBACK: Cold-read the chapter as a naive reader in the target audience.
 
     Returns a dict with:
         - readback_feedback: cold reader's structured reaction
@@ -60,13 +61,22 @@ def readback_node(state: TranslatorState) -> dict:
         cold_context = ""
 
     prompts = get_prompt_set(state.get("content_type", "novel"))
+    # Per-genre / per-language parameters for the cold reader's identity.
+    # book_title stays neutral: the English titles for the corpus books are
+    # still pending (§五 of the round-5 handoff), and a cold reader being told
+    # a specific title gains nothing — "this book" keeps the reader blind and
+    # avoids naming a genre the chapter may not be. Wire in state's title once
+    # name_en is settled.
+    ctx = build_prompt_context(state.get("genre"), state.get("target_lang", "en-US"))
+    ctx["book_title"] = "this book"
     user_prompt = prompts.readback_user.format(
         previous_context=cold_context,
         chapter_content=translated_text,
+        reader=ctx["reader"],
     )
 
     messages = [
-        SystemMessage(content=prompts.readback_system),
+        SystemMessage(content=prompts.readback_system.format(**ctx)),
         HumanMessage(content=user_prompt),
     ]
 

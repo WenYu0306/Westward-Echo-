@@ -27,6 +27,7 @@ from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
 from ... import token_ledger
+from ..prompts.personas import build_prompt_context
 from ..prompts.registry import get_prompt_set
 from ..prompts.translation import LANGUAGE_STYLE_NOTES
 from ..state import TranslatorState
@@ -105,13 +106,20 @@ def write_node(state: TranslatorState) -> dict:
 
     memo = state.get("style_memo", "(No style memo yet — this is the first chapter.)")
     prompts = get_prompt_set(state.get("content_type", "novel"))
+    genre = state.get("genre", "romance_ceo")
+    # Per-genre / per-language parameters. The system prompt embeds JSON
+    # examples with doubled braces, so .format() renders placeholders and
+    # leaves the JSON literal. Rendered once here and reused by the empty-output
+    # retry path below so both calls see identical instructions.
+    ctx = build_prompt_context(genre, target_lang)
+    system_prompt = prompts.write_system.format(**ctx)
     user_prompt = prompts.write_user.format(
         style_memo=memo,
         reader_analysis=analysis_text,
         image_gaps=image_gaps_text,
         chapter_number=chapter_number,
         chapter_title=state["chapter_title"],
-        genre=state.get("genre", "romance_ceo"),
+        genre=genre,
         exact_matches=state.get("exact_matches_text", "(No glossary terms yet.)"),
         semantic_matches=state.get("semantic_matches_text", "(No semantic matches.)"),
         previous_summary=state.get("previous_chapter_summary", "(This is the first chapter.)"),
@@ -119,11 +127,14 @@ def write_node(state: TranslatorState) -> dict:
         rejected_terms=rejected_text,
         regional_style=regional_style if regional_style else "(Standard American English.)",
         fidelity_rules=fidelity_text,
+        output_language=ctx["output_language"],
+        reader=ctx["reader"],
+        readers=ctx["readers"],
         chapter_content=state["chapter_content"],
     )
 
     messages = [
-        SystemMessage(content=prompts.write_system),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt),
     ]
 
@@ -236,7 +247,7 @@ def write_node(state: TranslatorState) -> dict:
             )
             try:
                 retry_messages = [
-                    SystemMessage(content=prompts.write_system),
+                    SystemMessage(content=system_prompt),
                     HumanMessage(content=user_prompt
                                   + "\n\nCRITICAL: Your previous response was empty. "
                                   "Output the complete translated chapter as JSON NOW. "

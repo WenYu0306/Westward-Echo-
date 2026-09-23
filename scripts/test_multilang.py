@@ -1,4 +1,10 @@
-"""Test es-ES and ar-SA translation on 间客 chapter 1."""
+"""Test es-ES translation on 间客 chapter 1.
+
+ar-SA was dropped from the project in 5bba508 and its cultural_rules.json
+config was removed in clause 11, so this script no longer exercises it. Running
+ar-SA now would silently fall back to en-US audience wording with zero cultural
+rules — wrong output, not a crash. Add de/fr here once their rules exist.
+"""
 import sys, time
 from pathlib import Path
 
@@ -17,7 +23,7 @@ ch = translatable[2]  # Chapter 1 (after 楔子)
 
 agent = TranslationAgent()
 
-for lang, genre, display in [("es-ES", "scifi", "Spanish 🇪🇸"), ("ar-SA", "scifi", "Arabic 🇸🇦")]:
+for lang, genre, display in [("es-ES", "scifi", "Spanish 🇪🇸")]:
     print(f"\n{'='*50}")
     print(f"{display} — 第{ch.index}章「{ch.title[:30]}」({ch.word_count}字)")
     print(f"{'='*50}")

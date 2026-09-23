@@ -13,6 +13,7 @@ from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_FIX_EFFORT, GLM_FULL_MODEL
 from ...stats import TranslationStats
 from ... import token_ledger
+from ..prompts.personas import build_prompt_context
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
 
@@ -44,15 +45,21 @@ def fix_node(state: TranslatorState) -> dict:
     target_lang = state.get("target_lang", "en-US")
 
     prompts = get_prompt_set(state.get("content_type", "novel"))
+    # Per-genre / per-language parameters. FIX only needs the output language
+    # and audience wording (its brief is the cold reader's feedback, not genre
+    # conventions), but the system prompt is rendered through the same context
+    # as the other three nodes so the JSON braces stay literal.
+    ctx = build_prompt_context(state.get("genre"), target_lang)
     user_prompt = prompts.fix_user.format(
         original_cn=state["chapter_content"],
         current_en=state.get("translated_text", ""),
         reader_feedback=feedback_text,
         glossary_text=state.get("exact_matches_text", "(No glossary)"),
+        output_language=ctx["output_language"],
     )
 
     messages = [
-        SystemMessage(content=prompts.fix_system),
+        SystemMessage(content=prompts.fix_system.format(**ctx)),
         HumanMessage(content=user_prompt),
     ]
 

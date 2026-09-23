@@ -78,6 +78,18 @@ _GENRE_SIGNALS: dict[str, list[str]] = {
         "霸总", "总裁", "隐婚", "宠妻", "豪门", "白月光", "虐恋",
         "带球跑", "替身", "联姻", "契约结婚", "先婚后爱",
     ],
+    # urban was present in cultural_rules.json and is the configured genre for
+    # three of the five corpus books (run_novel.py: 无限恐怖, 全职高手番外,
+    # 愿你灿烂如阳), but it was missing from _GENRE_SIGNALS — so detect_genre
+    # could NEVER return it. Added in clause 11; a test asserts the three genre
+    # vocabularies (rules.json / _GENRE_SIGNALS / personas.GENRE_PROFILES) stay
+    # in sync. Keywords are urban-fantasy markers (兵王/赘婿/异能子类), chosen
+    # to not collide with the xianxia cultivation vocabulary or any existing
+    # detect_genre test fixture.
+    "urban": [
+        "都市", "异能", "觉醒", "隐世", "古武", "内劲", "世家", "风水",
+        "兵王", "赘婿", "特种兵", "保镖", "集团", "透视", "鉴宝", "扮猪吃虎",
+    ],
 }
 
 # Minimum total signal count across all genres to consider it a match

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Run native-speaker persona evaluations on translated chapters.
 
-Reads translated .md fixtures for es-ES and ar-SA, calls DeepSeek V4 Pro
+Reads translated .md fixtures for es-ES and en-US, calls the evaluator model
 with a persona-driven system prompt, parses the structured JSON response,
 and writes each report to tests/fixtures/eval_{lang}.json.
 
+ar-SA was dropped in 5bba508 and its cultural_rules.json config removed in
+clause 11; it is no longer evaluated here. Add de/fr once their rules exist.
+
 Usage:
-    python3 scripts/evaluate_native.py              # evaluate es-ES + ar-SA
+    python3 scripts/evaluate_native.py              # evaluate all configured languages
     python3 scripts/evaluate_native.py --lang es-ES # evaluate a single language
     python3 scripts/evaluate_native.py --lang en-US # baseline English evaluation
 """
@@ -34,10 +37,6 @@ from src.evaluator_prompts import EVALUATOR_PROFILES, EVALUATOR_SYSTEM
 FIXTURE_MAP = {
     "es-ES": {
         "path": PROJECT_ROOT / "tests" / "fixtures" / "jianke_ch1_es_ES.md",
-        "title": "间客 (Jianke / Interstellar Guest) — Chapter 1 (Donglin orphans arc)",
-    },
-    "ar-SA": {
-        "path": PROJECT_ROOT / "tests" / "fixtures" / "jianke_ch1_ar_SA.md",
         "title": "间客 (Jianke / Interstellar Guest) — Chapter 1 (Donglin orphans arc)",
     },
     "en-US": {
@@ -161,7 +160,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Native-speaker persona evaluation")
     parser.add_argument(
         "--lang",
-        choices=["es-ES", "ar-SA", "en-US", "all"],
+        choices=["es-ES", "en-US", "all"],
         default="all",
         help="Language(s) to evaluate (default: all)",
     )

@@ -26,6 +26,7 @@ from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
 from ...stats import TranslationStats
 from ... import token_ledger
+from ..prompts.personas import build_prompt_context
 from ..prompts.registry import get_prompt_set
 from ..state import TranslatorState
 
@@ -130,12 +131,17 @@ def read_node(
 
     memo = state.get("style_memo", "(No style memo yet — this is the first chapter.)")
     prompts = get_prompt_set(state.get("content_type", "novel"))
+    # Per-genre / per-language parameters for the system prompt. The system
+    # prompt embeds JSON examples with doubled braces, so .format() renders the
+    # placeholders and leaves the JSON literal.
+    ctx = build_prompt_context(genre, target_lang)
     user_prompt = prompts.read_user.format(
         style_memo=memo,
         chapter_number=state["chapter_number"],
         chapter_title=state["chapter_title"],
         genre=genre,
         target_language=target_lang,
+        audience=ctx["audience"],
         previous_summary=state.get("previous_chapter_summary", "(This is the first chapter.)"),
         exact_matches=exact_text,
         cultural_rules_table=(
@@ -147,7 +153,7 @@ def read_node(
     )
 
     messages = [
-        SystemMessage(content=prompts.read_system),
+        SystemMessage(content=prompts.read_system.format(**ctx)),
         HumanMessage(content=user_prompt),
     ]
 

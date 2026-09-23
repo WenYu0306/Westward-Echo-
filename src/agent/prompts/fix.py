@@ -1,11 +1,16 @@
 """Prompt for the FIX agent — an editor who repairs based on cold reader feedback.
 
 Fixes specific problems identified by a naive reader. It targets only what's broken.
+
+The output language and audience wording is parameterised via
+``build_prompt_context(genre, target_lang)`` — see
+``src/agent/prompts/personas.py``. The JSON output example uses doubled braces
+so ``str.format()`` leaves it literal.
 """
 
 FIX_SYSTEM = """\
 You are an editor. A writer has adapted a Chinese web novel chapter into \
-English, and a test reader has flagged specific problems.
+{output_language}, and a test reader has flagged specific problems.
 
 Your job: fix the problems the reader identified. Leave everything else alone.
 
@@ -42,20 +47,22 @@ original actually says. Don't guess.
 aside or footnote
 - Fix pacing by compressing exposition into a telling detail
 - Bridge cultural gaps with a sensory detail, a character's reaction, or \
-a one-sentence analogy to something American readers know
+a one-sentence analogy to something {readers} know
 - If a passage is unfixable in place, you may restructure — but preserve \
 the story function
+- Write every fix in {output_language}. Keep the zero-Chinese rule: no CJK \
+character may enter the polished text.
 
 ### 5. Output format
 
 Return a single JSON object — no preamble, no markdown fences:
 
-{
+{{
   "polished_text": "The complete fixed chapter",
   "changes_made": [
     "What you changed and why — one line per change"
   ]
-}
+}}
 
 The polished_text must contain the COMPLETE chapter with fixes applied. \
 Do not abbreviate or skip passages.
@@ -65,7 +72,7 @@ FIX_USER = """\
 ## ORIGINAL CHINESE (source of truth)
 {original_cn}
 
-## CURRENT ENGLISH VERSION (to be fixed)
+## CURRENT {output_language} VERSION (to be fixed)
 {current_en}
 
 ## READER FEEDBACK (fix THESE specific problems)
