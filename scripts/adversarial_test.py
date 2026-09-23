@@ -7,18 +7,19 @@ it tries to break the system at known vulnerability points surfaced during the
 8-issue analysis.
 
 Tests:
-  1. Cross-evaluator consistency  (2 Spanish personas, score delta <= 1.5)
-  2. Progressive chapter length stress test (500..5000 chars, find failure threshold)
-  3. Editor API integrity (CRUD endpoints return valid JSON, no 500s)
-  4. Sensitive term boundary scan (edge cases for sensitive_terms module)
+  1. Cross-evaluator consistency  (2 Spanish personas, score delta <= 1.5)   [billable]
+  2. Progressive chapter length stress test (500..5000 chars)                 [billable]
+  3. Editor API integrity (CRUD endpoints return valid JSON, no 500s)         [local]
+  4. Sensitive term boundary scan (edge cases for sensitive_terms module)     [local]
 
 Usage:
     cd "/Users/wenyudemac/Documents/dev/Westward Echo（西渡）"
-    python3 scripts/adversarial_test.py
+    python3 scripts/adversarial_test.py              # Tests 3 & 4 only (zero cost)
+    python3 scripts/adversarial_test.py --allow-api  # also run billable Tests 1 & 2
 
 Requirements:
-    Tests 1 & 2 need DEEPSEEK_API_KEY (loaded from .env).  Tests 3 & 4 are local.
-    If no API key, Tests 1 & 2 are skipped gracefully.
+    Tests 1 & 2 call the GLM flash tier and cost real money, so they require
+    --allow-api explicitly.  Tests 3 & 4 are local and always run.
 """
 
 from __future__ import annotations
@@ -39,6 +40,44 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from dotenv import load_dotenv
 load_dotenv(PROJECT_ROOT / ".env")
 
+
+# ---------------------------------------------------------------------------
+# Trial-phase cost gate
+# ---------------------------------------------------------------------------
+# Mirrors scripts/cost/probe_nodes.py::_guard_tier. The billable tests here only
+# need "can two evaluators agree" / "where does output collapse", which flash
+# answers just as well as the deep tiers: qwen3.8-max outputs at ¥36/M versus
+# qwen3.8-flash at ¥2.7/M, and glm-5.3 at ¥28/M versus glm-5.3-flash at
+# ¥2.8/M — 10-13x. Refuse any expensive tier unless asked.
+#
+# All three tiers are checked, not just GLM: the cross-evaluator test is a
+# judgement task and runs on the READBACK tier (MODEL_MAP["readback"] ==
+# QWEN_MODEL), whose default is qwen3.8-max. A gate that only looked at GLM
+# would let the single most expensive call in this script through.
+def _guard_tier(allow_expensive: bool) -> None:
+    from src.config import GLM_FULL_MODEL, GLM_MODEL, QWEN_MODEL
+    if allow_expensive or os.getenv("XIDU_ALLOW_EXPENSIVE") == "1":
+        return
+    tiers = (("QWEN_MODEL", QWEN_MODEL),
+             ("GLM_MODEL", GLM_MODEL),
+             ("GLM_FULL_MODEL", GLM_FULL_MODEL))
+    expensive = [f"{name}={value}" for name, value in tiers
+                 if "max" in value or "prime" in value]
+    if not expensive:
+        return
+    print(f"""
+⛔ 拒绝运行：{', '.join(expensive)} 是高价档，而对抗测试只需要
+   "两个评估器是否一致" / "输出在哪里塌掉"，flash 档同样能回答（约 1/10 的钱）。
+
+   试验阶段请用 flash 档：
+       QWEN_MODEL=qwen3.8-flash GLM_MODEL=glm-5.3-flash GLM_FULL_MODEL=glm-5.3-flash \\
+           python3 scripts/adversarial_test.py --allow-api
+
+   确实要用高价档，明说：
+       python3 scripts/adversarial_test.py --allow-api --allow-expensive
+""", flush=True)
+    sys.exit(2)
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
@@ -48,9 +87,22 @@ def main() -> None:
         description="Adversarial testing harness for Westward Echo"
     )
     parser.add_argument(
+        "--allow-api",
+        action="store_true",
+        help="Run the billable Tests 1 & 2 (real LLM calls). Without this flag "
+             "only the local Tests 3 & 4 run, at zero cost.",
+    )
+    parser.add_argument(
         "--skip-api",
         action="store_true",
-        help="Skip tests that require a DeepSeek API key (Tests 1 & 2).",
+        help="DEPRECATED no-op: skipping the API tests is now the default. "
+             "Use --allow-api to opt in to billable Tests 1 & 2.",
+    )
+    parser.add_argument(
+        "--allow-expensive",
+        action="store_true",
+        help="Permit the billable tests to run on a non-flash (expensive) tier. "
+             "Trial-phase policy is flash-only; see _guard_tier().",
     )
     parser.add_argument(
         "--serve",
@@ -64,6 +116,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.skip_api and not args.allow_api:
+        print("note: --skip-api is now the default and does nothing; "
+              "pass --allow-api to run billable Tests 1 & 2.")
+
     project_path = PROJECT_ROOT
     fixtures_dir = project_path / "tests" / "fixtures"
     fixtures_dir.mkdir(parents=True, exist_ok=True)
@@ -72,10 +128,17 @@ def main() -> None:
     results: list[dict] = []
 
     # ------------------------------------------------------------------
-    # Check for API key availability
+    # Billable tests are opt-in. Previously this read DEEPSEEK_API_KEY and ran
+    # Tests 1 & 2 whenever a key happened to be present, which spent real money
+    # on a bare `python3 scripts/adversarial_test.py`. .env still carries a
+    # non-empty DEEPSEEK_API_KEY, so that default was live, not theoretical.
     # ------------------------------------------------------------------
-    api_key = os.getenv("DEEPSEEK_API_KEY", "")
-    has_api = bool(api_key) and not args.skip_api
+    has_api = bool(args.allow_api)
+    if has_api:
+        _guard_tier(args.allow_expensive)
+    api_missing = "" if has_api else (
+        "Test requires --allow-api (billable). Not run."
+    )
 
     # ==================================================================
     # TEST 1: Cross-evaluator consistency
@@ -87,7 +150,7 @@ def main() -> None:
             "name": "Cross-evaluator consistency (Maria vs Carlos)",
             "passed": True,
             "skipped": True,
-            "detail": "No DEEPSEEK_API_KEY or --skip-api flag set.",
+            "detail": api_missing,
         })
 
     # ==================================================================
@@ -100,7 +163,7 @@ def main() -> None:
             "name": "Progressive stress test (10 chapters)",
             "passed": True,
             "skipped": True,
-            "detail": "No DEEPSEEK_API_KEY or --skip-api flag set.",
+            "detail": api_missing,
         })
 
     # ==================================================================
@@ -234,15 +297,23 @@ def _test_cross_evaluator(fixtures_dir: Path) -> dict:
 
 
 def _run_evaluator(system_prompt: str, user_prompt: str, name: str) -> Optional[dict]:
-    """Call DeepSeek V4 Pro with an evaluator persona, return parsed JSON."""
+    """Score a translation with an evaluator persona, return parsed JSON.
+
+    Scoring is a judgement task, so it runs on the READBACK tier — the same
+    split the pipeline uses (MODEL_MAP["readback"]), on the Qwen provider.
+    It used to call MODEL_MAP["quality_score"] on the DeepSeek stack; that key
+    and those config constants were both removed in c121f0b when the pipeline
+    moved to the GLM/Qwen three-model split, so this raised KeyError/ImportError
+    on any run that reached it.
+    """
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
-    from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+    from src.config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
 
     llm = ChatOpenAI(
-        model=MODEL_MAP["quality_score"],
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
+        model=MODEL_MAP["readback"],
+        api_key=LLM_API_KEY,
+        base_url=LLM_BASE_URL,
         temperature=0.0,
         max_tokens=4096,
     )
@@ -271,14 +342,15 @@ def _run_evaluator(system_prompt: str, user_prompt: str, name: str) -> Optional[
 # =========================================================================
 
 def _test_chapter_stress(project_path: Path, fixtures_dir: Path) -> dict:
-    """Translate 10 progressively longer chapters to find the empty-output threshold."""
-    from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
-    from langchain_openai import ChatOpenAI
-    from langchain_core.messages import SystemMessage, HumanMessage
+    """Translate 10 progressively longer chapters to find the empty-output threshold.
 
+    The LLM calls happen inside _generate_stress_chapters (chapter synthesis)
+    and agent.translate_chapter (the pipeline under test); this function itself
+    needs no model config, so the imports it used to carry were dead.
+    """
     name = "Progressive stress test (10 chapters)"
 
-    # Generate 10 short test chapters in Chinese via DeepSeek Flash
+    # Generate 10 short test chapters in Chinese via the WRITE tier
     lengths = range(500, 5500, 500)  # 500, 1000, ..., 5000
     chapters_txt_path = fixtures_dir / "adversarial_stress_chapters.txt"
 
@@ -395,15 +467,22 @@ def _test_chapter_stress(project_path: Path, fixtures_dir: Path) -> dict:
 
 
 def _generate_stress_chapters(lengths: range) -> list[str]:
-    """Use DeepSeek Flash to generate 10 short Chinese chapters of varying lengths."""
-    from src.config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL_MAP
+    """Generate 10 short Chinese chapters of varying lengths, via the WRITE tier.
+
+    Synthesising chapter prose is a text-output task, so it uses MODEL_MAP["write"]
+    (GLM flash) on the GLM provider — the same tier split the pipeline uses, and
+    the cheapest one that does the job, per the trial-phase flash-only policy.
+    It used to call MODEL_MAP["translate"] on the DeepSeek stack; that key and
+    those config constants were removed in c121f0b.
+    """
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
+    from src.config import GLM_API_KEY, GLM_BASE_URL, MODEL_MAP
 
     llm = ChatOpenAI(
-        model=MODEL_MAP["translate"],
-        api_key=DEEPSEEK_API_KEY,
-        base_url=DEEPSEEK_BASE_URL,
+        model=MODEL_MAP["write"],
+        api_key=GLM_API_KEY,
+        base_url=GLM_BASE_URL,
         temperature=0.7,
         max_tokens=4096,
     )
@@ -613,12 +692,17 @@ def _test_editor_api_direct(project_path: Path) -> dict:
 # =========================================================================
 
 def _test_sensitive_terms() -> dict:
-    """Feed the sensitive_terms module edge-case texts and verify detection."""
-    from src.sensitive_terms import (
-        SENSITIVE_TERMS,
-        build_sensitive_term_context,
-        scan_arabic_blasphemy,
-    )
+    """Feed the sensitive_terms module edge-case texts and verify detection.
+
+    Only build_sensitive_term_context is imported. This used to also import
+    scan_arabic_blasphemy and SENSITIVE_TERMS: the former was removed from
+    src/sensitive_terms.py in 5bba508 ("drop ar-SA"), which did not touch this
+    script, so the import raised ImportError on every run — including
+    --skip-api, because Test 4 is called unconditionally. That made the whole
+    harness unusable while the docs still listed it as a gated, working script.
+    SENSITIVE_TERMS was imported but never used.
+    """
+    from src.sensitive_terms import build_sensitive_term_context
 
     name = "Sensitive term boundary scan"
     tests: list[tuple[str, bool, str]] = []
@@ -687,14 +771,10 @@ def _test_sensitive_terms() -> dict:
             f"crashed: {e}",
         ))
 
-    # Case 6: Arabic blasphemy scan on clean text
-    clean_ar = "هذه ترجمة نظيفة لا تحتوي على أي إساءة دينية"
-    violations = scan_arabic_blasphemy(clean_ar)
-    tests.append((
-        "Arabic clean text -> no blasphemy match",
-        len(violations) == 0,
-        f"{len(violations)} violations",
-    ))
+    # Case 6 (removed): Arabic blasphemy scan. ar-SA support was dropped from
+    # the project in 5bba508 — scan_arabic_blasphemy no longer exists — so this
+    # case tested a capability that is gone. It was the last case, so nothing
+    # below it needed renumbering.
 
     passed_count = sum(1 for _, ok, _ in tests if ok)
     total = len(tests)
