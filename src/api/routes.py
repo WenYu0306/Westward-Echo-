@@ -18,9 +18,11 @@ from ..backpressure import backpressure
 from ..chapter_splitter import ParagraphTag, split_chapters
 from ..config import (
     CHECKPOINT_DB_PATH,
+    DEFAULT_TARGET_LANG,
     MAX_UPLOAD_SIZE_BYTES,
     MAX_UPLOAD_SIZE_MB,
     OUTPUT_DIR,
+    SUPPORTED_LANGUAGES,
     VERSION,
 )
 from ..job_store import job_store
@@ -40,7 +42,13 @@ app = FastAPI(title="Westward Echo API", version=VERSION)
 
 # ── Security ───────────────────────────────────────────────────
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
-_KNOWN_LANGS = frozenset({"en-US", "es-ES", "de", "fr", "en"})
+
+# NOTE: a `_KNOWN_LANGS` frozenset used to sit here alongside `_KNOWN_GENRES`,
+# documented as the API's language whitelist. Nothing ever read it — uploads go
+# through with any `target_lang` string and unknown ones fall back to en-US in
+# personas._lang_profile. Removed rather than wired up: an unenforced whitelist
+# reads as a guarantee that does not exist, and the authoritative list is
+# config.SUPPORTED_LANGUAGES (imported above, used by the output-file lookups).
 _KNOWN_GENRES = frozenset({"romance_ceo", "xianxia", "urban", "scifi", "folk_religion"})
 
 
@@ -697,7 +705,7 @@ def get_glossary(job_id: str):
 def get_translation(job_id: str):
     """Download the translated novel markdown."""
     job_id = _safe_job_id(job_id)
-    for lang in ["en-US", "es-ES", "de", "fr", "en"]:
+    for lang in SUPPORTED_LANGUAGES:
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
             return {"text": path.read_text(encoding="utf-8"), "target_lang": lang}
@@ -762,8 +770,8 @@ def download_epub(job_id: str):
 
     # ── Locate the translated Markdown file ──
     md_path = None
-    target_lang = "en-US"
-    for lang in ["en-US", "es-ES", "de", "fr", "en"]:
+    target_lang = DEFAULT_TARGET_LANG
+    for lang in SUPPORTED_LANGUAGES:
         candidate = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if candidate.exists():
             md_path = candidate

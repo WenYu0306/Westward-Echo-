@@ -140,8 +140,8 @@ def detect_genre(text: str) -> tuple[str, int]:
 
 
 def load_rules(target_lang: str = "en-US", genre: str = "romance_ceo",
-               path: Optional[str] = None) -> dict:
-    """Load cultural adaptation rules for a specific language and genre.
+               path: Optional[str] = None, book_id: str = "") -> dict:
+    """Load cultural adaptation rules for a specific language, genre and book.
 
     Parameters
     ----------
@@ -152,12 +152,33 @@ def load_rules(target_lang: str = "en-US", genre: str = "romance_ceo",
     path : str or None
         Override the JSON file path.  Defaults to ``$CULTURAL_RULES_PATH``
         or ``<project_root>/cultural_rules.json``.
+    book_id : str
+        Optional per-book key.  When given and ``books.<book_id>.<lang>``
+        exists, those terms are overlaid last and win over genre terms.
+        Omitting it reproduces the previous two-layer behaviour exactly.
 
     Returns
     -------
     dict
         Merged mapping of ``{source_term: {target: str, note: str}}``.
-        Common rules come first; genre-specific rules override matching keys.
+        Precedence: common < genre-specific < book-specific.
+
+    Why the book layer exists
+    -------------------------
+    ``genres.urban`` once held 150 terms that were machine-extracted from a
+    single book (无限恐怖, an infinite-flow survival story), including
+    established Western IP names it crosses over into (生化危机 → Biohazard,
+    异形 → Xenomorph, Licker, Red Queen, Desert Eagle). Three corpus books are
+    configured ``urban`` — the other two are an esports story and a romance —
+    so both were being briefed with Resident Evil terminology, and any
+    translation added to that slot would have propagated the mismatch into
+    three languages at once. Those terms now live under
+    ``books.limitless_horror`` and reach only the book they came from.
+
+    The ``urban`` genre key is deliberately kept (now empty rather than
+    removed): ``list_known_genres``/``is_known_genre`` enumerate ``genres``,
+    so deleting the key would report urban as an unknown genre and break the
+    three-way genre sync invariant.
     """
     data = _load_raw_data(path)
 
@@ -170,7 +191,37 @@ def load_rules(target_lang: str = "en-US", genre: str = "romance_ceo",
     genre_rules = data.get("genres", {}).get(genre, {}).get(target_lang, {})
     merged.update(genre_rules)
 
+    # Overlay book-specific last: a single book's own proper nouns outrank
+    # genre-wide guidance.
+    if book_id:
+        book_rules = data.get("books", {}).get(book_id, {}).get(target_lang, {})
+        merged.update(book_rules)
+
     return merged
+
+
+# Rendered in place of a translation for source terms that are load-bearing but
+# have no vetted rendering in the target language (de/fr: see cultural_rules.json).
+# Deliberately NOT a guess at the term — the point of these entries is to flag
+# "this needs care", never to supply an unvetted translation the model would
+# then lock into the glossary. English on purpose: it is an instruction to the
+# model, not text that reaches the reader.
+_NO_TARGET = "(no fixed term — adapt, do not translate literally)"
+
+
+def _rule_parts(entry) -> tuple[str, str]:
+    """Normalise one rule entry to ``(target, note)`` strings.
+
+    Tolerates the two shapes ``load_rules`` can yield: a ``{"target", "note"}``
+    dict, or a bare string value (target only).  A dict missing ``target`` —
+    the de/fr source-term-list case — returns an empty target.
+    """
+    if isinstance(entry, dict):
+        target = entry.get("target", "")
+        note = entry.get("note", "")
+        return (target if isinstance(target, str) else "",
+                note if isinstance(note, str) else "")
+    return (entry if isinstance(entry, str) else "", "")
 
 
 def format_rules_for_prompt(rules: dict) -> str:
@@ -187,23 +238,38 @@ def format_rules_for_prompt(rules: dict) -> str:
         A Markdown table string suitable for splicing into a system or user
         prompt.  The table has columns: 中文 | Adapted | Note.
         Returns an empty string when *rules* is empty.
+
+    Entries may legitimately carry an empty ``target`` — see ``_NO_TARGET``.
+    When any entry does, the header drops its "(USE THIS)" instruction, since
+    prescribing a translation that does not exist would be a lie to the model.
+    Input where every entry has a translation renders byte-identically to the
+    pre-de/fr version of this function.
     """
     if not rules:
         return ""
 
-    lines = ["| 中文 | Adapted (USE THIS) | Note |",
-             "|------|--------------------|------|"]
+    parts = {term: _rule_parts(entry) for term, entry in rules.items()}
+    prescriptive = all(target for target, _ in parts.values())
 
-    for cn_term, entry in rules.items():
-        target = entry.get("target", entry) if isinstance(entry, dict) else entry
-        note = entry.get("note", "") if isinstance(entry, dict) else ""
-        lines.append(f"| {cn_term} | {target} | {note} |")
+    if prescriptive:
+        lines = ["| 中文 | Adapted (USE THIS) | Note |",
+                 "|------|--------------------|------|"]
+    else:
+        lines = ["| 中文 | Adapted | Note |",
+                 "|------|---------|------|"]
+
+    for cn_term, (target, note) in parts.items():
+        lines.append(f"| {cn_term} | {target or _NO_TARGET} | {note} |")
 
     return "\n".join(lines)
 
 
 def format_rules_as_bullets(rules: dict) -> str:
     """Format cultural rules as bullet points for term extraction prompts.
+
+    This is the renderer the READ node actually injects (see
+    ``agent/nodes/read.py``), so it must handle empty targets too — otherwise
+    the de/fr source-term lists would reach the model as bare arrows.
 
     Parameters
     ----------
@@ -213,20 +279,21 @@ def format_rules_as_bullets(rules: dict) -> str:
     Returns
     -------
     str
-        Bulleted lines, one per rule, e.g. ``- 霸总 > "Alpha CEO" (note)``.
-        Returns an empty string when *rules* is empty.
+        Bulleted lines, one per rule, e.g. ``- 霸总 → "Alpha CEO" (note)``.
+        Returns an empty string when *rules* is empty.  Input where every
+        entry has a translation renders byte-identically to before.
     """
     if not rules:
         return ""
 
     bullets = []
     for cn_term, entry in rules.items():
-        target = entry.get("target", entry) if isinstance(entry, dict) else entry
-        note = entry.get("note", "") if isinstance(entry, dict) else ""
+        target, note = _rule_parts(entry)
+        body = f'- {cn_term} → "{target}"' if target else f"- {cn_term} → {_NO_TARGET}"
         if note:
-            bullets.append(f'- {cn_term} → "{target}" ({note})')
+            bullets.append(f"{body} ({note})")
         else:
-            bullets.append(f'- {cn_term} → "{target}"')
+            bullets.append(body)
     return "\n".join(bullets)
 
 

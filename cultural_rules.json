@@ -139,6 +139,146 @@
         "target": "explotación 996 (trabajar de 9 a 9, 6 días por semana)",
         "note": "Mantener el número 996 y añadir explicación entre paréntesis la primera vez"
       }
+    },
+    "fr": {
+      "穿越": {
+        "target": "transmigration / l'âme traversée",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Terme de genre, pas encore fixé en français. À expliciter à la première occurrence ('la transmigration — l'âme se réveille dans un autre monde'), puis à raccourcir. Ne pas confondre avec le voyage temporel (时间旅行)."
+      },
+      "穿书": {
+        "target": "transporté dans un roman",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Sous-genre de la transmigration : le personnage se retrouve dans le monde d'un livre qu'il a lu. Écrire la périphrase en entier à la première occurrence."
+      },
+      "系统": {
+        "target": "le Système",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Avec majuscule et traité comme un nom propre — convention LitRPG établie. Il s'agit de l'interface de jeu dans l'esprit du personnage, pas d'un « système » au sens général."
+      },
+      "打脸": {
+        "target": "humilier publiquement / la claque morale",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Convention fixe du webroman : un vantard est démenti en public et de façon cinglante. NE PAS traduire littéralement par « frapper au visage » — l'enjeu est l'humiliation publique, pas le coup. Le français a déjà « retour de bâton » pour la sanction, mais il faut garder la dimension publique."
+      },
+      "装逼": {
+        "target": "frimer / se la péter",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Argot chinois d'internet ; choisir un équivalent français nettement familier, pas soutenu."
+      },
+      "龙傲天": {
+        "target": "le héros tout-puissant / l'Élu",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Archétype du protagoniste de web-fiction : invincible, admiré de tous. Légerement ironique en français si le texte d'origine se moque."
+      },
+      "白莲花": {
+        "target": "la fausse ingénue / l'agnelle hypocrite",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Péjoratif pour une personne qui ne joue l'innocence et la bonté. Le « lotus blanc » littéral ne porte pas ce sens en français — le mépris doit apparaître dans le texte."
+      },
+      "玛丽苏": {
+        "target": "Mary Sue",
+        "note": "Emprunt déjà courant en français et à conserver tel quel — même constat qu'en anglais et qu'en espagnol."
+      },
+      "吃瓜群众": {
+        "target": "les curieux / le public à pop-corn",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Idiomatique : les badauds qui savourent le spectacle. Le « masse mangeuse de melon d'eau » littéral ne veut rien dire en français ; c'est la posture (regarder en s'amusant) qu'il faut rendre."
+      },
+      "牛逼": {
+        "target": "dingue / génial / légendaire",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Chinois familier — l'intensité doit correspondre. Selon le registre du personnage, de « dingue » (cru) à « légendaire » (admiratif)."
+      },
+      "卧槽": {
+        "target": "Putain / Merde / Bordel",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Juron chinois — calibrer la force selon le contexte. Ne jamais atténuer (voir les règles de vulgarité de LANGUAGE_STYLE_NOTES pour le français : « 卧槽 » doit être aussi cru en français que dans l'original)."
+      },
+      "金手指": {
+        "target": "le cheat / l'avantage injuste",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Terme LitRPG / monde de jeu établi pour la capacité spéciale qui rend le protagoniste disproportionnément puissant. « Cheat » est compris des lecteurs français de jeux vidéo et porte le sens le plus sûrement."
+      },
+      "备胎": {
+        "target": "le plan B / la roue de secours",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Littéralement « pneu de rechange » ; il s'agit du doublure sentimentale — quelqu'un qu'on garde sous le coude. La métaphore du pneu fonctionne partiellement en français (« roue de secours »), donc exploitable."
+      },
+      "社畜": {
+        "target": "l'esclave salarial / le forçat du bureau",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'épuisement et la déshumanisation du travail extrême doivent transparaître, pas seulement « employé ». « Esclave salarial » porte cette dureté en français."
+      },
+      "带球跑": {
+        "target": "disparaître enceinte",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Idiomatique : le personnage s'éclipse pendant sa grossesse et réapparaît des années plus tard avec l'enfant. Pas d'équivalent français — nommer brièvement l'action."
+      },
+      "暖男": {
+        "target": "l'homme attentionné / le type tendre",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Archétype masculin chaleureux et prévenant. Pas « gentil garçon » (trop pâle) — c'est la sollicitude active qui compte."
+      },
+      "996": {
+        "target": "le 996 (culture chinoise du 9-6-6)",
+        "note": "Garder le chiffre et le situer dès la première occurrence comme culture de travail brutale (9 h à 21 h, six jours sur sept) — incompréhensible sans cela en français comme en anglais."
+      }
+    },
+    "de": {
+      "穿越": {
+        "target": "Transmigration / Seelenwanderung in eine andere Welt",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Im Deutschen nicht etabliert. Bei Ersterwähnung erläutern ('Transmigration — die Seele erwacht in einer anderen Welt'), danach kurz halten. Nicht 'Zeitreise' (das ist 时间旅行)."
+      },
+      "穿书": {
+        "target": "in einen Roman hineinversetzt",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Unterart von 穿越: die Figur landet in der Welt eines Buches, das sie gelesen hat. Die Wendung beim ersten Auftreten ausschreiben."
+      },
+      "系统": {
+        "target": "das System",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Großgeschrieben und wie ein Eigenname behandelt — etablierte LitRPG-Konvention. Gemeint ist die Spieloberfläche im Kopf der Figur, nicht 'ein System' im Allgemeinen."
+      },
+      "打脸": {
+        "target": "jemanden bloßstellen / eine schallende Demütigung",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Feste Webnovel-Konvention: ein Prahler wird öffentlich und vernichtend widerlegt. NICHT wörtlich 'ins Gesicht schlagen' — die Pointe ist die öffentliche Demütigung, nicht der Schlag."
+      },
+      "装逼": {
+        "target": "angeben / sich aufplustern",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Umgangssprachliches chinesisches Internet-Slangwort; das deutsche Pendant ebenfalls klar umgangssprachlich wählen, nicht gehoben."
+      },
+      "龙傲天": {
+        "target": "der übermächtige Held / der Auserwählte",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Typisierter Web-Fiction-Protagonist: unbesiegbar, von allen bewundert. Im Deutschen leicht ironisch färbbar, wenn der Originaltext spottet."
+      },
+      "白莲花": {
+        "target": "die scheinheilige Unschuld / heuchlerisches Unschuldslamm",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Abwertend für eine Person, die Unschuld und Güte nur vorspielt. Die wörtliche 'weiße Lotusblume' trägt diese Bedeutung im Deutschen nicht — die Abwertung muss im Text stehen."
+      },
+      "玛丽苏": {
+        "target": "Mary Sue",
+        "note": "Im Deutschen als Lehnwort geläufig und unverändert zu übernehmen — derselbe Befund wie im Englischen."
+      },
+      "吃瓜群众": {
+        "target": "die schaulustige Menge / das Popcorn-Publikum",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Idiomatisch: Zaungäste, die das Drama genießen. Wörtlich 'Melonen essende Masse' ergibt im Deutschen nichts; die Haltung (amüsiertes Zuschauen) muss rüberkommen."
+      },
+      "牛逼": {
+        "target": "krass / der Hammer / legendär",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Umgangssprachliches Chinesisch — die Intensität muss stimmen. Je nach Register der Figur 'krass' (derb) bis 'legendär' (bewundernd)."
+      },
+      "卧槽": {
+        "target": "Scheiße / Verdammt / Was zur Hölle",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Chinesischer Fluch — die Stärke dem Kontext anpassen. Niemals entschärfen (siehe die Profanitätsregeln in LANGUAGE_STYLE_NOTES für Deutsch: '卧槽' muss im Deutschen genauso derb sein wie im Original)."
+      },
+      "金手指": {
+        "target": "der Cheat / der goldene Finger",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Etablierter LitRPG-/Spielwelt-Begriff für die Sonderfähigkeit, die den Protagonisten unverhältnismäßig stark macht. 'Cheat' ist im Deutschen gamer-geläufig und trägt die Bedeutung am zuverlässigsten."
+      },
+      "备胎": {
+        "target": "der Ersatzkandidat / das Trostpflaster",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Wörtlich 'Ersatzreifen'; gemeint ist die romantische Rückstellung — jemand, den man sich warmhält. Die Reifen-Metapher funktioniert im Deutschen nicht, also die Bedeutung übersetzen."
+      },
+      "社畜": {
+        "target": "der Arbeitsdrohne / das Lohnsklave-Dasein",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die Erschöpfung und Entmenschlichung extremer Arbeit muss mitschwingen, nicht nur 'Angestellter'. Im Deutschen trägt 'Lohnsklave' diese Schärfe."
+      },
+      "带球跑": {
+        "target": "schwanger untertauchen",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Idiomatisch: die Figur verschwindet, während sie schwanger ist, und taucht Jahre später mit dem Kind wieder auf. Kein deutsches Pendant — die Handlung knapp benennen."
+      },
+      "暖男": {
+        "target": "der einfühlsame Mann / der Fürsorgetyp",
+        "note": "⚠️ FIRST-ESTABLISHED — pending native review. Warmherziger, kümmernder männlicher Archetyp. Nicht 'netter Kerl' (zu blass) — die aktive Fürsorge ist der Punkt."
+      },
+      "996": {
+        "target": "996 (Chinas 9-6-6-Arbeitskultur)",
+        "note": "Die Zahl behalten und beim ersten Auftreten als brutale Arbeitskultur einordnen (9 bis 21 Uhr, sechs Tage die Woche) — im Deutschen wie im Englischen ohne Erklärung unverständlich."
+      }
     }
   },
   "genres": {
@@ -169,6 +309,34 @@
         "父凭子贵": {
           "target": "padre por obra y gracia del hijo",
           "note": "Inversión del tropo 'madre por el hijo': un hombre obtiene estatus y valor gracias a su paternidad"
+        }
+      },
+      "fr": {
+        "霸总": {
+          "target": "le PDG alpha / le patron dominateur",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Correspond à l'archétype du mâle alpha du roman sentimental. « PDG » est d'usage courant en français ; la domination doit figurer dans l'épithète."
+        },
+        "八零年代": {
+          "target": "les années 80 à la campagne / la province des années 80",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Rendre l'atmosphère socio-économique, pas seulement la décennie. Dans l'original il s'agit de la Chine rurale de l'ère des réformes — à situer brièvement pour un lecteur francophone."
+        },
+        "父凭子贵": {
+          "target": "le père par la grâce du fils",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Un homme gagne statut et valeur grâce à son enfant — l'inverse du trope courant de la « mère par le fils ». L'inversion est la pointe du terme et doit rester visible."
+        }
+      },
+      "de": {
+        "霸总": {
+          "target": "der Alpha-CEO / der dominante Konzernchef",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Entspricht dem Alpha-Männchen-Archetyp des Liebesromans. Im deutschen Liebesroman ist 'CEO' geläufig; die Dominanz muss im Attribut stehen."
+        },
+        "八零年代": {
+          "target": "die ländlichen Achtziger / die Achtziger in der Provinz",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die sozioökonomische Stimmung transportieren, nicht nur die Dekade. Im Original meint es Chinas ländliche Reform-Ära — für deutsche Leser kurz verorten."
+        },
+        "父凭子贵": {
+          "target": "der Vater durch die Gnade des Sohnes",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Ein Mann gewinnt Ansehen und Wert durch sein Kind — die Umkehrung des geläufigen 'Mutter durch den Sohn'. Die Umkehrung ist die Pointe und muss erkennbar bleiben."
         }
       }
     },
@@ -336,9 +504,964 @@
           "target": "Compañero Daoísta",
           "note": "Tratamiento neutral entre cultivadores de igual rango"
         }
+      },
+      "fr": {
+        "修真": {
+          "target": "la cultivation / la culture de l'immortalité",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le fandom francophone emploie l'emprunt « cultivation » (calqué sur l'anglais) ; mais en français courant « culture » renvoie d'abord à l'agriculture ou à la culture générale. À expliciter à la première occurrence (« la cultivation — la voie qui mène à l'immortalité par l'exercice de l'esprit et du corps »), puis conserver « cultivation » de façon cohérente."
+        },
+        "修仙": {
+          "target": "la quête d'immortalité",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Variante de 修真 centrée explicitement sur l'immortalité. En français la périphrase est souvent plus claire que l'emprunt technique."
+        },
+        "飞升": {
+          "target": "l'Ascension",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Avec majuscule — jalon majeur de la voie de cultivation. « Ascension » se comprend en fantasy française ; éviter « montée » seul (trop ordinaire)."
+        },
+        "渡劫": {
+          "target": "la Tribulation céleste",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Événement clé du monde de cultivation : une épreuve divine à surmonter pour passer au niveau supérieur. Le français de fantasy comprend « tribulation » dans ce sens ; garder l'épithète « céleste »."
+        },
+        "金丹": {
+          "target": "le Noyau d'or",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Étape de cultivation. Conserver la saveur de la fantasy chinoise ; « pilule d'or » brouille le sens d'étape de progression."
+        },
+        "元婴": {
+          "target": "l'Âme naissante",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Étape de cultivation : le Noyau d'or engendre un enfant spirituel capable de quitter le corps. « Âme naissante » rend le sens mieux qu'un emprunt opaque."
+        },
+        "门派": {
+          "target": "la secte / l'école martiale",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. « Secte » est l'usage courant en français pour les écoles chinoises de cultivation, mais il porte une connotation négative moderne ; « école » ou « ordre » conviennent si le contexte est bienveillant. Ne pas employer « faction » (trop politique)."
+        },
+        "丹田": {
+          "target": "le dantian / le champ de l'élixir",
+          "note": "Ancré en français : l'entrée Dantian existe sur fr.wikipedia et le milieu du qigong dit « champ de l'élixir » ou « champ de cinabre ». Conserver « dantian » non traduit et l'expliciter une fois (« le dantian, centre d'énergie sous le nombril ») — même stratégie qu'en anglais."
+        },
+        "师兄": {
+          "target": "le Frère aîné",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Disciple masculin de rang supérieur. Maintenir l'appellation de rang plutôt que la remplacer par le prénom — elle porte la hiérarchie de la secte."
+        },
+        "师姐": {
+          "target": "la Sœur aînée",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Disciple féminine de rang supérieur."
+        },
+        "社会摇": {
+          "target": "la danse de rue / le déhanché des cités",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Phénomène chinois d'internet familier (danse saccadée sur de la techno). Pas d'équivalent français ; nommer brièvement l'action plutôt que translittérer."
+        },
+        "师叔": {
+          "target": "l'Oncle martial (cadet du maître)",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Frère d'apprentissage du propre maître, plus jeune que lui. Jamais « oncle-maître », jamais laisser le pinyin « Shishu » — la logique de parenté monastique doit rester lisible."
+        },
+        "师伯": {
+          "target": "l'Oncle martial (aîné du maître)",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Frère d'apprentissage du propre maître, plus âgé que lui. Jamais « oncle-maître ». Ne se distingue de 师叔 que par l'âge : c'est une différence de rang, pas de politesse."
+        },
+        "师父": {
+          "target": "le Maître",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Toujours « Maître », jamais le pinyin « Shifu », jamais « professeur » — « professeur » efface la relation de type père-fils de la formation monastique."
+        },
+        "师尊": {
+          "target": "le Vénéré Maître",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Plus formel que 师父 ; la déférence supplémentaire doit se voir dans l'épithète."
+        },
+        "师弟": {
+          "target": "le Frère cadet",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Disciple masculin de rang inférieur."
+        },
+        "师妹": {
+          "target": "la Sœur cadette",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Disciple féminine de rang inférieur."
+        },
+        "前辈": {
+          "target": "l'Aîné / le Vénérable",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Adresse respectueuse pour tout cultivateur de rang supérieur, y compris hors de sa propre secte. La déférence doit rester audible."
+        },
+        "晚辈": {
+          "target": "le Cadet / ce humble cadet",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Adresse auto-dépréciative pour parler de soi ; doit sonner humble. Ne pas dissoudre en « je » — le geste d'humilité fait partie du contenu."
+        },
+        "道友": {
+          "target": "le Compagnon de Dao",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Adresse neutre entre cultivateurs de rang égal. « Dao » est assez courant en français pour être conservé."
+        }
+      },
+      "de": {
+        "修真": {
+          "target": "die Kultivierung der Unsterblichkeit",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. VORSICHT FALSCHER FREUND: 'Kultivierung' bedeutet im Deutschen zuerst Ackerbau/Pflege (Wörterbücher: cultivation → Anbau). Der Begriff wurde als Genre-Vokabel gewählt, muss aber bei Ersterwähnung erklärt werden ('die Kultivierung — der Weg, durch Geist- und Körperübung Unsterblichkeit zu erlangen'). Danach 'Kultivierung' beibehalten, damit es nicht als Landwirtschaft missverstanden wird."
+        },
+        "修仙": {
+          "target": "das Streben nach Unsterblichkeit",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Variante von 修真 mit ausdrücklichem Fokus auf die Unsterblichkeit. Im Deutschen wegen des Kultivierungs-Falschfreundes die Bedeutung oft klarer als der Fachbegriff."
+        },
+        "飞升": {
+          "target": "die Aszension",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Großgeschrieben — ein überragender Meilenstein des Kultivierungswegs. 'Aszension' ist in der deutschen Fantasy als Aufstiegsbegriff verständlich; nicht 'Aufstieg' allein (zu alltäglich)."
+        },
+        "渡劫": {
+          "target": "die Himmelstrübsal",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Das zentrale Ereignis der Kultivierungswelt: eine göttliche Prüfung, die überwunden werden muss, um die nächste Stufe zu erreichen. Deutsches Kompositum trägt die Bedeutung; nicht 'Prüfung' allein."
+        },
+        "金丹": {
+          "target": "der Goldene Kern",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Kultivierungsstufe. Das chinesische Fantasy-Kolorit behalten; 'Goldkern' oder 'Goldpille' verwischen die Stufenbedeutung."
+        },
+        "元婴": {
+          "target": "die Urseele",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Kultivierungsstufe: der Goldene Kern gebiert ein geistiges Kind, das den Körper verlassen kann. 'Urseele' trägt das besser als das wörtliche 'Nascent Soul'-Lehnwort."
+        },
+        "门派": {
+          "target": "die Sekte",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Im Deutschen für chinesische Kultivierungs-/Kampfkunstschulen geläufig. NICHT 'Schule' (zu schulisch) und nicht 'Fraktion' (zu politisch)."
+        },
+        "丹田": {
+          "target": "das Dantian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Unübersetzt lassen und bei Ersterwähnung einmal erklären ('das Dantian, das Energiezentrum unterhalb des Nabels') — dieselbe Strategie wie im Englischen. Im Deutschen nicht als 'Zinnoberfeld' zu glossieren."
+        },
+        "师兄": {
+          "target": "der Ältere Bruder",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Männlicher Mitschüler höheren Ranges. Die Rangbezeichnung muss stehen bleiben, nicht durch den Namen ersetzt werden — sie trägt die Hierarchie der Sekte."
+        },
+        "师姐": {
+          "target": "die Ältere Schwester",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Weibliche Mitschülerin höheren Ranges."
+        },
+        "社会摇": {
+          "target": "der Straßentanz / die Zappel-Nummer",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Umgangssprachliches chinesisches Internetphänomen (ruckartiger Tanz zu Techno). Kein deutsches Pendant; die Handlung knapp benennen statt zu transliterieren."
+        },
+        "师叔": {
+          "target": "der Martial Uncle (jünger als der Meister)",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Lehrlingsbruder des eigenen Meisters, jünger als dieser. Niemals 'Onkel-Meister' und niemals als Pinyin 'Shishu' stehen lassen — die Verwandtschaftslogik des Klosters muss klar bleiben."
+        },
+        "师伯": {
+          "target": "der Martial Uncle (älter als der Meister)",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Lehrlingsbruder des eigenen Meisters, älter als dieser. Niemals 'Onkel-Meister'. Von 师叔 nur über das Alter zu unterscheiden; der Unterschied ist Rang, nicht Höflichkeit."
+        },
+        "师父": {
+          "target": "der Meister",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Immer 'Meister', niemals Pinyin 'Shifu' und niemals 'Lehrer' — 'Lehrer' unterschlägt das Vater-Sohn-artige Verhältnis der Klosterausbildung."
+        },
+        "师尊": {
+          "target": "der Ehrwürdige Meister",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Formeller als 师父; die zusätzliche Ehrerbietung muss im Attribut erkennbar sein."
+        },
+        "师弟": {
+          "target": "der Jüngere Bruder",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Männlicher Mitschüler niedrigeren Ranges."
+        },
+        "师妹": {
+          "target": "die Jüngere Schwester",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Weibliche Mitschülerin niedrigeren Ranges."
+        },
+        "前辈": {
+          "target": "der Ältere / Ehrwürdige",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Respektvolle Anrede für jeden Kultivierenden höheren Ranges, auch außerhalb der eigenen Sekte. Die Ehrerbietung muss hörbar bleiben."
+        },
+        "晚辈": {
+          "target": "der Jüngere / dieser Geringe",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Selbstherabsetzende Anrede für sich selbst; muss bescheiden klingen. Nicht neutral mit 'ich' auflösen — die Demutsgeste ist Inhalt."
+        },
+        "道友": {
+          "target": "der Dao-Gefährte",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Neutrale Anrede zwischen Kultivierenden gleichen Ranges. 'Dao' im Deutschen geläufig genug, um es zu behalten."
+        }
       }
     },
-    "urban": {
+    "urban": {},
+    "folk_religion": {
+      "en-US": {
+        "出马": {
+          "target": "Spirit Medium / Chuma",
+          "note": "Must use 'Chuma' for 出马 (first occurrence: 'Chuma — the tradition of spirit mediumship'). 出马仙 = Chuma Shaman. NEVER 'witch doctor' or 'sorcerer'."
+        },
+        "仙家": {
+          "target": "the Immortal Masters / Spirit Guardians",
+          "note": "NOT 'immortal' (修真 context). These are animal spirits who cultivate to immortality by helping humans. Use 'Spirit Guardian' or 'Immortal Master' depending on formality."
+        },
+        "弟马": {
+          "target": "Spirit Medium / Di Ma",
+          "note": "The human vessel through whom the 仙家 works. Use 'Spirit Medium' or introduce 'Di Ma' on first use."
+        },
+        "堂口": {
+          "target": "Spirit Hall / spirit court",
+          "note": "The spiritual headquarters where a Chuma's 仙家 reside. NOT a physical hall."
+        },
+        "请神": {
+          "target": "invoke the spirits / call upon the Immortal Masters",
+          "note": "The ritual of inviting spirit possession. POSITIVE connotation. NEVER 'summon demon' or 'conjure'."
+        },
+        "上身": {
+          "target": "spirit descent / the Master takes form",
+          "note": "⚠️ CRITICAL: This is POSITIVE spirit possession — a 仙家 voluntarily takes the 弟马's body to help people. NEVER translate as 'possession' (negative, Christian demon context). Use 'the Master descends', 'spirit takes form', or 'the Master rides'."
+        },
+        "香主": {
+          "target": "Incense Master / Censer Keeper",
+          "note": "The person who tends the incense at a 堂口. NOT 'priest' or 'monk'."
+        },
+        "老仙": {
+          "target": "Elder Master / the Old Immortal",
+          "note": "Respectful address for a senior 仙家. Use 'Elder' for the respect hierarchy."
+        },
+        "胡仙": {
+          "target": "Fox Master / Hu Xian",
+          "note": "The fox spirit — wisest of the five animal spirit families. Capitalized."
+        },
+        "黄仙": {
+          "target": "Weasel Master / Huang Xian",
+          "note": "The weasel spirit. Mischievous but powerful."
+        },
+        "柳仙": {
+          "target": "Snake Master / Liu Xian",
+          "note": "The snake spirit. Cold-blooded but fiercely loyal."
+        },
+        "灰仙": {
+          "target": "Rat Master / Hui Xian",
+          "note": "The rat spirit. Cunning and resourceful."
+        },
+        "白仙": {
+          "target": "Hedgehog Master / Bai Xian",
+          "note": "The hedgehog spirit. Gentle but perceptive."
+        },
+        "地府": {
+          "target": "the Underworld / the Netherworld Court",
+          "note": "The Chinese afterlife bureaucracy. Use 'Underworld' (capitalized) or 'Netherworld Court'. NEVER 'Hell' (Christian context, eternal punishment). NEVER 'Hades' (Greek). The 地府 is a BUREAUCRACY with judges, courts, and appeals."
+        },
+        "鬼差": {
+          "target": "spirit constable / Underworld bailiff",
+          "note": "The officials who escort souls to the Underworld. NOT 'demon' or 'reaper'. They are bureaucrats, not monsters."
+        },
+        "阎王": {
+          "target": "King Yan / Lord of the Underworld",
+          "note": "The judge of the dead. Use 'King Yan' (most readers know this from Journey to the West)."
+        },
+        "判官": {
+          "target": "Underworld Magistrate / Soul Judge",
+          "note": "Official who judges the dead. NOT 'infernal judge' (Hell connotation)."
+        },
+        "城隍": {
+          "target": "City God / Cheng Huang",
+          "note": "The local guardian deity. Municipal-level divine administrator."
+        },
+        "孟婆": {
+          "target": "Granny Meng",
+          "note": "Keeper of the Tea of Forgetfulness. Standard translation in Chinese mythology."
+        },
+        "奈何桥": {
+          "target": "the Bridge of Oblivion / Naihe Bridge",
+          "note": "Standard translation. The bridge souls cross before reincarnation."
+        },
+        "拘魂": {
+          "target": "soul-binding / spirit capture",
+          "note": "Ritual to capture or restrain a spirit. NOT 'exorcism' (that's driving out evil)."
+        },
+        "送祟": {
+          "target": "send off the affliction / dispel the haunting",
+          "note": "Ritual to remove a spirit-caused illness or misfortune."
+        },
+        "过阴": {
+          "target": "cross into the Underworld / spirit journey",
+          "note": "The Chuma's spirit travels to the 地府. NOT 'near-death experience'."
+        },
+        "打表": {
+          "target": "submit a memorial to the spirit court",
+          "note": "Formal ritual document to the 地府. Bureaucratic, not magical."
+        },
+        "孟婆汤": {
+          "target": "Granny Meng's Tea of Forgetfulness",
+          "note": "The brew that erases memories before reincarnation."
+        },
+        "捆仙绳": {
+          "target": "Spirit-Binding Rope / Immortal-Binding Cord",
+          "note": "A tool used by Spirit Mediums to restrain hostile spirits or undead. Capitalized as a named artifact."
+        },
+        "百鬼": {
+          "target": "the hundred ghosts / the horde",
+          "note": "Refers to a mass of restless spirits. NOT 'demons'."
+        },
+        "活尸": {
+          "target": "Living Corpse / walking dead",
+          "note": "A person who is physically dead but still moving. NOT 'zombie' (Western pop culture)."
+        },
+        "凶胎": {
+          "target": "fierce womb / cursed pregnancy",
+          "note": "A pregnancy haunted or possessed by spirits."
+        },
+        "鬼节": {
+          "target": "Ghost Festival / Hungry Ghost Festival",
+          "note": "Standard translation. The 7th month when the gates of the Underworld open."
+        },
+        "阴气": {
+          "target": "yin energy / death-chill",
+          "note": "The cold, dark energy of death and spirits."
+        },
+        "阴阳": {
+          "target": "Yin and Yang",
+          "note": "Standard. Keep as 'Yin and Yang' — universally understood."
+        },
+        "大印": {
+          "target": "the Great Seal",
+          "note": "The official seal of a Spirit Medium's rank. Capitalized."
+        }
+      },
+      "es-ES": {
+        "出马": {
+          "target": "Chuma / medium espiritual",
+          "note": "Usar 'Chuma' para 出马 (primera aparición: 'Chuma, la tradición del mediumnismo espiritual'). 出马仙 = 'chamán Chuma'. NUNCA 'curandero' ni 'hechicero'."
+        },
+        "仙家": {
+          "target": "los Maestros Inmortales / Guardianes Espirituales",
+          "note": "NO confundir con el 'inmortal' del contexto de cultivación (修真). Son espíritus animales que alcanzan la inmortalidad ayudando a los humanos. Usar 'Guardián Espiritual' o 'Maestro Inmortal' según la formalidad."
+        },
+        "弟马": {
+          "target": "medium espiritual / Di Ma",
+          "note": "El cuerpo humano a través del cual actúa el 仙家. Usar 'medium espiritual' o introducir 'Di Ma' en la primera aparición."
+        },
+        "堂口": {
+          "target": "Salón Espiritual / corte espiritual",
+          "note": "La sede espiritual donde residen los 仙家 de un Chuma. NO es un salón físico."
+        },
+        "请神": {
+          "target": "invocar a los espíritus / llamar a los Maestros Inmortales",
+          "note": "Ritual de invitar a la posesión espiritual. Connotación POSITIVA. NUNCA 'invocar demonios' ni 'conjurar'."
+        },
+        "上身": {
+          "target": "el descenso del espíritu / el Maestro toma forma",
+          "note": "⚠️ CRÍTICO: es una posesión espiritual POSITIVA — un 仙家 toma voluntariamente el cuerpo del 弟马 para ayudar. NUNCA traducir como 'posesión' (connotación demoníaca cristiana). Usar 'el Maestro desciende', 'el espíritu toma forma' o 'el Maestro monta'."
+        },
+        "香主": {
+          "target": "Maestro del Incienso / Custodio del Incensario",
+          "note": "Quien cuida el incienso en un 堂口. NO es un 'sacerdote' ni un 'monje'."
+        },
+        "老仙": {
+          "target": "Maestro Anciano / el Viejo Inmortal",
+          "note": "Tratamiento respetuoso para un 仙家 de rango superior. Usar 'Anciano' para marcar la jerarquía de respeto."
+        },
+        "胡仙": {
+          "target": "Maestro Zorro / Huxian",
+          "note": "El espíritu del zorro — el más sabio de las cinco familias de espíritus animales. Con mayúscula."
+        },
+        "黄仙": {
+          "target": "Maestro Comadreja / Huangxian",
+          "note": "El espíritu de la comadreja. Travieso pero poderoso."
+        },
+        "柳仙": {
+          "target": "Maestro Serpiente / Liuxian",
+          "note": "El espíritu de la serpiente. De sangre fría pero ferozmente leal."
+        },
+        "灰仙": {
+          "target": "Maestro Rata / Huixian",
+          "note": "El espíritu de la rata. Astuto e ingenioso."
+        },
+        "白仙": {
+          "target": "Maestro Erizo / Baixian",
+          "note": "El espíritu del erizo. Apacible pero perceptivo."
+        },
+        "地府": {
+          "target": "el Inframundo / Diyu",
+          "note": "La burocracia china del más allá. Usar 'Inframundo' (con mayúscula) o 'Diyu'. NUNCA 'Infierno' (contexto cristiano, castigo eterno). NUNCA 'Hades' (griego). El 地府 es una BUROCRACIA con jueces, tribunales y apelaciones."
+        },
+        "鬼差": {
+          "target": "agente espiritual / alguacil del Inframundo",
+          "note": "Funcionarios que escoltan las almas al Inframundo. NO son 'demonios' ni 'segadores'. Son burócratas, no monstruos."
+        },
+        "阎王": {
+          "target": "el Rey Yan / Señor del Inframundo",
+          "note": "El juez de los muertos. Usar 'Rey Yan' (la mayoría de lectores lo conocen por 'Viaje al Oeste')."
+        },
+        "判官": {
+          "target": "Magistrado del Inframundo / Juez de las Almas",
+          "note": "Funcionario que juzga a los muertos. NO 'juez infernal' (connotación de Infierno)."
+        },
+        "城隍": {
+          "target": "Divinidad de la Ciudad / Chenghuang",
+          "note": "La deidad tutelar local. Administrador divino de nivel municipal."
+        },
+        "孟婆": {
+          "target": "Meng Po",
+          "note": "Guardiana del Té del Olvido. Transliteración estándar en la mitología china."
+        },
+        "奈何桥": {
+          "target": "el Puente del Olvido / Puente Naihe",
+          "note": "El puente que las almas cruzan antes de la reencarnación."
+        },
+        "拘魂": {
+          "target": "atadura de almas / captura de espíritus",
+          "note": "Ritual para capturar o retener a un espíritu. NO es un 'exorcismo' (eso es expulsar el mal)."
+        },
+        "送祟": {
+          "target": "despachar la aflicción / disipar el embrujo",
+          "note": "Ritual para eliminar una enfermedad o desgracia causada por un espíritu."
+        },
+        "过阴": {
+          "target": "cruzar al Inframundo / viaje espiritual",
+          "note": "El espíritu del Chuma viaja al 地府. NO es una 'experiencia cercana a la muerte'."
+        },
+        "打表": {
+          "target": "presentar un memorial a la corte espiritual",
+          "note": "Documento ritual formal dirigido al 地府. Es burocrático, no mágico."
+        },
+        "孟婆汤": {
+          "target": "el Té del Olvido de Meng Po",
+          "note": "El brebaje que borra los recuerdos antes de la reencarnación."
+        },
+        "捆仙绳": {
+          "target": "Cuerda de Atadura Espiritual",
+          "note": "Herramienta que usan los médiums para retener espíritus hostiles o no-muertos. Con mayúscula por ser artefacto con nombre propio."
+        },
+        "百鬼": {
+          "target": "los cien fantasmas / la horda",
+          "note": "Multitud de espíritus inquietos. NO son 'demonios'."
+        },
+        "活尸": {
+          "target": "Cadáver Viviente / muerto viviente",
+          "note": "Persona físicamente muerta pero que aún se mueve. NO usar 'zombi' (cultura popular occidental)."
+        },
+        "凶胎": {
+          "target": "vientre feroz / embarazo maldito",
+          "note": "Un embarazo embrujado o poseído por espíritus."
+        },
+        "鬼节": {
+          "target": "Festival de los Fantasmas / Festival de los Fantasmas Hambrientos",
+          "note": "Traducción estándar. El séptimo mes lunar, cuando se abren las puertas del Inframundo."
+        },
+        "阴气": {
+          "target": "energía yin / frío de muerte",
+          "note": "La energía fría y oscura de la muerte y de los espíritus."
+        },
+        "阴阳": {
+          "target": "Yin y yang",
+          "note": "Estándar. Mantener como 'Yin y yang' — se entiende universalmente."
+        },
+        "大印": {
+          "target": "el Gran Sello",
+          "note": "El sello oficial del rango de un médium espiritual. Con mayúscula."
+        }
+      },
+      "fr": {
+        "出马": {
+          "target": "Chuma / le mediumnisme cavalier",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Conserver l'appellation chinoise et l'expliciter à la première occurrence (« Chuma — la tradition du mediumnisme où un esprit monte le corps d'un vivant »). 出马仙 = « chaman Chuma ». Jamais « guérisseur » ni « sorcier » — cela réduit la pratique à un cliché."
+        },
+        "仙家": {
+          "target": "les Maîtres immortels / les Esprits gardiens",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. NE PAS confondre avec l'« immortel » du contexte de cultivation (修真). Il s'agit d'esprits animaux qui atteignent l'immortalité en aidant les humains. « Esprit gardien » ou « Maître immortel » selon le degré de formalité."
+        },
+        "弟马": {
+          "target": "le médium / Di Ma",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le corps humain par lequel le 仙家 agit. Employer « médium » ou introduire « Di Ma » à la première occurrence."
+        },
+        "堂口": {
+          "target": "la Salle des esprits / la cour spirituelle",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le siège spirituel où résident les 仙家 d'un Chuma. PAS une salle physique — ne pas la décrire comme un bâtiment."
+        },
+        "请神": {
+          "target": "invoquer les esprits / appeler les Maîtres immortels",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le rituel qui invite la possession spirituelle. Connotation POSITIVE. Jamais « convoquer un démon » ni « conjurer » — cela inverse le sens."
+        },
+        "上身": {
+          "target": "la descente de l'esprit / le Maître prend forme",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. ⚠️ CRUCIAL : c'est une possession POSITIVE — un 仙 prend volontairement le corps du 弟马 pour aider les gens. Ne jamais traduire par « possession » (connotation démoniaque chrétienne), ni par « être possédé ». Employer « le Maître descend », « l'esprit prend forme » ou « le Maître monte »."
+        },
+        "香主": {
+          "target": "le Maître de l'encens / le gardien de l'encensoir",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. La personne qui s'occupe de l'encens dans un 堂口. NI « prêtre » NI « moine » — ce n'est pas une fonction ordonnée."
+        },
+        "老仙": {
+          "target": "le Maître aîné / le Vieil Immortel",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Appellation respectueuse pour un 仙家 de rang élevé. Employer « aîné » pour marquer la hiérarchie de respect."
+        },
+        "胡仙": {
+          "target": "le Maître Renard / Hu Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'esprit du renard — le plus sage des cinq familles d'esprits animaux. Avec majuscule."
+        },
+        "黄仙": {
+          "target": "le Maître Belette / Huang Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'esprit de la belette. Malicieux mais puissant."
+        },
+        "柳仙": {
+          "target": "le Maître Serpent / Liu Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'esprit du serpent. Froid mais farouchement loyal."
+        },
+        "灰仙": {
+          "target": "le Maître Rat / Hui Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'esprit du rat. Rusé et ingénieux."
+        },
+        "白仙": {
+          "target": "le Maître Hérisson / Bai Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'esprit du hérisson. Doux mais perspicace."
+        },
+        "地府": {
+          "target": "l'Outremonde / Diyu",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. ⚠️ PIÈGE : les sources francophones écrivent couramment « le roi de l'Enfer » (fr.wikipedia, article Diyu) et « les Dix rois des enfers ». NE PAS suivre cet usage ici : « Enfer » impose un cadre chrétien de châtiment éternel, or le 地府 est une ADMINISTRATION — juges, tribunaux, recours. Cette logique bureaucratique est le ressort comique de nombreuses scènes. Employer « l'Outremonde » ou « Diyu ». Jamais « les Enfers » non plus (cadre gréco-romain)."
+        },
+        "鬼差": {
+          "target": "l'agent des esprits / l'huissier de l'Outremonde",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Les fonctionnaires qui escortent les âmes vers l'Outremonde. Ni « démons » ni « faucheurs » : ce sont des bureaucrates, pas des monstres."
+        },
+        "阎王": {
+          "target": "le roi Yan / Yanluowang",
+          "note": "Ancré en français : fr.wikipedia emploie « Yanluowang » et « roi Yan » (aussi « Yama » dans le contexte bouddhique). Le juge des morts ; « roi Yan » est le plus lisible pour un lecteur non spécialiste."
+        },
+        "判官": {
+          "target": "le Magistrat de l'Outremonde / le Juge des âmes",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Fonctionnaire qui juge les morts. PAS « juge infernal » (connotation d'Enfer) — voir la note de 地府."
+        },
+        "城隍": {
+          "target": "le Dieu de la cité / Chenghuang",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. La divinité tutélaire locale — un administrateur divin à l'échelle municipale. Littéralement « dieu des remparts et des fossés »."
+        },
+        "孟婆": {
+          "target": "Meng Po / la Vieille Dame Meng",
+          "note": "Ancré : « Meng Po » est la forme retenue par les sources francophones et anglophones ; « la Vieille Dame Meng » sert d'apposition explicative à la première occurrence. Gardienne du Thé de l'Oubli."
+        },
+        "奈何桥": {
+          "target": "le Pont de l'Oubli / le pont Naihe",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le pont que les âmes franchissent avant la réincarnation. « Pont de l'Oubli » porte le sens pour un lecteur francophone ; la translittération peut suivre en apposition. Ne pas confondre avec le « pont de Najiehe », ouvrage réel, sans rapport."
+        },
+        "拘魂": {
+          "target": "la ligature d'âme / la capture d'esprit",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Rituel pour capturer ou retenir un esprit. PAS un « exorcisme » — l'exorcisme chasse le mal, ici on lie."
+        },
+        "送祟": {
+          "target": "congédier le mal / lever l'envoûtement",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Rituel pour éliminer une maladie ou un malheur causé par un esprit."
+        },
+        "过阴": {
+          "target": "passer dans l'Outremonde / le voyage spirituel",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'esprit du Chuma se rend au 地府. PAS une « expérience de mort imminente » : c'est un état rituel volontaire, non un événement médical."
+        },
+        "打表": {
+          "target": "déposer une requête auprès du tribunal des esprits",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Document rituel formel adressé au 地府. C'est administratif, pas magique — la formulation doit sonner comme une démarche de greffe, pas comme une incantation."
+        },
+        "孟婆汤": {
+          "target": "le Thé de l'Oubli de Meng Po",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le breuvage qui efface les souvenirs avant la réincarnation."
+        },
+        "捆仙绳": {
+          "target": "la Corde de Ligature des Immortels",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Outil dont se servent les médiums pour retenir esprits hostiles et morts-vivants. Avec majuscule : c'est un artefact nommé."
+        },
+        "百鬼": {
+          "target": "les cent fantômes / la horde",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Désigne une masse d'esprits en peine. Pas des « démons »."
+        },
+        "活尸": {
+          "target": "le Cadavre vivant / le mort qui marche",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Une personne physiquement morte mais qui se meut encore. NE PAS employer « zombie » — cela convoque la pop culture occidentale (virus, foule). Ici c'est une créature unique du folklore chinois."
+        },
+        "凶胎": {
+          "target": "le ventre funeste / la grossesse maudite",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Une grossesse hantée ou possédée par des esprits."
+        },
+        "鬼节": {
+          "target": "la Fête des fantômes / la Fête des fantômes affamés",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le septième mois lunaire, quand s'ouvrent les portes de l'Outremonde. En français, bien distinguer d'Halloween : c'est une fête chinoise de piété envers les défunts, pas une fête costumée."
+        },
+        "阴气": {
+          "target": "l'énergie yin / le froid de la mort",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. L'énergie froide et obscure de la mort et des esprits. « Froid de la mort » rend l'effet physique mieux qu'un simple terme énergétique."
+        },
+        "阴阳": {
+          "target": "le yin et le yang",
+          "note": "Établi et universellement compris en français — conserver tel quel, sans majuscule."
+        },
+        "大印": {
+          "target": "le Grand Sceau",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Le sceau officiel attestant du rang d'un médium. Avec majuscule : c'est un insigne de rang de l'administration de l'Outremonde, pas un bijou."
+        }
+      },
+      "de": {
+        "出马": {
+          "target": "Chuma / das Medium-Reiten",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Chinesische Fachbezeichnung beibehalten und bei Ersterwähnung erklären ('Chuma — die Tradition des Geistmediumtums'). 出马仙 = 'Chuma-Schamane'. Niemals 'Medizinmann' oder 'Zauberer' — das verfälscht die Praxis zur Kolonialklischee."
+        },
+        "仙家": {
+          "target": "die Unsterblichen Meister / die Schutzgeister",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. NICHT mit dem 'Unsterblichen' aus dem 修真-Kontext verwechseln. Gemeint sind Tiergeister, die durch das Helfen von Menschen Unsterblichkeit erlangen. Je nach Formalität 'Schutzgeist' oder 'Unsterblicher Meister'."
+        },
+        "弟马": {
+          "target": "das Geistmedium / Di Ma",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der menschliche Träger, durch den der 仙家 wirkt. 'Geistmedium' verwenden oder 'Di Ma' bei Ersterwähnung einführen."
+        },
+        "堂口": {
+          "target": "die Geisterhalle / der Geisthof",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der geistige Hauptsitz, in dem die 仙家 eines Chuma wohnen. KEIN physischer Saal — nicht als Gebäude beschreiben."
+        },
+        "请神": {
+          "target": "die Geister anrufen / die Unsterblichen Meister rufen",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Das Ritual, die Geisterbesessenheit einzuladen. POSITIVE Konnotation. Niemals 'Dämonen beschwören' — das kehrt die Bedeutung ins Gegenteil."
+        },
+        "上身": {
+          "target": "die Herabkunft des Geistes / der Meister nimmt Gestalt an",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. ⚠️ KRITISCH: Dies ist POSITIVE Geistbesessenheit — ein 仙家 nimmt freiwillig den Körper des 弟马, um Menschen zu helfen. Niemals als 'Besessenheit' übersetzen (christlich-dämonische Konnotation). 'Der Meister fährt herab', 'der Geist nimmt Gestalt an' oder 'der Meister reitet' verwenden."
+        },
+        "香主": {
+          "target": "der Weihrauchmeister / Hüter des Weihrauchfasses",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die Person, die in einem 堂口 den Weihrauch betreut. KEIN 'Priester' und kein 'Mönch' — es ist kein ordiniertes Amt."
+        },
+        "老仙": {
+          "target": "der Ältere Meister / der Alte Unsterbliche",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Respektvolle Anrede für einen ranghohen 仙家. 'Älterer' verwenden, um die Ranghierarchie zu wahren."
+        },
+        "胡仙": {
+          "target": "der Fuchsmeister / Hu Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Fuchsgeist — der weiseste der fünf Tiergeistfamilien. Großgeschrieben."
+        },
+        "黄仙": {
+          "target": "der Wieselmeister / Huang Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Wieselgeist. Verschmitzt, aber mächtig."
+        },
+        "柳仙": {
+          "target": "der Schlangenmeister / Liu Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Schlangengeist. Kaltblütig, aber unerschütterlich loyal."
+        },
+        "灰仙": {
+          "target": "der Rattenmeister / Hui Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Rattengeist. Listig und findig."
+        },
+        "白仙": {
+          "target": "der Igelmeister / Bai Xian",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Igelgeist. Sanft, aber wachsam."
+        },
+        "地府": {
+          "target": "die Unterwelt / Diyu",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die chinesische Bürokratie des Jenseits. 'Unterwelt' (großgeschrieben) oder 'Diyu' verwenden. NIEMALS 'Hölle' (christlicher Kontext, ewige Strafe) und niemals 'Hades' (griechisch). Das 地府 ist eine BÜROKRATIE mit Richtern, Gerichten und Berufungsinstanzen — diese Verwaltungslogik ist der Witz vieler Szenen."
+        },
+        "鬼差": {
+          "target": "der Geisterbüttel / Gerichtsdiener der Unterwelt",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die Beamten, die Seelen in die Unterwelt geleiten. Keine 'Dämonen' und keine 'Sensenmänner'. Es sind Bürokraten, keine Monster."
+        },
+        "阎王": {
+          "target": "König Yan / der Herr der Unterwelt",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Richter der Toten. 'König Yan' verwenden (den meisten Lesern aus 'Die Reise nach Westen' geläufig)."
+        },
+        "判官": {
+          "target": "der Magistrat der Unterwelt / Seelenrichter",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Beamter, der die Toten richtet. NICHT 'Höllenrichter' (Höllen-Konnotation)."
+        },
+        "城隍": {
+          "target": "der Stadtgott / Chenghuang",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die lokale Schutzgottheit — ein göttlicher Verwaltungsbeamter auf Gemeindeebene."
+        },
+        "孟婆": {
+          "target": "Meng Po",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Hüterin des Tees des Vergessens. Transliteration beibehalten; beim ersten Auftreten kurz als die Alte Frau Meng vorstellen."
+        },
+        "奈何桥": {
+          "target": "die Brücke des Vergessens / Naihe-Brücke",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die Brücke, die Seelen vor der Wiedergeburt überqueren. 'Brücke des Vergessens' trägt die Bedeutung für deutsche Leser besser als die reine Transliteration."
+        },
+        "拘魂": {
+          "target": "die Seelenbindung / das Seeleneinfangen",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Ritual, um einen Geist zu fangen oder zu binden. KEIN 'Exorzismus' — Exorzismus vertreibt das Böse, hier wird gebunden."
+        },
+        "送祟": {
+          "target": "das Übel fortschicken / die Spukplage bannen",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Ritual, um eine von Geistern verursachte Krankheit oder ein Unglück zu entfernen."
+        },
+        "过阴": {
+          "target": "in die Unterwelt hinübergehen / die Geisterreise",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der Geist des Chuma reist ins 地府. KEINE 'Nahtoderfahrung' — es ist ein willentlich herbeigeführter Ritualzustand, kein medizinisches Ereignis."
+        },
+        "打表": {
+          "target": "eine Bittschrift beim Geistgericht einreichen",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Formelles Ritualdokument an das 地府. Es ist bürokratisch, nicht magisch — die Formulierung muss nach Amtsvorgang klingen, nicht nach Zauberspruch."
+        },
+        "孟婆汤": {
+          "target": "Meng Pos Tee des Vergessens",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Das Gebräu, das die Erinnerungen vor der Wiedergeburt löscht."
+        },
+        "捆仙绳": {
+          "target": "das Geistfessel-Seil",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Werkzeug, mit dem Medien feindliche Geister oder Untote fesseln. Als benanntes Artefakt großgeschrieben."
+        },
+        "百鬼": {
+          "target": "die hundert Geister / die Geisterschar",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Bezeichnet eine Masse unruhiger Geister. Keine 'Dämonen'."
+        },
+        "活尸": {
+          "target": "der lebende Leichnam / Wandelnder Toter",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Ein Mensch, der körperlich tot ist, sich aber noch bewegt. NICHT 'Zombie' — das ruft westliche Popkultur (Virus, Menschenmassen) auf, hier ist es ein Einzelwesen chinesischer Folklore."
+        },
+        "凶胎": {
+          "target": "der Unheilsmutterleib / die verfluchte Schwangerschaft",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Eine von Geistern heimgesuchte oder besessene Schwangerschaft."
+        },
+        "鬼节": {
+          "target": "das Geisterfest / Fest der hungrigen Geister",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Der siebte Mondmonat, wenn sich die Tore der Unterwelt öffnen. Im Deutschen über Halloween-Assoziationen hinweg ausdrücklich als chinesisches Fest verorten."
+        },
+        "阴气": {
+          "target": "die Yin-Energie / die Totenkälte",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Die kalte, dunkle Energie von Tod und Geistern. 'Totenkälte' trägt die körperliche Wirkung besser als eine reine Energiebezeichnung."
+        },
+        "阴阳": {
+          "target": "Yin und Yang",
+          "note": "Im Deutschen etabliert und allgemeinverständlich — unverändert beibehalten."
+        },
+        "大印": {
+          "target": "das Große Siegel",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Das Amtssiegel des Rangs eines Geistmediums. Großgeschrieben; es ist ein Rangabzeichen der Unterweltbürokratie, kein Schmuckstück."
+        }
+      }
+    },
+    "scifi": {
+      "en-US": {
+        "机甲": {
+          "target": "Mecha / Battle Armor",
+          "note": "Must use 'Mecha' not 'mech' or 'robot'. Capitalized as genre convention."
+        },
+        "联邦": {
+          "target": "the Federation",
+          "note": "Must use 'Federation'. Common sci-fi trope. Capitalized."
+        },
+        "帝国": {
+          "target": "the Empire",
+          "note": "Must use 'Empire'. Common sci-fi antagonist trope. Capitalized."
+        },
+        "战舰": {
+          "target": "warship / battleship",
+          "note": "Choose by context. 战列舰 = battleship, 巡洋舰 = cruiser"
+        },
+        "星舰": {
+          "target": "starship",
+          "note": "Interstellar-capable ship. NOT 'spaceship' (that's 飞船)."
+        },
+        "机甲师": {
+          "target": "Mecha Pilot",
+          "note": "Must use 'Mecha Pilot', never 'mecha master' or 'robot driver'."
+        },
+        "基因改造": {
+          "target": "genetic modification / gene-modding",
+          "note": "Use 'gene-modded' for casual, 'genetically modified' for formal."
+        },
+        "跃迁": {
+          "target": "warp jump / hyperspace transition",
+          "note": "Sci-fi FTL travel. NOT 'transition' or 'leap'."
+        },
+        "太空港": {
+          "target": "spaceport",
+          "note": "Must use 'spaceport', never 'space harbor' or 'space dock'."
+        },
+        "殖民星": {
+          "target": "colony planet / colonial world",
+          "note": "Use 'colony world' for inhabited, 'colony planet' for the physical body."
+        },
+        "能量罩": {
+          "target": "energy shield",
+          "note": "NOT 'energy cover' or 'power shield'. Standard sci-fi term."
+        },
+        "粒子炮": {
+          "target": "particle cannon",
+          "note": "NOT 'particle gun'. Capitalized if named (e.g. 'Type-7 Particle Cannon')."
+        },
+        "联邦军": {
+          "target": "Federal Army / Federal Forces",
+          "note": "Must use 'Federal Forces' for combined arms, 'Federal Army' for ground forces only."
+        },
+        "帝国军": {
+          "target": "Imperial Army / Imperial Forces",
+          "note": "Must use 'Imperial Forces' for combined arms, 'Imperial Army' for ground forces only."
+        },
+        "首都星": {
+          "target": "capital planet / the Capital World",
+          "note": "Capitalized 'the Capital World' when referring to the Federation capital."
+        }
+      },
+      "es-ES": {
+        "机甲": {
+          "target": "mecha (extranjerismo) / robot gigante",
+          "note": "FALSO AMIGO: en español corriente 'mecha' = mecha de vela/fusible o mecha de pelo. En el género se usa como préstamo del japonés メカ; aclararlo en la primera aparición o usar 'robot gigante'/'armadura de combate'. Con mayúscula si es nombre propio."
+        },
+        "联邦": {
+          "target": "la Federación",
+          "note": "Convención común de ciencia ficción. Con mayúscula."
+        },
+        "帝国": {
+          "target": "el Imperio",
+          "note": "Convención común de ciencia ficción (suele ser el antagonista). Con mayúscula."
+        },
+        "战舰": {
+          "target": "nave de guerra / acorazado",
+          "note": "Elegir según contexto. 战列舰 = acorazado; 巡洋舰 = crucero."
+        },
+        "星舰": {
+          "target": "nave estelar",
+          "note": "Nave con capacidad interestelar. NO 'nave espacial' (eso es 飞船, más genérico)."
+        },
+        "机甲师": {
+          "target": "piloto de mecha",
+          "note": "Usar 'piloto de mecha', nunca 'maestro de mecha' ni 'conductor de robot'. Véase la nota de 机甲 sobre el falso amigo 'mecha'."
+        },
+        "基因改造": {
+          "target": "modificación genética",
+          "note": "'modificación genética' en registro formal; 'mejorado/modificado genéticamente' en tono coloquial."
+        },
+        "跃迁": {
+          "target": "salto hiperespacial / salto de curvatura",
+          "note": "Viaje superlumínico de ciencia ficción. Usar 'salto hiperespacial' o 'salto de curvatura', NO 'transición' ni 'salto' a secas."
+        },
+        "太空港": {
+          "target": "puerto espacial",
+          "note": "Usar 'puerto espacial', nunca 'dársena espacial' ni 'muelle espacial'."
+        },
+        "殖民星": {
+          "target": "planeta colonial / mundo colonial",
+          "note": "'mundo colonial' cuando está habitado; 'planeta colonial' para el cuerpo físico."
+        },
+        "能量罩": {
+          "target": "escudo de energía",
+          "note": "Término estándar de ciencia ficción. Usar 'escudo de energía', no 'cobertura de energía' ni 'pantalla de energía'."
+        },
+        "粒子炮": {
+          "target": "cañón de partículas",
+          "note": "Usar 'cañón de partículas', no 'pistola de partículas'. Con mayúscula si es nombre propio (p. ej. 'Cañón de Partículas Tipo 7')."
+        },
+        "联邦军": {
+          "target": "Fuerzas Federales / Ejército Federal",
+          "note": "'Fuerzas Federales' para armas combinadas; 'Ejército Federal' solo para fuerzas terrestres."
+        },
+        "帝国军": {
+          "target": "Fuerzas Imperiales / Ejército Imperial",
+          "note": "'Fuerzas Imperiales' para armas combinadas; 'Ejército Imperial' solo para fuerzas terrestres."
+        },
+        "首都星": {
+          "target": "planeta capital / el Mundo Capital",
+          "note": "'el Mundo Capital' con mayúscula cuando se refiere a la capital de la Federación."
+        }
+      },
+      "fr": {
+        "机甲": {
+          "target": "le mecha / le robot géant",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. « Mecha » circule dans le fandom francophone de l'animation japonaise, mais n'est pas compris du grand public : écrire « mecha (robot de combat géant) » à la première occurrence. En français « mecha » n'est pas un faux ami (contrairement à l'espagnol, où 'mecha' signifie mèche d'une bougie ou d'un explosif)."
+        },
+        "联邦": {
+          "target": "la Fédération",
+          "note": "Ancré par le doublage français de Star Trek (« la Fédération »). Avec majuscule comme nom propre de l'union d'États."
+        },
+        "帝国": {
+          "target": "l'Empire",
+          "note": "Ancré par le doublage français de Star Wars (« l'Empire galactique »). Avec majuscule ; antagoniste classique du genre."
+        },
+        "战舰": {
+          "target": "le vaisseau de guerre / le cuirassé",
+          "note": "Choisir selon le contexte. 战列舰 = cuirassé, 巡洋舰 = croiseur. Ne pas mélanger les classes : elles portent la hiérarchie de la flotte."
+        },
+        "星舰": {
+          "target": "le vaisseau stellaire",
+          "note": "Vaisseau à capacité interstellaire. NE PAS employer « vaisseau spatial » pour 星舰 (c'est le sens plus général de 飞船) : la distinction est voulue dans l'original."
+        },
+        "机甲师": {
+          "target": "le pilote de mecha",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. Employer « pilote de mecha », jamais « maître de mecha » ni « conducteur de robot » — le métier est le pilotage, pas la possession."
+        },
+        "基因改造": {
+          "target": "la modification génétique / génétiquement modifié",
+          "note": "Établi en français. « modification génétique » pour le constat formel, « modifié génétiquement » ou « boosté » pour la réplique familière d'un personnage."
+        },
+        "跃迁": {
+          "target": "le saut en hyperespace / le saut warp",
+          "note": "Voyage supraluminique ; ancré en français par « saut en hyperespace » (Star Wars) et « saut warp » (Star Trek). Pas « transition » ni « bond » seuls — on perdrait le sens FTL."
+        },
+        "太空港": {
+          "target": "le spatioport",
+          "note": "Établi en français (« spatioport » figure dans les dictionnaires de science-fiction). Pas « port spatial » (calque lourd) ni « dock spatial » (c'est un chantier, pas un port)."
+        },
+        "殖民星": {
+          "target": "la planète coloniale / le monde colonial",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. « monde colonial » quand elle est peuplée, « planète coloniale » pour le corps céleste. La distinction est volontaire dans l'original."
+        },
+        "能量罩": {
+          "target": "le bouclier énergétique",
+          "note": "Terme standard du genre en français. Pas « couverture d'énergie » ni « écran de puissance » — « bouclier énergétique » est la forme établie."
+        },
+        "粒子炮": {
+          "target": "le canon à particules",
+          "note": "Employer « canon à particules », pas « fusil à particules » (un canon est monté sur véhicule ou fortification). Avec majuscule pour un nom propre (ex. « Canon à particules Type 7 »)."
+        },
+        "联邦军": {
+          "target": "les Forces fédérales / l'Armée fédérale",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. « Forces fédérales » pour les armes combinées (terre + flotte), « Armée fédérale » uniquement pour les troupes au sol. La confusion change qui se bat dans la scène."
+        },
+        "帝国军": {
+          "target": "les Forces impériales / l'Armée impériale",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. « Forces impériales » pour les armes combinées, « Armée impériale » uniquement pour les troupes au sol. Même distinction que 联邦军 — à tenir de façon cohérente."
+        },
+        "首都星": {
+          "target": "la planète capitale / le Monde capital",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. « le Monde capital » avec majuscule quand il désigne la capitale de la Fédération ; « planète capitale » pour le cas général."
+        }
+      },
+      "de": {
+        "机甲": {
+          "target": "der Mecha / Kampfroboter",
+          "note": "Durch die deutsche Anime-/Science-Fiction-Tradition geläufig ('Mecha' als Genrebegriff). Bei Ersterwähnung 'Mecha (Kampfroboter)' schreiben, da 'Mecha' außerhalb der Fankultur nicht allgemein bekannt ist. Im Deutschen kein falscher Freund — anders als im Spanischen, wo 'mecha' Zündschnur/Docht bedeutet."
+        },
+        "联邦": {
+          "target": "die Föderation",
+          "note": "Etabliert durch die deutsche Star-Trek-Synchronisation ('Föderation'). Großgeschrieben als Eigenname des Staatenbundes."
+        },
+        "帝国": {
+          "target": "das Imperium",
+          "note": "Etabliert durch die deutsche Star-Wars-Synchronisation ('Galaktisches Imperium'). Großgeschrieben; üblicher Antagonist des Genres."
+        },
+        "战舰": {
+          "target": "das Kriegsschiff / Schlachtschiff",
+          "note": "Nach Kontext wählen. 战列舰 = Schlachtschiff, 巡洋舰 = Kreuzer. Die Schiffsklassen nicht vermischen — sie tragen die Rangordnung der Flotte."
+        },
+        "星舰": {
+          "target": "das Raumschiff / Sternenschiff",
+          "note": "Interstellar fähiges Schiff. Deutsch etabliert durch 'Raumschiff Enterprise'. NICHT mit 飞船 gleichsetzen (das ist das allgemeinere 'Fluggerät')."
+        },
+        "机甲师": {
+          "target": "der Mecha-Pilot",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. 'Mecha-Pilot' verwenden, niemals 'Mecha-Meister' oder 'Roboterfahrer' — der Beruf ist das Steuern, nicht das Besitzen."
+        },
+        "基因改造": {
+          "target": "die Genmodifikation / gentechnisch verändert",
+          "note": "Im Deutschen etabliert. 'gentechnisch verändert' für den formalen Befund, 'genmodifiziert' oder 'aufgemotzt' für umgangssprachliche Figurenrede."
+        },
+        "跃迁": {
+          "target": "der Warpsprung / Hyperraumsprung",
+          "note": "Überlichtschnelle Reise; deutsch etabliert durch 'Warpsprung' (Star Trek) und 'Hyperraumsprung'. Nicht bloß 'Sprung' oder 'Übergang' — das verliert die FTL-Bedeutung."
+        },
+        "太空港": {
+          "target": "der Raumhafen",
+          "note": "Im Deutschen als Kompositum etabliert. Nicht 'Weltraumhafen' (sperrig) und nicht 'Raumdock' (das ist eine Werft, kein Hafen)."
+        },
+        "殖民星": {
+          "target": "der Kolonialplanet / die Kolonialwelt",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. 'Kolonialwelt' wenn besiedelt, 'Kolonialplanet' für den Himmelskörper selbst. Der Unterschied ist im Original absichtlich."
+        },
+        "能量罩": {
+          "target": "der Energieschild",
+          "note": "Standardbegriff des Genres im Deutschen. Nicht 'Energieabdeckung' oder 'Kraftschirm' — 'Energieschild' ist die etablierte Form."
+        },
+        "粒子炮": {
+          "target": "die Partikelkanone",
+          "note": "'Partikelkanone' verwenden, nicht 'Partikelgewehr' (eine Kanone ist fahrzeug- oder festungsmontiert). Großgeschrieben bei Eigennamen (z. B. 'Partikelkanone Typ 7')."
+        },
+        "联邦军": {
+          "target": "die Föderationsstreitkräfte / Föderationsarmee",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. 'Föderationsstreitkräfte' für verbundene Waffen (Heer+Flotte), 'Föderationsarmee' ausschließlich für Bodentruppen. Die Verwechslung ändert, wer im Text kämpft."
+        },
+        "帝国军": {
+          "target": "die Imperialen Streitkräfte / Kaiserliche Armee",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. 'Imperiale Streitkräfte' für verbundene Waffen, 'Kaiserliche Armee' ausschließlich für Bodentruppen. Dieselbe Unterscheidung wie bei 联邦军 — konsistent durchhalten."
+        },
+        "首都星": {
+          "target": "der Hauptplanet / die Zentralwelt",
+          "note": "⚠️ FIRST-ESTABLISHED — pending native review. 'die Zentralwelt' großgeschrieben, wenn die Hauptstadt der Föderation gemeint ist; 'Hauptplanet' für den allgemeinen Fall."
+        }
+      }
+    }
+  },
+  "books": {
+    "limitless_horror": {
       "en-US": {
         "_bridge_80111": {
           "target": "Reader confused by 'Don't exchange for anything except making yourself a woman! Nothing else! Wait u': I had no idea wha",
@@ -939,206 +2062,6 @@
         "内部科学 / 外部科学": {
           "target": "internal science / external science",
           "note": "Auto-extracted from limitless_horror_segmented translation memory"
-        }
-      }
-    },
-    "folk_religion": {
-      "en-US": {
-        "出马": {
-          "target": "Spirit Medium / Chuma",
-          "note": "Must use 'Chuma' for 出马 (first occurrence: 'Chuma — the tradition of spirit mediumship'). 出马仙 = Chuma Shaman. NEVER 'witch doctor' or 'sorcerer'."
-        },
-        "仙家": {
-          "target": "the Immortal Masters / Spirit Guardians",
-          "note": "NOT 'immortal' (修真 context). These are animal spirits who cultivate to immortality by helping humans. Use 'Spirit Guardian' or 'Immortal Master' depending on formality."
-        },
-        "弟马": {
-          "target": "Spirit Medium / Di Ma",
-          "note": "The human vessel through whom the 仙家 works. Use 'Spirit Medium' or introduce 'Di Ma' on first use."
-        },
-        "堂口": {
-          "target": "Spirit Hall / spirit court",
-          "note": "The spiritual headquarters where a Chuma's 仙家 reside. NOT a physical hall."
-        },
-        "请神": {
-          "target": "invoke the spirits / call upon the Immortal Masters",
-          "note": "The ritual of inviting spirit possession. POSITIVE connotation. NEVER 'summon demon' or 'conjure'."
-        },
-        "上身": {
-          "target": "spirit descent / the Master takes form",
-          "note": "⚠️ CRITICAL: This is POSITIVE spirit possession — a 仙家 voluntarily takes the 弟马's body to help people. NEVER translate as 'possession' (negative, Christian demon context). Use 'the Master descends', 'spirit takes form', or 'the Master rides'."
-        },
-        "香主": {
-          "target": "Incense Master / Censer Keeper",
-          "note": "The person who tends the incense at a 堂口. NOT 'priest' or 'monk'."
-        },
-        "老仙": {
-          "target": "Elder Master / the Old Immortal",
-          "note": "Respectful address for a senior 仙家. Use 'Elder' for the respect hierarchy."
-        },
-        "胡仙": {
-          "target": "Fox Master / Hu Xian",
-          "note": "The fox spirit — wisest of the five animal spirit families. Capitalized."
-        },
-        "黄仙": {
-          "target": "Weasel Master / Huang Xian",
-          "note": "The weasel spirit. Mischievous but powerful."
-        },
-        "柳仙": {
-          "target": "Snake Master / Liu Xian",
-          "note": "The snake spirit. Cold-blooded but fiercely loyal."
-        },
-        "灰仙": {
-          "target": "Rat Master / Hui Xian",
-          "note": "The rat spirit. Cunning and resourceful."
-        },
-        "白仙": {
-          "target": "Hedgehog Master / Bai Xian",
-          "note": "The hedgehog spirit. Gentle but perceptive."
-        },
-        "地府": {
-          "target": "the Underworld / the Netherworld Court",
-          "note": "The Chinese afterlife bureaucracy. Use 'Underworld' (capitalized) or 'Netherworld Court'. NEVER 'Hell' (Christian context, eternal punishment). NEVER 'Hades' (Greek). The 地府 is a BUREAUCRACY with judges, courts, and appeals."
-        },
-        "鬼差": {
-          "target": "spirit constable / Underworld bailiff",
-          "note": "The officials who escort souls to the Underworld. NOT 'demon' or 'reaper'. They are bureaucrats, not monsters."
-        },
-        "阎王": {
-          "target": "King Yan / Lord of the Underworld",
-          "note": "The judge of the dead. Use 'King Yan' (most readers know this from Journey to the West)."
-        },
-        "判官": {
-          "target": "Underworld Magistrate / Soul Judge",
-          "note": "Official who judges the dead. NOT 'infernal judge' (Hell connotation)."
-        },
-        "城隍": {
-          "target": "City God / Cheng Huang",
-          "note": "The local guardian deity. Municipal-level divine administrator."
-        },
-        "孟婆": {
-          "target": "Granny Meng",
-          "note": "Keeper of the Tea of Forgetfulness. Standard translation in Chinese mythology."
-        },
-        "奈何桥": {
-          "target": "the Bridge of Oblivion / Naihe Bridge",
-          "note": "Standard translation. The bridge souls cross before reincarnation."
-        },
-        "拘魂": {
-          "target": "soul-binding / spirit capture",
-          "note": "Ritual to capture or restrain a spirit. NOT 'exorcism' (that's driving out evil)."
-        },
-        "送祟": {
-          "target": "send off the affliction / dispel the haunting",
-          "note": "Ritual to remove a spirit-caused illness or misfortune."
-        },
-        "过阴": {
-          "target": "cross into the Underworld / spirit journey",
-          "note": "The Chuma's spirit travels to the 地府. NOT 'near-death experience'."
-        },
-        "打表": {
-          "target": "submit a memorial to the spirit court",
-          "note": "Formal ritual document to the 地府. Bureaucratic, not magical."
-        },
-        "孟婆汤": {
-          "target": "Granny Meng's Tea of Forgetfulness",
-          "note": "The brew that erases memories before reincarnation."
-        },
-        "捆仙绳": {
-          "target": "Spirit-Binding Rope / Immortal-Binding Cord",
-          "note": "A tool used by Spirit Mediums to restrain hostile spirits or undead. Capitalized as a named artifact."
-        },
-        "百鬼": {
-          "target": "the hundred ghosts / the horde",
-          "note": "Refers to a mass of restless spirits. NOT 'demons'."
-        },
-        "活尸": {
-          "target": "Living Corpse / walking dead",
-          "note": "A person who is physically dead but still moving. NOT 'zombie' (Western pop culture)."
-        },
-        "凶胎": {
-          "target": "fierce womb / cursed pregnancy",
-          "note": "A pregnancy haunted or possessed by spirits."
-        },
-        "鬼节": {
-          "target": "Ghost Festival / Hungry Ghost Festival",
-          "note": "Standard translation. The 7th month when the gates of the Underworld open."
-        },
-        "阴气": {
-          "target": "yin energy / death-chill",
-          "note": "The cold, dark energy of death and spirits."
-        },
-        "阴阳": {
-          "target": "Yin and Yang",
-          "note": "Standard. Keep as 'Yin and Yang' — universally understood."
-        },
-        "大印": {
-          "target": "the Great Seal",
-          "note": "The official seal of a Spirit Medium's rank. Capitalized."
-        }
-      }
-    },
-    "scifi": {
-      "en-US": {
-        "机甲": {
-          "target": "Mecha / Battle Armor",
-          "note": "Must use 'Mecha' not 'mech' or 'robot'. Capitalized as genre convention."
-        },
-        "联邦": {
-          "target": "the Federation",
-          "note": "Must use 'Federation'. Common sci-fi trope. Capitalized."
-        },
-        "帝国": {
-          "target": "the Empire",
-          "note": "Must use 'Empire'. Common sci-fi antagonist trope. Capitalized."
-        },
-        "战舰": {
-          "target": "warship / battleship",
-          "note": "Choose by context. 战列舰 = battleship, 巡洋舰 = cruiser"
-        },
-        "星舰": {
-          "target": "starship",
-          "note": "Interstellar-capable ship. NOT 'spaceship' (that's 飞船)."
-        },
-        "机甲师": {
-          "target": "Mecha Pilot",
-          "note": "Must use 'Mecha Pilot', never 'mecha master' or 'robot driver'."
-        },
-        "基因改造": {
-          "target": "genetic modification / gene-modding",
-          "note": "Use 'gene-modded' for casual, 'genetically modified' for formal."
-        },
-        "跃迁": {
-          "target": "warp jump / hyperspace transition",
-          "note": "Sci-fi FTL travel. NOT 'transition' or 'leap'."
-        },
-        "太空港": {
-          "target": "spaceport",
-          "note": "Must use 'spaceport', never 'space harbor' or 'space dock'."
-        },
-        "殖民星": {
-          "target": "colony planet / colonial world",
-          "note": "Use 'colony world' for inhabited, 'colony planet' for the physical body."
-        },
-        "能量罩": {
-          "target": "energy shield",
-          "note": "NOT 'energy cover' or 'power shield'. Standard sci-fi term."
-        },
-        "粒子炮": {
-          "target": "particle cannon",
-          "note": "NOT 'particle gun'. Capitalized if named (e.g. 'Type-7 Particle Cannon')."
-        },
-        "联邦军": {
-          "target": "Federal Army / Federal Forces",
-          "note": "Must use 'Federal Forces' for combined arms, 'Federal Army' for ground forces only."
-        },
-        "帝国军": {
-          "target": "Imperial Army / Imperial Forces",
-          "note": "Must use 'Imperial Forces' for combined arms, 'Imperial Army' for ground forces only."
-        },
-        "首都星": {
-          "target": "capital planet / the Capital World",
-          "note": "Capitalized 'the Capital World' when referring to the Federation capital."
         }
       }
     }

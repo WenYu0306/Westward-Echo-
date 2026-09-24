@@ -812,11 +812,14 @@ function renderJobList(){
       const isActive=selectedJobId===j.job_id;
       const icon=j.status==='complete'?'&#9989;':j.status==='failed'?'&#10060;':j.status==='translating'?'&#9881;':'&#128196;';
       const statusLabel={'queued':'排队中','translating':'翻译中','complete':'已完成','failed':'失败'}[j.status]||j.status;
-      let langLabel=j.target_lang;
-      if(j.target_lang==='en-US')langLabel='en-US';
-      else if(j.target_lang==='es-ES')langLabel='es-ES';
-      else if(j.target_lang==='de')langLabel='de';
-      else if(j.target_lang==='fr')langLabel='fr';
+      // Was an if/else chain mapping 'en-US'→'en-US', 'de'→'de' … i.e. every
+      // branch assigned langLabel the value it already held, and an unlisted
+      // language fell through unchanged too. Provably identity, so removed
+      // rather than re-pointed at SUPPORTED_LANGUAGES. The two maps that DO
+      // transform are the short labels above (EN/ES/DE/FR) and the Chinese
+      // names in renderJobDetail; tests/test_language_registry.py asserts both
+      // cover exactly the registry.
+      const langLabel=j.target_lang;
       let meta=formatDate(j.created_at);
       if(j.status==='translating' && j.completed_chapters && j.total_chapters)
         meta=j.completed_chapters+'/'+j.total_chapters+' 章';

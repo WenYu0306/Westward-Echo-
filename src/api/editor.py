@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from ..chapter_splitter import split_chapters
-from ..config import DATA_DIR, OUTPUT_DIR, VERSION
+from ..config import DATA_DIR, OUTPUT_DIR, SUPPORTED_LANGUAGES, VERSION
 from ..job_store import job_store
 
 app = FastAPI(title="Westward Echo Editor API", version=VERSION)
@@ -82,7 +82,7 @@ def _load_en_paragraphs(text: str) -> list[str]:
 
 def _get_en_chapter_text(job_id: str, chapter_num: int) -> Optional[str]:
     """Read a single chapter's English translation from the Markdown output."""
-    for lang in ["en-US", "es-ES", "de", "fr"]:
+    for lang in SUPPORTED_LANGUAGES:
         path = OUTPUT_DIR / f"{job_id}_full_novel_{lang}.md"
         if path.exists():
             text = path.read_text(encoding="utf-8")

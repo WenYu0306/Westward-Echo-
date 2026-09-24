@@ -114,8 +114,11 @@ def read_node(
     target_lang = state.get("target_lang", "en-US")
     genre = state.get("genre", "romance_ceo")
 
-    # Load cultural rules for the READ agent's reference
-    rules = load_rules(target_lang=target_lang, genre=genre)
+    # Load cultural rules for the READ agent's reference. book_id is passed so
+    # a book's own proper nouns (see load_rules docstring) are applied to that
+    # book only, not to every other book sharing its genre.
+    rules = load_rules(target_lang=target_lang, genre=genre,
+                       book_id=state.get("book_id", ""))
     cultural_rules_bullets = format_rules_as_bullets(rules)
 
     # Strategy-level cultural fidelity rules (how to render a CATEGORY of terms)

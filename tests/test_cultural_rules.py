@@ -113,6 +113,199 @@ class TestLoadRules:
         assert "修真" not in rules  # xianxia-specific
 
 
+class TestBookLevelRules:
+    """``books.<book_id>`` is the innermost rule layer.
+
+    Regression guard for the 无限恐怖 pollution: its 150 machine-extracted
+    proper nouns (including Resident Evil IP names) sat in the *shared*
+    ``genres.urban`` slot, so the two other urban books were briefed with them.
+    They now live under ``books.limitless_horror`` and must reach that book only.
+    """
+
+    @pytest.fixture
+    def book_rules_file(self, tmp_path):
+        data = {
+            "common": {"en-US": {"穿越": {"target": "transmigration", "note": ""}}},
+            "genres": {"urban": {}},
+            "books": {
+                "limitless_horror": {
+                    "en-US": {"生化危机": {"target": "Biohazard", "note": "IP name"}}
+                }
+            },
+            "fidelity": {},
+        }
+        p = tmp_path / "book_rules.json"
+        p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return str(p)
+
+    def test_book_layer_applies_when_book_id_given(self, book_rules_file):
+        rules = load_rules("en-US", "urban", path=book_rules_file,
+                           book_id="limitless_horror")
+        assert "生化危机" in rules
+        assert rules["生化危机"]["target"] == "Biohazard"
+
+    def test_book_terms_do_not_leak_to_other_books(self, book_rules_file):
+        # The whole point of the refactor: a sibling book sharing the genre
+        # must not inherit another book's proper nouns.
+        rules = load_rules("en-US", "urban", path=book_rules_file,
+                           book_id="quanzhi_fanwai")
+        assert "生化危机" not in rules
+        assert "穿越" in rules  # common still applies
+
+    def test_omitting_book_id_reproduces_old_behaviour(self, book_rules_file):
+        rules = load_rules("en-US", "urban", path=book_rules_file)
+        assert "生化危机" not in rules, "book terms must not apply without book_id"
+        assert rules == {"穿越": {"target": "transmigration", "note": ""}}
+
+    def test_unknown_book_id_is_harmless(self, book_rules_file):
+        rules = load_rules("en-US", "urban", path=book_rules_file,
+                           book_id="no_such_book")
+        assert "生化危机" not in rules
+        assert "穿越" in rules
+
+    def test_book_overrides_genre_for_same_term(self, tmp_path):
+        # Precedence: common < genre < book.
+        data = {
+            "common": {"en-US": {"X": {"target": "common", "note": ""}}},
+            "genres": {"urban": {"en-US": {"X": {"target": "genre", "note": ""}}}},
+            "books": {"b1": {"en-US": {"X": {"target": "book", "note": ""}}}},
+            "fidelity": {},
+        }
+        p = tmp_path / "precedence.json"
+        p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        assert load_rules("en-US", "urban", path=str(p))["X"]["target"] == "genre"
+        assert load_rules("en-US", "urban", path=str(p),
+                          book_id="b1")["X"]["target"] == "book"
+
+
+class TestRealUrbanSlotIsQuarantined:
+    """Guards the shipped cultural_rules.json, not a fixture.
+
+    If someone re-adds terms to ``genres.urban`` the three urban books would
+    once again share one book's vocabulary. The slot must stay empty.
+    """
+
+    def test_urban_genre_slot_is_empty(self):
+        data = json.loads(
+            Path(__file__).resolve().parent.parent.joinpath("cultural_rules.json")
+            .read_text(encoding="utf-8")
+        )
+        urban = data["genres"]["urban"]
+        assert urban == {}, (
+            f"genres.urban must stay empty — single-book terms belong under "
+            f"'books.<book_id>', not in the slot shared by three urban books. "
+            f"Found: {list(urban)}"
+        )
+
+    def test_urban_key_still_declared(self):
+        # list_known_genres/is_known_genre enumerate genres.*; dropping the key
+        # would report urban as unknown and break the genre sync invariant.
+        assert is_known_genre("urban")
+
+    def test_limitless_horror_book_slot_holds_the_terms(self):
+        data = json.loads(
+            Path(__file__).resolve().parent.parent.joinpath("cultural_rules.json")
+            .read_text(encoding="utf-8")
+        )
+        book = data.get("books", {}).get("limitless_horror", {}).get("en-US", {})
+        assert len(book) == 150, f"expected the 150 moved terms, got {len(book)}"
+        assert "生化危机" in book
+
+    def test_read_node_forwards_book_id_to_load_rules(self, monkeypatch):
+        """The refactor is dead unless the READ node actually forwards book_id.
+
+        A source-substring assertion is NOT acceptable here: read.py contains
+        ``book_id=state.get("book_id", "")`` in an unrelated
+        ``_capture_read_tokens`` call too, so the substring is satisfied even
+        when the load_rules wiring is deleted. That exact mutation survived the
+        first version of this test. Instead we spy on the call.
+        """
+        from unittest.mock import MagicMock
+
+        import src.agent.nodes.read as read_mod
+
+        calls = {}
+
+        def spy(**kwargs):
+            calls.update(kwargs)
+            return {}
+
+        monkeypatch.setattr(read_mod, "load_rules", spy)
+        monkeypatch.setattr(read_mod, "ChatOpenAI", lambda **kw: MagicMock())
+        resp = MagicMock()
+        resp.content = "{}"
+        resp.response_metadata = {}
+        resp.additional_kwargs = {}
+        resp.usage_metadata = {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+        monkeypatch.setattr(read_mod, "get_breaker",
+                            lambda lang: MagicMock(call=lambda fn, msgs: resp))
+
+        read_mod.read_node(
+            {
+                "chapter_title": "第1章", "chapter_content": "正文", "chapter_number": 1,
+                "book_id": "limitless_horror", "target_lang": "en-US", "genre": "urban",
+                "content_type": "novel", "style_memo": "", "previous_chapter_summary": "",
+                "exact_matches_text": "", "semantic_matches_text": "", "exact_glossary": {},
+                "api_key": "",
+            },
+            MagicMock(), MagicMock(),
+        )
+
+        assert calls.get("book_id") == "limitless_horror", (
+            f"read_node did not forward state['book_id'] to load_rules; got {calls}"
+        )
+
+    def test_book_terms_reach_the_rendered_prompt(self, monkeypatch):
+        """End-to-end: a book's own terms must land in the rendered user prompt.
+
+        Uses the shipped cultural_rules.json, so it also proves the data is
+        wired — 生化危机 lives in books.limitless_horror, and the prompt is what
+        the model actually sees.
+        """
+        from unittest.mock import MagicMock
+
+        import src.agent.nodes.read as read_mod
+
+        captured = {}
+
+        class FakeLLM:
+            def __init__(self, **kwargs):
+                pass
+
+            def invoke(self, messages):
+                captured["messages"] = messages
+                resp = MagicMock()
+                resp.content = "{}"
+                resp.response_metadata = {}
+                resp.additional_kwargs = {}
+                resp.usage_metadata = {"input_tokens": 1, "output_tokens": 1,
+                                       "total_tokens": 2}
+                return resp
+
+        monkeypatch.setattr(read_mod, "ChatOpenAI", FakeLLM)
+        monkeypatch.setattr(read_mod, "get_breaker",
+                            lambda lang: MagicMock(call=lambda fn, msgs: fn(msgs)))
+
+        base = {
+            "chapter_title": "第1章", "chapter_content": "正文", "chapter_number": 1,
+            "target_lang": "en-US", "genre": "urban", "content_type": "novel",
+            "style_memo": "", "previous_chapter_summary": "", "exact_matches_text": "",
+            "semantic_matches_text": "", "exact_glossary": {}, "api_key": "",
+        }
+        read_mod.read_node({**base, "book_id": "limitless_horror"},
+                           MagicMock(), MagicMock())
+        with_book = "\n".join(str(m.content) for m in captured["messages"])
+
+        read_mod.read_node({**base, "book_id": "quanzhi_fanwai"},
+                           MagicMock(), MagicMock())
+        without = "\n".join(str(m.content) for m in captured["messages"])
+
+        assert "生化危机" in with_book, \
+            "limitless_horror's own term did not reach the rendered prompt"
+        assert "生化危机" not in without, \
+            "a sibling urban book must NOT be briefed with Resident Evil terms"
+
+
 class TestKnownGenres:
     def test_list_known_genres(self, rules_file):
         genres = list_known_genres(path=rules_file)
@@ -144,6 +337,78 @@ class TestFormatRules:
         assert "穿越" in text
         assert "transmigration" in text
         assert "Isekai-like" in text
+
+
+class TestFormatRulesWithoutTranslation:
+    """Entries with an empty ``target``: de/fr source-term lists.
+
+    ``cultural_rules.json`` may mark a term as load-bearing without prescribing
+    a rendering, because no vetted one exists for that language. The formatters
+    must say so explicitly — an empty table cell under an "Adapted (USE THIS)"
+    header reads as "use the empty string", and ``→ ""`` reads as a translation
+    that happens to be blank. Both would push the model toward literalism.
+
+    Exact-string assertions on purpose: the tests above only check substring
+    membership, so they cannot catch a rendering regression in these branches.
+    """
+
+    EMPTY = {"金丹": {"target": "", "note": "cultivation stage"}}
+    FULL = {"霸总": {"target": "Alpha CEO", "note": "romance"}}
+
+    def test_table_drops_use_this_when_any_target_empty(self):
+        assert format_rules_for_prompt(self.EMPTY) == (
+            "| 中文 | Adapted | Note |\n"
+            "|------|---------|------|\n"
+            "| 金丹 | (no fixed term — adapt, do not translate literally)"
+            " | cultivation stage |"
+        )
+
+    def test_table_keeps_use_this_when_all_targets_present(self):
+        # Byte-identical to the pre-de/fr renderer: the header change must be
+        # driven by content, not applied unconditionally.
+        assert format_rules_for_prompt(self.FULL) == (
+            "| 中文 | Adapted (USE THIS) | Note |\n"
+            "|------|--------------------|------|\n"
+            "| 霸总 | Alpha CEO | romance |"
+        )
+
+    def test_table_mixed_entries(self):
+        # One entry without a translation is enough to make "USE THIS" false
+        # for the whole table, so the header must switch.
+        rules = {**self.FULL, **self.EMPTY}
+        text = format_rules_for_prompt(rules)
+        assert text.splitlines()[0] == "| 中文 | Adapted | Note |"
+        assert "| 霸总 | Alpha CEO | romance |" in text
+        assert "(no fixed term — adapt, do not translate literally)" in text
+
+    def test_bullets_render_empty_target_without_quotes(self):
+        assert format_rules_as_bullets(self.EMPTY) == (
+            "- 金丹 → (no fixed term — adapt, do not translate literally)"
+            " (cultivation stage)"
+        )
+
+    def test_bullets_render_full_target_with_quotes(self):
+        assert format_rules_as_bullets(self.FULL) == '- 霸总 → "Alpha CEO" (romance)'
+
+    def test_missing_target_key_treated_as_empty(self):
+        # load_rules merges raw JSON, so an entry could omit "target" outright.
+        assert format_rules_as_bullets({"金丹": {"note": "stage"}}).startswith(
+            "- 金丹 → (no fixed term"
+        )
+
+    def test_bare_string_entry_still_renders_as_translation(self):
+        # Legacy shape: value is the translation itself, not a dict.
+        assert format_rules_as_bullets({"金丹": "Golden Core"}) == (
+            '- 金丹 → "Golden Core"'
+        )
+
+    def test_no_target_marker_is_not_a_translation(self):
+        # Guards the whole point of these entries: the marker must instruct,
+        # never look like a term the model could copy into the glossary.
+        from src.cultural_rules import _NO_TARGET
+
+        assert _NO_TARGET.startswith("(no fixed term")
+        assert "—" in _NO_TARGET, "marker should read as prose, not as a term"
 
 
 @pytest.fixture

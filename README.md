@@ -51,7 +51,9 @@ At sample points (every ~50 chapters), the READBACK agent cold-reads the English
 
 ### Output Guards
 
-Every chapter passes through: Chinese character residue detection and auto-stripping, LLM meta-commentary removal, Arabic blasphemy scanning (ar-SA mode). Terms are locked by a double-layer glossary: SQLite dict for O(1) exact matching plus Chroma vector store for semantic proximity.
+Every chapter passes through: Chinese character residue detection and auto-stripping, LLM meta-commentary removal. Terms are locked by a double-layer glossary: SQLite dict for O(1) exact matching plus Chroma vector store for semantic proximity.
+
+> The Arabic blasphemy scan was removed together with ar-SA support (`5bba508`); it is no longer part of the pipeline.
 
 ### Safety
 
@@ -152,7 +154,10 @@ redis ≥5.2.0        httpx ≥0.28.0
 
 ## What's Not Here
 
-- `es-ES` / `ar-SA` native-speaker quality review (style notes populated, multi-language routing tested, quality unverified)
+- Native-speaker review of the `es-ES` / `de` / `fr` cultural adaptation rules. Term-level data now exists for all four languages (`common` + `romance_ceo` / `xianxia` / `folk_religion` / `scifi`), but **148 of the 176 `de`/`fr` entries are first-established renderings tagged `⚠️ FIRST-ESTABLISHED — pending native review`** — no native speaker has vetted them. They are adaptations of the vetted `en-US` guidance, not translations found in the wild; German in particular has no existing web-novel terminology convention to draw on. Translation quality itself remains unverified for every language.
+- `de` / `fr` / `es-ES` cultural *fidelity* rules (the category-level guidance in `cultural_rules.json`'s `fidelity` block, e.g. how to render character names or wordplay as a class). That block is `en-US`-only, so non-English READ nodes show "(No cultural fidelity rules for this language.)". Pinned as a known gap by `tests/test_cultural_rules_multilang.py`.
+- `de` / `fr` / `es-ES` entries for a single book's own proper nouns. `books.limitless_horror` (150 terms machine-extracted from 无限恐怖, including crossover IP names like 生化危机 / 异形) exists for `en-US` only. Those IP names largely stay in English in Spanish-speaking markets and split into Peninsular vs. Latin American usage, so they were deliberately not adapted.
+- Language validation at the API boundary: any `target_lang` string is accepted and unknown ones silently fall back to en-US in `personas._lang_profile`. The authoritative list is `config.SUPPORTED_LANGUAGES` (kept in sync by `tests/test_language_registry.py`), but it is not used to reject bad input — only to pick output filenames and build prompt context. A former `_KNOWN_LANGS` whitelist in `routes.py` was dead code (nothing read it) and has been removed rather than wired up.
 - Long-distance style memo A/B validation (infrastructure built, never compared memo-on vs. memo-off translation quality across chapters 1-200)
 - Foreshadowing tracker (the pipeline can delete passages marked as "pure cultural fluff" — it has never been observed doing so, but no formal mechanism prevents it)
 

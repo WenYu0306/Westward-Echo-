@@ -81,7 +81,21 @@ RATE_LIMIT_RPM = int(os.getenv("RATE_LIMIT_RPM", "30"))
 RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 
 # --- Translation defaults ---
-DEFAULT_TARGET_LANG = "en-US"
+# SUPPORTED_LANGUAGES is the single source of truth for which target languages
+# the pipeline can address. It lives in config.py because config imports nothing
+# from the project, so every layer (prompts, api, web_ui, evaluator) can import
+# it without a cycle.
+#
+# Before this, the same four/five-item list was re-typed in 12 places and had
+# already drifted: routes.py carried a bare "en" that no language table knew
+# about, while editor.py's copy omitted it — so the two could disagree about
+# which output file to look for. Adding a language meant editing all 12; missing
+# one failed silently because genre had a three-way sync test but language had
+# only a two-way one. tests/test_language_registry.py now asserts every
+# language-keyed table matches this tuple.
+SUPPORTED_LANGUAGES: tuple[str, ...] = ("en-US", "es-ES", "de", "fr")
+
+DEFAULT_TARGET_LANG = SUPPORTED_LANGUAGES[0]
 QUALITY_CHECK_INTERVAL = 20           # Run QA every N chapters
 MAX_RETRANSLATION_ATTEMPTS = 2        # Max retries for failed chapters
 CHAPTER_COOLDOWN_SECONDS = 0.5        # Rate-limit buffer between chapters

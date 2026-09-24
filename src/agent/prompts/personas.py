@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import logging
 
+from ...config import DEFAULT_TARGET_LANG
 from .translation import LANGUAGE_NAMES
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,10 @@ logger = logging.getLogger(__name__)
 # Fallback audience when a caller passes an unknown/empty target_lang. Genre has
 # no such constant: nodes keep their existing ``state.get("genre", ...)``
 # fallback so this refactor changes no default behaviour.
-DEFAULT_LANG = "en-US"
+# Aliased to config.DEFAULT_TARGET_LANG rather than re-typed as "en-US": the
+# default language is part of the same single source of truth as the supported
+# list, so moving en-US out of first position changes both together.
+DEFAULT_LANG = DEFAULT_TARGET_LANG
 
 
 # ── Language → audience wording ─────────────────────────────────────────
