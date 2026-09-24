@@ -104,6 +104,11 @@ def fix_node(state: TranslatorState) -> dict:
     return {
         "translated_text": polished,
         "adaptation_notes": changes,
+        # Accumulated separately: on a second FIX round, adaptation_notes (a
+        # plain field) is overwritten, so the first round's repair knowledge
+        # would be lost before anything could read it. fix_lessons keeps every
+        # round, and graph._post_process is what finally banks them.
+        "fix_lessons": [c.strip() for c in changes if isinstance(c, str) and c.strip()],
         "quality_issues": [],
         "retranslation_count": retries,
     }

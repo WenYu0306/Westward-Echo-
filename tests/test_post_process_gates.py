@@ -9,6 +9,7 @@ because a gate that silently takes the wrong branch is often invisible in the
 returned data alone.
 """
 
+import json
 import logging
 
 import pytest
@@ -407,3 +408,143 @@ class TestSnapshotAndContext:
             agent._post_process(result, "en-US")
         assert len(agent._chapter_context) == 5
         assert "[Ch3]" in agent._chapter_context[0]
+
+
+class TestFixLessonLoop:
+    """FIX's repairs must reach the style memo, or the money spent on them buys
+    nothing: the next chapter's FIX re-discovers the same repair.
+
+    ``update_from_feedback`` banks what the cold reader *complained about*; this
+    banks the *fix that worked*. Both go to the memo, and asserting only the
+    return value would not prove either was written — so these spy on
+    ``record_lesson``, the single write path into the drawers.
+    """
+
+    @staticmethod
+    def _spy(agent):
+        calls = []
+        agent.style_memo.record_lesson = (
+            lambda drawer, lesson, chapter_number=0: calls.append(
+                (drawer, lesson, chapter_number))
+        )
+        return calls
+
+    def test_fix_lessons_are_banked_into_the_bridges_drawer(self, agent):
+        calls = self._spy(agent)
+        result = make_result()
+        result["chapter_number"] = 12
+        result["fix_lessons"] = ["Replaced literal 打脸 with the humiliation beat"]
+        agent._post_process(result, "en-US")
+
+        assert len(calls) == 1
+        drawer, lesson, chapter = calls[0]
+        assert drawer == "bridges"
+        assert chapter == 12
+        assert "FIX that worked" in lesson
+        assert "humiliation beat" in lesson
+
+    def test_every_lesson_is_banked_up_to_the_cap(self, agent):
+        calls = self._spy(agent)
+        result = make_result()
+        result["fix_lessons"] = [f"repair number {i}" for i in range(1, 4)]
+        agent._post_process(result, "en-US")
+        assert len(calls) == 3
+
+    def test_lessons_beyond_the_cap_are_not_banked(self, agent):
+        """bridges.md is already the largest drawer on real books (31,818 lines
+        on difu_xiao_xiansheng); dedup stops repeats but not volume.
+
+        Both the input size and the expectation are literals, deliberately: an
+        earlier version derived them from _MAX_FIX_LESSONS_PER_CHAPTER, so
+        mutating the constant moved both sides together and the test stayed
+        green while the cap silently changed. test_cap_constant_is_five is what
+        makes changing the cap a decision instead of an accident.
+        """
+        calls = self._spy(agent)
+        result = make_result()
+        result["fix_lessons"] = [f"repair number {i}" for i in range(9)]
+        agent._post_process(result, "en-US")
+        assert len(calls) == 5
+
+    def test_cap_constant_is_five(self):
+        from src.agent.graph import _MAX_FIX_LESSONS_PER_CHAPTER
+        assert _MAX_FIX_LESSONS_PER_CHAPTER == 5
+
+    def test_long_lesson_is_truncated_not_dropped(self, agent):
+        """Exact length, not ``<= 250``: a loose bound let the 200-char truncation
+        be mutated to 201 with no test failing."""
+        calls = self._spy(agent)
+        result = make_result()
+        result["fix_lessons"] = ["x" * 900]
+        agent._post_process(result, "en-US")
+        assert len(calls) == 1
+        assert calls[0][1] == "FIX that worked: " + "x" * 200
+
+    def test_no_fix_lessons_writes_nothing(self, agent):
+        """A chapter that never entered FIX must not leave blank entries."""
+        calls = self._spy(agent)
+        agent._post_process(make_result(), "en-US")
+        assert calls == []
+
+    def test_empty_and_non_string_lessons_are_skipped(self, agent):
+        from src.agent.nodes.fix import fix_node
+        from unittest.mock import patch, MagicMock
+
+        response = {
+            "polished_text": "Fixed version of the chapter.",
+            "changes_made": ["", "   ", "Kept 地府 bureaucratic", None, 42],
+        }
+        with patch("src.agent.nodes.fix.ChatOpenAI") as mock_cls:
+            mock = MagicMock()
+            mock.invoke.return_value = MagicMock(
+                content=json.dumps(response), response_metadata={})
+            mock_cls.return_value = mock
+            state = {
+                "chapter_content": "原文", "chapter_number": 3,
+                "target_lang": "en-US", "genre": "folk_religion",
+                "content_type": "novel", "translated_text": "old text",
+                "readback_feedback": {"verdict": "NEEDS_FIX"},
+                "exact_matches_text": "", "api_key": "sk-fake",
+                "retranslation_count": 0,
+            }
+            out = fix_node(state)
+
+        assert out["fix_lessons"] == ["Kept 地府 bureaucratic"]
+        # adaptation_notes keeps its existing contract: the raw changes list.
+        assert out["adaptation_notes"] == response["changes_made"]
+
+    def test_fix_lessons_accumulate_across_rounds_not_overwrite(self):
+        """FIX → READBACK → FIX is a loop. adaptation_notes is a plain field so
+        round 2 overwrites round 1; fix_lessons is annotated with operator.add
+        so both rounds survive. Asserting the annotation is the point — without
+        it the accumulation is silent and untested."""
+        import operator
+        from typing import get_type_hints
+        from src.agent.state import TranslatorState
+
+        hints = get_type_hints(TranslatorState, include_extras=True)
+        fix_meta = getattr(hints["fix_lessons"], "__metadata__", ())
+        notes_meta = getattr(hints["adaptation_notes"], "__metadata__", ())
+        assert operator.add in fix_meta, "fix_lessons must accumulate"
+        assert operator.add not in notes_meta, (
+            "adaptation_notes is documented as last-writer-wins; if this changed, "
+            "check test_graph_units.py:772 which locks the split-merge contract"
+        )
+
+    def test_lesson_actually_lands_in_the_bridges_file(self, agent):
+        """The spies above prove record_lesson was *called*. This proves the text
+        reached the drawer a later chapter's prompt will read — the loop is only
+        closed if the bytes are on disk. Uses the real StyleMemoStore (no spy).
+        """
+        bridges = agent.style_memo.root / "bridges.md"
+        marker = "banked-lesson-sentinel-9f3a"
+        result = make_result()
+        result["chapter_number"] = 99
+        result["fix_lessons"] = [marker]
+
+        agent._post_process(result, "en-US")
+
+        written = bridges.read_text(encoding="utf-8")
+        assert marker in written, "FIX lesson never reached bridges.md"
+        assert "FIX that worked" in written
+        assert "[ch99]" in written

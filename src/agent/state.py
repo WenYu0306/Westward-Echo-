@@ -24,6 +24,12 @@ class TranslatorState(TypedDict):
     translated_text: str
     new_terms_found: Annotated[list[dict], operator.add]  # Accumulated across retries
     adaptation_notes: list[str]
+    # FIX's own account of what it changed and why. Separate from
+    # adaptation_notes and deliberately accumulated: FIX → READBACK → FIX is a
+    # loop, and adaptation_notes is a plain field, so a second FIX round used to
+    # overwrite the first round's notes — the paid-for repair knowledge was
+    # discarded before anything could read it.
+    fix_lessons: Annotated[list[str], operator.add]
     chapter_summary: str
 
     # === Context continuity ===

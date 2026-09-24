@@ -35,6 +35,13 @@ logger = logging.getLogger(__name__)
 # Max FIX → READBACK loops per chapter
 _MAX_FIX_ATTEMPTS = MAX_RETRANSLATION_ATTEMPTS
 
+# Max FIX repairs banked into the style memo per chapter. FIX is asked for one
+# line per change and can return many; record_lesson dedups repeats but does not
+# bound volume, and bridges.md is already the largest drawer on real books
+# (31,818 lines on difu_xiao_xiansheng). The model reports changes in the order
+# it made them, which carries no recency signal, so the first N are kept.
+_MAX_FIX_LESSONS_PER_CHAPTER = 5
+
 
 def _should_readback(state: TranslatorState) -> str:
     """Route WRITE output: skip READBACK in fast mode, otherwise check quality."""
@@ -293,6 +300,7 @@ class TranslationAgent:
             "translated_text": "",
             "new_terms_found": [],
             "adaptation_notes": [],
+            "fix_lessons": [],
             "chapter_summary": "",
             # Context
             "previous_chapter_summary": prev_summary,
@@ -454,6 +462,27 @@ class TranslationAgent:
         if readback_feedback:
             self.style_memo.update_from_feedback(
                 readback_feedback, read_analysis, chapter_number,
+            )
+
+        # ── Bank FIX's repairs (closes the knowledge loop) ──
+        # update_from_feedback records what the cold reader *complained about*;
+        # this records the *fix that worked*. Without it the memo accumulates
+        # problems with no solutions, and every FIX call spends money to
+        # rediscover the same repair. bridges.md is defined as "cultural bridge
+        # patterns that worked (and didn't)" — that is exactly this data.
+        # Bounded per chapter: record_lesson dedups on a 50-char fingerprint, but
+        # dedup only stops repeats, not volume, and bridges.md is already the
+        # largest drawer on real books (31,818 lines on difu_xiao_xiansheng).
+        fix_lessons = result.get("fix_lessons", [])
+        if fix_lessons:
+            for lesson in fix_lessons[:_MAX_FIX_LESSONS_PER_CHAPTER]:
+                self.style_memo.record_lesson(
+                    "bridges", f"FIX that worked: {lesson[:200]}", chapter_number,
+                )
+            logger.info(
+                "FIX LESSONS ch%d: banked %d of %d repair(s) into bridges.md",
+                chapter_number, min(len(fix_lessons), _MAX_FIX_LESSONS_PER_CHAPTER),
+                len(fix_lessons),
             )
 
         # ── Merge READ's cultural notes into new terms ──────────
