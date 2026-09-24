@@ -10,12 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import (
-    LLM_API_KEY,
-    LLM_BASE_URL,
-    QWEN_MODEL,
-    QWEN_THINKING_BUDGET,
-)
+from ...config import node_llm_kwargs
 from ...cultural_rules import (
     format_fidelity_for_prompt,
     format_rules_as_bullets,
@@ -96,20 +91,18 @@ def read_node(
         - read_analysis: the READ agent's structured analysis (JSON)
         - context_signals: aggregated context signal text
     """
-    api_key = state.get("api_key") or LLM_API_KEY
+    # Model / provider / reasoning control come from the per-node routing table
+    # (config.node_llm_kwargs) so a tier change is one env var, not a code edit.
+    # Generation parameters below are READ's own (deep cultural-gap analysis).
+    provider_kwargs = node_llm_kwargs("read", api_key_override=state.get("api_key", ""))
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=QWEN_MODEL,
-        api_key=api_key,  # type: ignore[arg-type]
-        base_url=LLM_BASE_URL,
         temperature=0.3,
         max_tokens=16384,
-        # Qwen takes its reasoning budget as an explicit token count. It cannot
-        # be combined with reasoning_effort, which is why the GLM effort tier
-        # that used to be set here is gone rather than carried over.
-        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=900,
         max_retries=0,
+        **provider_kwargs,
     )
+    used_model = provider_kwargs["model"]
 
     target_lang = state.get("target_lang", "en-US")
     genre = state.get("genre", "romance_ceo")
@@ -167,6 +160,7 @@ def read_node(
         TranslationStats.record_api_success(target_lang)
         _capture_read_tokens(
             response,
+            model=used_model,
             book_id=state.get("book_id", ""),
             chapter=state.get("chapter_number", 0),
         )
@@ -195,14 +189,19 @@ def read_node(
     }
 
 
-def _capture_read_tokens(response, *, book_id: str = "", chapter: int = 0) -> None:
+def _capture_read_tokens(response, model: str, *, book_id: str = "", chapter: int = 0) -> None:
     """Record READ token usage — per node/chapter in the ledger, plus legacy counters.
+
+    ``model`` is the model that actually served the chapter, not a constant: the
+    routing table can send READ to another tier, and booking its tokens against a
+    hard-coded name would put the cost on the wrong model — the same defect
+    write.py already fixed with ``used_model``.
 
     The ledger row is written even when the provider sent no usage payload: it is
     recorded as unmetered so the gap is countable instead of invisible.
     """
     usage_in, usage_out = token_ledger.extract_usage(response)
-    token_ledger.record("read", QWEN_MODEL, usage_in, usage_out,
+    token_ledger.record("read", model, usage_in, usage_out,
                         book_id=book_id, chapter=chapter)
     # Half a usage payload is not a figure worth accumulating into the
     # legacy counters; the ledger row above already carries whatever

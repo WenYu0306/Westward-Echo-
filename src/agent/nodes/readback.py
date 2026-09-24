@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import LLM_API_KEY, LLM_BASE_URL, QWEN_MODEL, QWEN_THINKING_BUDGET
+from ...config import node_llm_kwargs
 from ...stats import TranslationStats
 from ... import token_ledger
 from ..prompts.personas import build_prompt_context
@@ -44,16 +44,19 @@ def readback_node(state: TranslatorState) -> dict:
             "quality_issues": ["EMPTY: Chapter output is empty or too short."],
         }
 
+    # Model / provider / reasoning control come from the per-node routing table.
+    # READBACK is the primary cost lever (config.py MODEL_MAP): it only judges
+    # "can a reader follow this?", so XIDU_NODE_MODEL_READBACK can drop it to a
+    # flash tier without a code change. Generation params below are READBACK's own.
+    provider_kwargs = node_llm_kwargs("readback", api_key_override=state.get("api_key", ""))
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=QWEN_MODEL,
-        api_key=state.get("api_key") or LLM_API_KEY,  # type: ignore[arg-type]
-        base_url=LLM_BASE_URL,
         temperature=0.1,
         max_tokens=4096,
-        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=120,
         max_retries=0,
+        **provider_kwargs,
     )
+    used_model = provider_kwargs["model"]
 
     # Build previous context for the cold reader
     cold_context = state.get("cold_read_context", "")
@@ -89,6 +92,7 @@ def readback_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_success(target_lang)
         _capture_readback_tokens(
             response,
+            model=used_model,
             book_id=state.get("book_id", ""),
             chapter=state.get("chapter_number", 0),
         )
@@ -137,10 +141,15 @@ def readback_node(state: TranslatorState) -> dict:
     }
 
 
-def _capture_readback_tokens(response, *, book_id: str = "", chapter: int = 0) -> None:
-    """Record READBACK token usage — per node/chapter in the ledger."""
+def _capture_readback_tokens(response, model: str, *, book_id: str = "", chapter: int = 0) -> None:
+    """Record READBACK token usage — per node/chapter in the ledger.
+
+    ``model`` is what actually served the chapter: READBACK is the node most
+    likely to be re-tiered, and booking its tokens against a constant would hide
+    exactly the saving the re-tier was meant to produce.
+    """
     usage_in, usage_out = token_ledger.extract_usage(response)
-    token_ledger.record("readback", QWEN_MODEL, usage_in, usage_out,
+    token_ledger.record("readback", model, usage_in, usage_out,
                         book_id=book_id, chapter=chapter)
     # Half a usage payload is not a figure worth accumulating into the
     # legacy counters; the ledger row above already carries whatever

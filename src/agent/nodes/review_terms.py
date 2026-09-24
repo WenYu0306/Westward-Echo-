@@ -18,7 +18,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from ...config import LLM_API_KEY, LLM_BASE_URL, QWEN_MODEL, QWEN_THINKING_BUDGET
+from ...config import node_llm_kwargs
 from ..parse_utils import parse_llm_json
 from ..state import TranslatorState
 
@@ -100,21 +100,24 @@ def review_terms_node(state: TranslatorState) -> dict:
     if not to_review:
         return {}
 
+    # Model / provider / reasoning control come from the per-node routing table.
+    provider_kwargs = node_llm_kwargs("review_terms")
+
     # No key → no review (dev/test mode). Fail-safe, like the invoke() guard.
-    if not LLM_API_KEY:
+    # Checks the key the routed provider actually needs — checking LLM_API_KEY
+    # unconditionally would silently skip the node the moment REVIEW_TERMS is
+    # re-tiered onto GLM.
+    if not provider_kwargs["api_key"]:
         logger.warning("REVIEW_TERMS: no LLM key configured, skipping review")
         return {}
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=QWEN_MODEL,
-        api_key=LLM_API_KEY,  # type: ignore[arg-type]
-        base_url=LLM_BASE_URL,
         temperature=0.1,
         max_tokens=4096,
-        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=120,
         max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},
+        **provider_kwargs,
     )
 
     user_prompt = _REVIEW_USER.format(terms_list=_format_terms(to_review))

@@ -23,7 +23,11 @@ def _mock_review(monkeypatch, review_json):
         "src.agent.nodes.review_terms.ChatOpenAI",
         lambda **kwargs: mock_llm,
     )
-    monkeypatch.setattr("src.agent.nodes.review_terms.LLM_API_KEY", "fake-key")
+    # The node reads its key via config.node_llm_kwargs, which resolves the
+    # routed provider's key at call time — so patch config, not a name this
+    # module no longer imports. conftest already poisons it to a non-empty
+    # fake; this keeps the intent explicit (a key present ⇒ the node runs).
+    monkeypatch.setattr("src.config.LLM_API_KEY", "fake-key")
     return mock_llm
 
 
@@ -116,7 +120,9 @@ class TestReviewTerms:
             "src.agent.nodes.review_terms.ChatOpenAI",
             fake_factory,
         )
-        monkeypatch.setattr("src.agent.nodes.review_terms.LLM_API_KEY", "fake-key")
+        # Key is resolved through config.node_llm_kwargs, not a module-local
+        # name here; patch config so the "key present ⇒ node runs" intent holds.
+        monkeypatch.setattr("src.config.LLM_API_KEY", "fake-key")
         review_terms_node(state)
         user_msg = [m for m in captured["messages"] if m.type == "human"][0]
         assert "South Mao, North Ma" in user_msg.content

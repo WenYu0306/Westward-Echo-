@@ -35,44 +35,87 @@ MUTATIONS = [
          'GLM_FIX_EFFORT = os.getenv("GLM_FIX_EFFORT", "high")',
          'GLM_FIX_EFFORT = os.getenv("GLM_FIX_EFFORT", "low")'),
     ]),
-    # READ moved to Qwen 3.8 max (Zhipu's 1301 content filter was rejecting
-    # real web-novel chapters). Its mutation set follows the provider: the old
-    # GLM_FULL_MODEL / GLM_READ_EFFORT patterns no longer exist in read.py, so
-    # leaving them here would silently SKIP and report a fake "0 survived".
+    # Nodes now take model/provider/reasoning from config.node_llm_kwargs, so the
+    # old `model=QWEN_MODEL` patterns are gone. Mutating the *node name* passed to
+    # the router is the equivalent defect: it routes the node to another tier.
+    # Ledger attribution mutations are covered too — they live in
+    # test_write_guards.py, which run_tests() now includes.
     ("src/agent/nodes/read.py", [
-        ("model QWEN->GLM (wrong provider)", "model=QWEN_MODEL", "model=GLM_MODEL"),
+        ("route READ to WRITE's tier", 'node_llm_kwargs("read"', 'node_llm_kwargs("write"'),
         ("temperature 0.3->0.4", "temperature=0.3", "temperature=0.4"),
         ("max_tokens 16384->8192", "max_tokens=16384", "max_tokens=8192"),
-        ("drop thinking_budget", 'extra_body={"thinking_budget": QWEN_THINKING_BUDGET},\n', ""),
-        ("thinking_budget 2048->1024", "QWEN_THINKING_BUDGET", "1024"),
-        ("add reasoning_effort to Qwen (illegal combo)",
-         "        extra_body={\"thinking_budget\": QWEN_THINKING_BUDGET},\n",
-         "        extra_body={\"thinking_budget\": QWEN_THINKING_BUDGET},\n        reasoning_effort=\"high\",\n"),
+        ("ledger books a constant instead of the model that ran",
+         'token_ledger.record("read", model,', 'token_ledger.record("read", "qwen3.8-max",'),
     ]),
     ("src/agent/nodes/write.py", [
-        ("model GLM->GLM_FULL (wrong tier)", "model=GLM_MODEL", "model=GLM_FULL_MODEL"),
+        ("route WRITE to FIX's tier",
+         'node_llm_kwargs("write", api_key_override', 'node_llm_kwargs("fix", api_key_override'),
+        ("route the 1301 fallback to WRITE's tier",
+         '"write_fallback", api_key_override', '"write", api_key_override'),
         ("temperature 0.2->0.3", "temperature=0.2", "temperature=0.3"),
         ("max_tokens 16384->8192", "max_tokens=16384", "max_tokens=8192"),
-        ("drop reasoning_effort", "reasoning_effort=GLM_WRITE_EFFORT,\n", ""),
     ]),
     ("src/agent/nodes/readback.py", [
-        ("model QWEN->GLM (wrong provider)", "model=QWEN_MODEL", "model=GLM_MODEL"),
+        ("route READBACK to FIX's tier",
+         'node_llm_kwargs("readback"', 'node_llm_kwargs("fix"'),
         ("temperature 0.1->0.3", "temperature=0.1", "temperature=0.3"),
         ("max_tokens 4096->2048", "max_tokens=4096", "max_tokens=2048"),
-        ("drop thinking_budget", 'extra_body={"thinking_budget": QWEN_THINKING_BUDGET},\n', ""),
-        ("thinking_budget 2048->1024", "QWEN_THINKING_BUDGET", "1024"),
+        ("ledger books a constant instead of the model that ran",
+         'token_ledger.record("readback", model,',
+         'token_ledger.record("readback", "qwen3.8-max",'),
     ]),
     ("src/agent/nodes/fix.py", [
-        ("model GLM_FULL->GLM (wrong tier)", "model=GLM_FULL_MODEL", "model=GLM_MODEL"),
+        ("route FIX to WRITE's tier", 'node_llm_kwargs("fix"', 'node_llm_kwargs("write"'),
         ("temperature 0.1->0.3", "temperature=0.1", "temperature=0.3"),
         ("max_tokens 16384->8192", "max_tokens=16384", "max_tokens=8192"),
-        ("drop reasoning_effort", "reasoning_effort=GLM_FIX_EFFORT,\n", ""),
+        ("ledger books a constant instead of the model that ran",
+         'token_ledger.record("fix", model,', 'token_ledger.record("fix", "glm-5.3",'),
     ]),
     ("src/agent/nodes/review_terms.py", [
-        ("model QWEN->GLM (wrong provider)", "model=QWEN_MODEL", "model=GLM_MODEL"),
+        ("route REVIEW_TERMS to WRITE's tier",
+         'node_llm_kwargs("review_terms")', 'node_llm_kwargs("write")'),
         ("temperature 0.1->0.3", "temperature=0.1", "temperature=0.3"),
         ("max_tokens 4096->2048", "max_tokens=4096", "max_tokens=2048"),
-        ("drop thinking_budget", 'extra_body={"thinking_budget": QWEN_THINKING_BUDGET},\n', ""),
+    ]),
+    # The router itself: it is now the single source of truth, so every branch in
+    # it is load-bearing (provider derivation, effort lookup, BYOK precedence).
+    ("src/config.py", [
+        ("router sends qwen models to the GLM endpoint",
+         '    if name.startswith("qwen"):\n        return "qwen"',
+         '    if name.startswith("qwen"):\n        return "glm"'),
+        ("router silently defaults unknown models instead of raising",
+         '    raise ValueError(\n        f"cannot route model {model!r}',
+         '    return "qwen"  # MUTANT\n    raise ValueError(\n        f"cannot route model {model!r}'),
+        ("router falls back to a default node instead of raising",
+         '    except KeyError:\n        raise ValueError(',
+         '    except KeyError:\n        return QWEN_MODEL  # MUTANT\n        raise ValueError('),
+        ("router ignores per-node env overrides",
+         '        out[node] = os.getenv(f"XIDU_NODE_{prefix}_{node.upper()}", default)',
+         '        out[node] = default'),
+        ("qwen branch drops thinking_budget",
+         '            "extra_body": {"thinking_budget": QWEN_THINKING_BUDGET},\n', ""),
+        ("qwen branch illegally adds reasoning_effort",
+         '            "extra_body": {"thinking_budget": QWEN_THINKING_BUDGET},\n',
+         '            "extra_body": {"thinking_budget": QWEN_THINKING_BUDGET},\n'
+         '            "reasoning_effort": "high",\n'),
+        ("qwen branch drops the BYOK key override",
+         '            "api_key": api_key_override or LLM_API_KEY,',
+         '            "api_key": LLM_API_KEY,'),
+        ("qwen branch points at the GLM endpoint",
+         '            "base_url": LLM_BASE_URL,', '            "base_url": GLM_BASE_URL,'),
+        ("glm branch drops the BYOK key override",
+         '        "api_key": api_key_override or GLM_API_KEY,',
+         '        "api_key": GLM_API_KEY,'),
+        ("glm branch ignores the per-node effort table",
+         '        "reasoning_effort": NODE_EFFORTS[node],',
+         '        "reasoning_effort": "max",'),
+        ("glm branch points at the Qwen endpoint",
+         '        "base_url": GLM_BASE_URL,\n        "api_key": api_key_override or GLM_API_KEY,',
+         '        "base_url": LLM_BASE_URL,\n        "api_key": api_key_override or GLM_API_KEY,'),
+        ("routing table re-tiers READBACK by default",
+         '    "readback":       QWEN_MODEL,', '    "readback":       GLM_MODEL,'),
+        ("routing table re-tiers the 1301 fallback by default",
+         '    "write_fallback": QWEN_MODEL,', '    "write_fallback": GLM_MODEL,'),
     ]),
 ]
 
@@ -107,10 +150,14 @@ def _install_restore_handler():
 def run_tests():
     env = dict(__import__("os").environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # Both files are needed: test_dual_model.py pins which model/endpoint each
+    # node builds, and test_write_guards.py pins ledger attribution plus the
+    # 1301 fallback path. Running only the first would let "book a constant
+    # model" mutants survive.
     r = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
-         "tests/test_dual_model.py"],
-        cwd=ROOT, capture_output=True, text=True, env=env, timeout=120,
+         "tests/test_dual_model.py", "tests/test_write_guards.py"],
+        cwd=ROOT, capture_output=True, text=True, env=env, timeout=300,
     )
     return r.returncode
 

@@ -388,19 +388,22 @@ class TestContentFilterDetection:
         assert _is_content_filter_error(Exception("401 invalid api key")) is False
 
 
-class TestQwenFallbackWriterConfig:
+class TestFallbackWriterConfig:
     """The fallback writer must carry the same guards as the primary one:
     its whole purpose is to be used when the primary provider refuses."""
 
     def _kwargs(self, api_key="sk-test"):
-        from src.agent.nodes.write import _build_qwen_writer
+        from src.agent.nodes.write import _build_fallback_writer
+        from src.config import node_llm_kwargs
         with patch("src.agent.nodes.write.ChatOpenAI") as cls:
-            _build_qwen_writer(api_key=api_key)
+            _build_fallback_writer(
+                **node_llm_kwargs("write_fallback", api_key_override=api_key)
+            )
         return cls.call_args.kwargs
 
-    def test_model_is_the_configured_qwen_model(self):
-        from src.config import QWEN_MODEL
-        assert self._kwargs()["model"] == QWEN_MODEL
+    def test_model_is_the_routed_fallback_model(self):
+        from src.config import node_model
+        assert self._kwargs()["model"] == node_model("write_fallback")
 
     def test_temperature_is_zero_point_two(self):
         assert self._kwargs()["temperature"] == 0.2
@@ -566,9 +569,33 @@ class TestCaptureHelpersSemantics:
             "prompt_tokens": 7, "completion_tokens": 8}})
         with patch.object(rmod.token_ledger, "record") as led, \
              patch.object(rmod.TranslationStats, "record_tokens"):
-            rmod._capture_read_tokens(resp, book_id="difu", chapter=173)
+            rmod._capture_read_tokens(resp, "qwen3.8-flash", book_id="difu", chapter=173)
         assert led.call_args.args[0] == "read"
+        # The model must be the one passed in, not a module constant: READ is
+        # re-tierable, and booking a flash chapter against a hard-coded max name
+        # would put its cost on the wrong model.
+        assert led.call_args.args[1] == "qwen3.8-flash"
         assert led.call_args.kwargs == {"book_id": "difu", "chapter": 173}
+
+    def test_readback_helper_books_the_model_it_is_given(self):
+        from src.agent.nodes import readback as rbmod
+        resp = _Resp(content="x", metadata={"token_usage": {
+            "prompt_tokens": 7, "completion_tokens": 8}})
+        with patch.object(rbmod.token_ledger, "record") as led, \
+             patch.object(rbmod.TranslationStats, "record_tokens"):
+            rbmod._capture_readback_tokens(resp, "qwen3.8-flash", book_id="difu", chapter=9)
+        assert led.call_args.args == ("readback", "qwen3.8-flash", 7, 8)
+        assert led.call_args.kwargs == {"book_id": "difu", "chapter": 9}
+
+    def test_fix_helper_books_the_model_it_is_given(self):
+        from src.agent.nodes import fix as fmod
+        resp = _Resp(content="x", metadata={"token_usage": {
+            "prompt_tokens": 7, "completion_tokens": 8}})
+        with patch.object(fmod.token_ledger, "record") as led, \
+             patch.object(fmod.TranslationStats, "record_tokens"):
+            fmod._capture_fix_tokens(resp, "glm-5.3-flash", book_id="difu", chapter=9)
+        assert led.call_args.args == ("fix", "glm-5.3-flash", 7, 8)
+        assert led.call_args.kwargs == {"book_id": "difu", "chapter": 9}
 
 
 class TestFidelityRulesFallback:
@@ -714,7 +741,7 @@ class TestFallbackWriterKeyPrecedence:
         from src.agent.nodes import write as wmod
         with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
              patch("src.agent.nodes.write.job_store") as js, \
-             patch("src.agent.nodes.write._build_qwen_writer") as builder:
+             patch("src.agent.nodes.write._build_fallback_writer") as builder:
             js.get_confirmed_terms.return_value = {}
             js.get_rejected_terms.return_value = []
             primary = MagicMock()
@@ -735,8 +762,73 @@ class TestFallbackWriterKeyPrecedence:
         assert self._fallback_call(st)["api_key"] == "sk-user-owned"
 
     def test_operator_key_is_used_when_state_has_none(self):
-        from src.config import LLM_API_KEY
-        assert self._fallback_call(_state(_LONG_SOURCE))["api_key"] == LLM_API_KEY
+        # The key is resolved by node_llm_kwargs for whichever provider the
+        # fallback is routed to, so assert against that rather than a constant:
+        # re-tiering write_fallback onto GLM must not make this test lie.
+        from src.config import node_llm_kwargs
+        expected = node_llm_kwargs("write_fallback")["api_key"]
+        assert self._fallback_call(_state(_LONG_SOURCE))["api_key"] == expected
+
+
+class TestFallbackMustLeaveTheRefusingProvider:
+    """The 1301 filter is deterministic on the same text, so retrying the same
+    provider cannot succeed — the fallback only earns its name by crossing to
+    the other one. Mutation survived routing `write_fallback` onto `write`'s
+    tier until this was asserted, because the builder itself is mocked here and
+    the config-level test cannot see which node the 1301 path asks for.
+
+    Tier choice stays free (qwen3.8-flash is a legitimate cheaper fallback);
+    what must not change is the provider.
+    """
+
+    def _fallback_kwargs_seen_by_the_node(self, state):
+        """Run the 1301 path and capture the kwargs the node hands the builder.
+
+        The spy must not call the real builder: ChatOpenAI is patched to return
+        the *primary* (refusing) client, so delegating would raise 1301 again
+        from inside the except block. It records the routing kwargs and returns
+        a separate client that answers normally.
+        """
+        seen = {}
+
+        fallback_client = MagicMock()
+        fallback_client.invoke.return_value = _Resp(
+            content='{"translated_text": "' + ("word " * 40) + '"}',
+            metadata={"finish_reason": "stop"})
+
+        def spy(**kwargs):
+            seen.update(kwargs)
+            return fallback_client
+
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js, \
+             patch("src.agent.nodes.write._build_fallback_writer", side_effect=spy):
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            primary = MagicMock()
+            primary.invoke.side_effect = Exception(
+                "Error code: 400 - {'error': {'code': '1301'}}")
+            cls.return_value = primary
+            write_node(state)
+        return seen
+
+    def test_fallback_endpoint_differs_from_the_primary_endpoint(self):
+        from src.config import node_llm_kwargs
+        seen = self._fallback_kwargs_seen_by_the_node(_state(_LONG_SOURCE))
+        primary = node_llm_kwargs("write")
+        assert seen["base_url"] != primary["base_url"], (
+            "the 1301 fallback must not retry the provider that just refused"
+        )
+
+    def test_fallback_model_differs_from_the_primary_model(self):
+        from src.config import node_model
+        seen = self._fallback_kwargs_seen_by_the_node(_state(_LONG_SOURCE))
+        assert seen["model"] != node_model("write")
+
+    def test_fallback_model_is_the_routed_fallback_tier(self):
+        from src.config import node_model
+        seen = self._fallback_kwargs_seen_by_the_node(_state(_LONG_SOURCE))
+        assert seen["model"] == node_model("write_fallback")
 
 
 class TestFenceHandlingDoesNotPolluteTelemetry:

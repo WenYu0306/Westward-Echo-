@@ -13,16 +13,7 @@ from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 from ...completeness import check_completeness
-from ...config import (
-    GLM_API_KEY,
-    GLM_BASE_URL,
-    GLM_MODEL,
-    GLM_WRITE_EFFORT,
-    LLM_API_KEY,
-    LLM_BASE_URL,
-    QWEN_MODEL,
-    QWEN_THINKING_BUDGET,
-)
+from ...config import node_llm_kwargs
 from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
 from ...job_store import job_store
 from ...stats import TranslationStats
@@ -52,19 +43,17 @@ def write_node(state: TranslatorState) -> dict:
     # Which model actually served this chapter. The GLM-1301 fallback below
     # switches providers mid-chapter; without this the fallback call was booked
     # against GLM and its cost landed on the wrong model.
-    used_model = GLM_MODEL
-    api_key = state.get("api_key") or GLM_API_KEY
+    # Model / provider / reasoning control come from the per-node routing table.
+    provider_kwargs = node_llm_kwargs("write", api_key_override=state.get("api_key", ""))
+    used_model = provider_kwargs["model"]
 
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=GLM_MODEL,
-        api_key=api_key,  # type: ignore[arg-type]
-        base_url=GLM_BASE_URL,
         temperature=0.2,
         max_tokens=16384,
-        reasoning_effort=GLM_WRITE_EFFORT,
         request_timeout=300,
         max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},
+        **provider_kwargs,
     )
     # Format the READ analysis as context
     read_analysis = state.get("read_analysis", {})
@@ -158,24 +147,28 @@ def write_node(state: TranslatorState) -> dict:
         # not do. Fall back to the other configured provider for this chapter
         # only, and record it so a corpus-level shift in filter behaviour is
         # visible rather than silent.
+        fallback_kwargs = node_llm_kwargs(
+            "write_fallback", api_key_override=state.get("api_key", "")
+        )
+        fallback_model = fallback_kwargs["model"]
         logger.warning(
             "WRITE ch%d: content filter rejected the chapter (1301) — retrying "
-            "once on %s", chapter_number, QWEN_MODEL,
+            "once on %s", chapter_number, fallback_model,
         )
         try:
             from ...error_tracker import record_event
             record_event(None, chapter_number, "content_filter_fallback",
-                         f"GLM 1301 on ch{chapter_number}; retried on {QWEN_MODEL}",
+                         f"GLM 1301 on ch{chapter_number}; retried on {fallback_model}",
                          target_lang)
         except Exception:
             pass
-        fallback_key = state.get("api_key") or LLM_API_KEY
+        fallback_key = fallback_kwargs["api_key"]
         if not fallback_key:
             raise
         response = breaker.call(
-            _build_qwen_writer(api_key=fallback_key).invoke, messages
+            _build_fallback_writer(**fallback_kwargs).invoke, messages
         )
-        used_model = QWEN_MODEL
+        used_model = fallback_model
         TranslationStats.record_api_success(target_lang)
 
     _capture_response_tokens(
@@ -258,7 +251,10 @@ def write_node(state: TranslatorState) -> dict:
                 TranslationStats.record_api_success(target_lang)
                 _capture_response_tokens(
                     retry_response,
-                    model=GLM_MODEL,
+                    # The retry reuses the *primary* client, so it is booked
+                    # against the primary tier even when an earlier 1301 sent
+                    # this chapter's first attempt to the fallback provider.
+                    model=provider_kwargs["model"],
                     tier="flash" if flash else "pro",
                     book_id=state.get("book_id", ""),
                     chapter=chapter_number,
@@ -485,23 +481,22 @@ def _is_content_filter_error(exc: Exception) -> bool:
     return "1301" in text or "contentFilter" in text or "不安全" in text
 
 
-def _build_qwen_writer(*, api_key: str) -> ChatOpenAI:
-    """A WRITE client on the other configured provider, for filter fallback only.
+def _build_fallback_writer(**provider_kwargs) -> ChatOpenAI:
+    """A WRITE client on the routed fallback provider, for filter fallback only.
 
-    Same generation parameters as the GLM writer so a fallback chapter is not
-    silently written in a different register. Qwen takes its reasoning budget as
-    an explicit token count (``thinking_budget``) rather than an effort tier.
+    Same generation parameters as the primary writer so a fallback chapter is not
+    silently written in a different register. Model / base_url / api_key and the
+    provider's reasoning control all arrive pre-resolved from
+    ``node_llm_kwargs("write_fallback")`` — this function must not pick a
+    provider itself, or re-tiering the fallback would not take effect.
     """
     return ChatOpenAI(  # type: ignore[call-arg]
-        model=QWEN_MODEL,
-        api_key=api_key,  # type: ignore[arg-type]
-        base_url=LLM_BASE_URL,
         temperature=0.2,
         max_tokens=16384,
-        extra_body={"thinking_budget": QWEN_THINKING_BUDGET},
         request_timeout=300,
         max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},
+        **provider_kwargs,
     )
 
 

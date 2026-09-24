@@ -112,16 +112,117 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # --- Per-node model routing ---
 # 按节点角色分 provider（2026-09 定案，全面弃 DeepSeek）：
-#   - READ / FIX：GLM 5.3（full）— 文字思考（找文化缺口 / 靶向修复）
+#   - READ / READBACK / REVIEW_TERMS：Qwen 3.8 max — 读取判断
+#     （READ 从 GLM 移开是因为智谱内容过滤会以 1301 拒付真实网文）
 #   - WRITE：GLM 5.3 flash — 文字输出（忠实编译，便宜10倍）
-#   - READBACK / REVIEW_TERMS：Qwen 3.8 max — 读取判断
-MODEL_MAP = {
-    "read":          QWEN_MODEL,      # READ — Qwen 3.8 max（GLM 的内容过滤会拦真实网文）
-    "write":         GLM_MODEL,       # WRITE — GLM 5.3 flash 文字输出
-    "readback":      QWEN_MODEL,      # READBACK — Qwen 3.8 max 判断
-    "fix":           GLM_FULL_MODEL,  # FIX — GLM 5.3 文字思考
-    "review_terms":  QWEN_MODEL,      # REVIEW_TERMS — Qwen 3.8 max 判断
+#   - WRITE_FALLBACK：Qwen 3.8 max — GLM 1301 时的换 provider 兜底
+#   - FIX：GLM 5.3（full）— 文字思考（靶向修复）
+#
+# ⚠️ 这张表是**每节点档位的单一来源**，节点必须经 `node_llm_kwargs()` 取模型，
+# 不得直接 import `QWEN_MODEL`/`GLM_MODEL`/`GLM_FULL_MODEL` 来建模。
+#
+# 为什么强调：本表此前是**死配置**——它声明了分工，但五个生产节点全都直接
+# import provider 常量建模，只有 dashboard 和 adversarial_test.py 读它。所以
+# "改 MODEL_MAP 给 READBACK 降档"改了也一分钱省不下来（COST_MODEL_20260922.md
+# §0.5 指出的 10–17 倍杠杆因此一直是断开的）。与 round7 修的"语种清单复制 12
+# 份"是同一类缺陷：配置声明与真实行为各走各的。
+#
+# 每个节点都可用环境变量单独降/升档，无需改代码：
+#   XIDU_NODE_MODEL_READBACK=qwen3.8-flash  → READBACK 单价 12/36 降到 0.8/2.7
+#   XIDU_NODE_EFFORT_READBACK=low           → 若切到 GLM，思考档位
+# provider（base_url / api_key / 思考参数形态）由**模型名**派生，不由节点写死，
+# 所以跨 provider 降档（READBACK → glm-5.3-flash）也能正确路由。
+DEFAULT_NODE_MODELS = {
+    "read":           QWEN_MODEL,      # Qwen 3.8 max（GLM 的 1301 内容过滤会拦真实网文）
+    "write":          GLM_MODEL,       # GLM 5.3 flash 文字输出
+    "write_fallback": QWEN_MODEL,      # GLM 1301 时的 Qwen 兜底
+    "readback":       QWEN_MODEL,      # Qwen 3.8 max 判断（**降档首选目标**）
+    "fix":            GLM_FULL_MODEL,  # GLM 5.3 文字思考
+    "review_terms":   QWEN_MODEL,      # Qwen 3.8 max 判断
 }
+
+# GLM 用 reasoning_effort 档位；默认 max 贵 35 倍，必须显式设。
+# Qwen 节点若被切到 GLM 模型，用 "low" 兜底（判断/输出类任务，非深度思考）。
+DEFAULT_NODE_EFFORTS = {
+    "read":           "low",
+    "write":          GLM_WRITE_EFFORT,   # low — 忠实输出
+    "write_fallback": "low",
+    "readback":       "low",
+    "fix":            GLM_FIX_EFFORT,     # high — 深度修复
+    "review_terms":   "low",
+}
+
+
+def _env_overridden(table: dict, prefix: str) -> dict:
+    """Apply per-node ``XIDU_NODE_<prefix>_<NODE>`` overrides to a default table."""
+    out = {}
+    for node, default in table.items():
+        out[node] = os.getenv(f"XIDU_NODE_{prefix}_{node.upper()}", default)
+    return out
+
+
+NODE_MODELS = _env_overridden(DEFAULT_NODE_MODELS, "MODEL")
+NODE_EFFORTS = _env_overridden(DEFAULT_NODE_EFFORTS, "EFFORT")
+
+# Public alias kept for dashboard / health / adversarial_test / token_ledger test.
+MODEL_MAP = dict(NODE_MODELS)
+
+
+def node_provider(model: str) -> str:
+    """Which provider serves ``model`` — derived from the name, not the node.
+
+    Raises on an unknown prefix rather than silently routing a Qwen model name
+    to the GLM endpoint (which would fail as an auth/model-not-found error far
+    from the misconfiguration that caused it).
+    """
+    name = (model or "").strip().lower()
+    if name.startswith("qwen"):
+        return "qwen"
+    if name.startswith("glm"):
+        return "glm"
+    raise ValueError(
+        f"cannot route model {model!r}: provider must be inferable from the name "
+        "(qwen* → LLM_BASE_URL, glm* → GLM_BASE_URL). Set XIDU_NODE_MODEL_<NODE> "
+        "to a model from MODEL_PRICES_CNY_PER_M."
+    )
+
+
+def node_model(node: str) -> str:
+    """The model ``node`` is routed to. Unknown node → ValueError, not a silent default."""
+    try:
+        return NODE_MODELS[node]
+    except KeyError:
+        raise ValueError(f"unknown pipeline node {node!r}; expected one of {sorted(NODE_MODELS)}") from None
+
+
+def node_llm_kwargs(node: str, *, api_key_override: str = "") -> dict:
+    """Everything provider-specific a node needs to build its ChatOpenAI client.
+
+    Returns ``model`` / ``base_url`` / ``api_key`` plus the reasoning control in
+    the form that provider expects — ``extra_body={"thinking_budget": N}`` for
+    Qwen, ``reasoning_effort=<tier>`` for GLM. **The two must not be set
+    together**, which is why the choice lives here instead of in each node.
+
+    Node-owned generation parameters (temperature / max_tokens / request_timeout /
+    model_kwargs) stay in the node: they are per-task, not per-provider.
+
+    ``api_key_override`` is the per-request key from job state; when empty the
+    environment default for the routed provider is used.
+    """
+    model = node_model(node)
+    if node_provider(model) == "qwen":
+        return {
+            "model": model,
+            "base_url": LLM_BASE_URL,
+            "api_key": api_key_override or LLM_API_KEY,
+            "extra_body": {"thinking_budget": QWEN_THINKING_BUDGET},
+        }
+    return {
+        "model": model,
+        "base_url": GLM_BASE_URL,
+        "api_key": api_key_override or GLM_API_KEY,
+        "reasoning_effort": NODE_EFFORTS[node],
+    }
 
 # ── 真实单价（元 / 百万 token，输入价, 输出价）──────────────────────
 # 唯一权威来源，供 src/token_ledger.py 算钱。抓取于 2026-09-22：

@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-from ...config import GLM_API_KEY, GLM_BASE_URL, GLM_FIX_EFFORT, GLM_FULL_MODEL
+from ...config import node_llm_kwargs
 from ...stats import TranslationStats
 from ... import token_ledger
 from ..prompts.personas import build_prompt_context
@@ -27,16 +27,18 @@ def fix_node(state: TranslatorState) -> dict:
         - translated_text: the fixed English chapter
         - adaptation_notes: what was changed and why
     """
+    # Model / provider / reasoning control come from the per-node routing table.
+    # FIX is a deep-repair task, so its default effort stays high (GLM_FIX_EFFORT);
+    # generation params below are FIX's own.
+    provider_kwargs = node_llm_kwargs("fix", api_key_override=state.get("api_key", ""))
     llm = ChatOpenAI(  # type: ignore[call-arg]
-        model=GLM_FULL_MODEL,
-        api_key=state.get("api_key") or GLM_API_KEY,  # type: ignore[arg-type]
-        base_url=GLM_BASE_URL,
         temperature=0.1,
         max_tokens=16384,
-        reasoning_effort=GLM_FIX_EFFORT,
         request_timeout=900,
         max_retries=0,
+        **provider_kwargs,
     )
+    used_model = provider_kwargs["model"]
 
     # Format the cold reader's feedback for the editor
     feedback = state.get("readback_feedback", {})
@@ -71,6 +73,7 @@ def fix_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_success(target_lang)
         _capture_fix_tokens(
             response,
+            model=used_model,
             book_id=state.get("book_id", ""),
             chapter=state.get("chapter_number", 0),
         )
@@ -141,10 +144,14 @@ def _format_readback_feedback(feedback: dict) -> str:
     )
 
 
-def _capture_fix_tokens(response, *, book_id: str = "", chapter: int = 0) -> None:
-    """Record FIX token usage — per node/chapter in the ledger."""
+def _capture_fix_tokens(response, model: str, *, book_id: str = "", chapter: int = 0) -> None:
+    """Record FIX token usage — per node/chapter in the ledger.
+
+    ``model`` is what actually served the chapter, so a re-tiered FIX is booked
+    against the tier it ran on rather than a hard-coded constant.
+    """
     usage_in, usage_out = token_ledger.extract_usage(response)
-    token_ledger.record("fix", GLM_FULL_MODEL, usage_in, usage_out,
+    token_ledger.record("fix", model, usage_in, usage_out,
                         book_id=book_id, chapter=chapter)
     # Half a usage payload is not a figure worth accumulating into the
     # legacy counters; the ledger row above already carries whatever
