@@ -26,7 +26,13 @@ from pathlib import Path
 
 from src.agent.prompts.personas import DEFAULT_LANG, known_languages
 from src.agent.prompts.translation import LANGUAGE_NAMES, LANGUAGE_STYLE_NOTES
-from src.config import DEFAULT_TARGET_LANG, ROOT_DIR, SUPPORTED_LANGUAGES
+from src.config import (
+    DEFAULT_TARGET_LANG,
+    LANGUAGE_SHORT_LABELS,
+    ROOT_DIR,
+    SUPPORTED_LANGUAGES,
+    target_language_label,
+)
 from src.evaluator_prompts import EVALUATOR_PROFILES
 
 # Source files scanned for inline language lists that should have been replaced
@@ -87,6 +93,41 @@ class TestLanguageTablesMatchRegistry:
         for lang, profile in EVALUATOR_PROFILES.items():
             assert profile.get("persona", "").strip(), \
                 f"EVALUATOR_PROFILES[{lang!r}] has no persona"
+
+
+class TestShortLabelsAreDerivedNotCopied:
+    """LANGUAGE_SHORT_LABELS is prompt-table column text, not a 13th language
+    list. It is guarded two ways so it cannot drift: its keys equal the
+    registry, and each value equals the leading word of LANGUAGE_NAMES — the
+    table it is meant to abbreviate.
+
+    It replaced hard-coded ``| Chinese | English |`` headers that told the model
+    the Spanish/German column was English.
+    """
+
+    def test_keys_equal_registry(self):
+        assert set(LANGUAGE_SHORT_LABELS) == _registry(), \
+            f"LANGUAGE_SHORT_LABELS drifted: {set(LANGUAGE_SHORT_LABELS) ^ _registry()}"
+
+    def test_every_label_matches_language_names_first_word(self):
+        for lang, label in LANGUAGE_SHORT_LABELS.items():
+            assert label == LANGUAGE_NAMES[lang].split()[0], \
+                f"{lang}: label {label!r} != LANGUAGE_NAMES {LANGUAGE_NAMES[lang]!r}"
+
+    def test_label_resolves_per_language(self):
+        assert target_language_label("es-ES") == "Spanish"
+        assert target_language_label("de") == "German"
+        assert target_language_label("fr") == "French"
+        assert target_language_label("en-US") == "English"
+
+    def test_unknown_language_is_not_silently_called_english(self):
+        """An unregistered code must surface as itself, never as 'English'."""
+        assert target_language_label("pt-BR") == "pt-BR"
+        assert target_language_label("ja-JP") == "ja-JP"
+
+    def test_empty_language_yields_neutral_header_not_english(self):
+        assert target_language_label("") == "Target"
+        assert target_language_label() == "Target"
 
 
 class TestNoInlineLanguageLists:

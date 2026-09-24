@@ -96,6 +96,36 @@ RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 SUPPORTED_LANGUAGES: tuple[str, ...] = ("en-US", "es-ES", "de", "fr")
 
 DEFAULT_TARGET_LANG = SUPPORTED_LANGUAGES[0]
+
+# Column-header label for the *target* language, for glossary tables injected
+# into prompts. Lives here (not in agent/prompts/translation.py) because the
+# glossary layer sits below the agent layer and prompts already import config —
+# importing the other way would be a cycle.
+#
+# This is real data, not a 14th copy of the language list: its keys are asserted
+# equal to SUPPORTED_LANGUAGES and its values are asserted equal to the leading
+# word of LANGUAGE_NAMES, so the two tables cannot drift silently
+# (tests/test_language_registry.py).
+LANGUAGE_SHORT_LABELS: dict[str, str] = {
+    "en-US": "English",
+    "es-ES": "Spanish",
+    "de": "German",
+    "fr": "French",
+}
+
+
+def target_language_label(target_lang: str = "") -> str:
+    """The target-language column label for prompt tables.
+
+    Falls back to the raw code rather than to "English": an unregistered
+    language must not be silently described as English, which is the exact
+    defect this function replaced (the headers used to be hard-coded
+    ``| Chinese | English |`` and told the model the Spanish column was
+    English).
+    """
+    return LANGUAGE_SHORT_LABELS.get(target_lang or "", (target_lang or "").strip() or "Target")
+
+
 QUALITY_CHECK_INTERVAL = 20           # Run QA every N chapters
 MAX_RETRANSLATION_ATTEMPTS = 2        # Max retries for failed chapters
 CHAPTER_COOLDOWN_SECONDS = 0.5        # Rate-limit buffer between chapters

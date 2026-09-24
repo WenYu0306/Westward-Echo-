@@ -12,7 +12,7 @@ import sqlite3
 import typing
 from pathlib import Path
 
-from ..config import CHECKPOINT_DB_PATH
+from ..config import CHECKPOINT_DB_PATH, target_language_label
 
 
 class ExactGlossary:
@@ -189,16 +189,30 @@ target_lang)
     def to_dict(self) -> dict[str, str]:
         return dict(self._dict)
 
-    def to_formatted_text(self, matched_terms: typing.Optional[dict[str, str]] = None) -> str:
+    def to_formatted_text(self, matched_terms: typing.Optional[dict[str, str]] = None,
+                          target_lang: str = "en-US") -> str:
         """
         Format glossary as a markdown table for prompt injection.
         If matched_terms is provided, only those terms are listed.
+
+        ``None`` means "no filter — dump the whole glossary"; ``{}`` means "this
+        chapter matched nothing". The two used to be conflated by
+        ``matched_terms or self._dict``, so a chapter with zero matches
+        received the entire glossary instead of the placeholder — measured at
+        41,824 characters for a 2,000-term book, injected into every such
+        chapter's WRITE prompt. The existing placeholder test did not catch it
+        because it ran against an *empty* glossary.
+
+        The target-language column is labelled from ``target_lang``: it used to
+        be hard-coded "English", which told the model the Spanish column was
+        English.
         """
-        terms = matched_terms or self._dict
+        terms = self._dict if matched_terms is None else matched_terms
         if not terms:
             return "(No glossary terms matched for this chapter.)"
 
-        lines = ["| Chinese | English |", "|----------|---------|"]
+        target = target_language_label(target_lang)
+        lines = [f"| Chinese | {target} |", "|----------|---------|"]
         for cn, en in sorted(terms.items(), key=lambda x: len(x[0]), reverse=True):
             # Sort by length descending so longer terms appear first in prompt
             lines.append(f"| {cn} | {en} |")
@@ -220,8 +234,13 @@ target_lang)
         word, e.g. 苏沐橙/苏沐秋 or Wei Cao/Wei Chen) get an explicit
         "do not confuse" warning appended — the LLM otherwise misattributes
         one character's name to the other when both appear in a chapter.
+
+        ``None`` vs ``{}`` is distinguished exactly as in ``to_formatted_text``:
+        this is the path graph.py actually takes for a chapter with matches, but
+        it is public API and must not carry the same whole-glossary dump on an
+        empty match set.
         """
-        terms = matched_terms or self._dict
+        terms = self._dict if matched_terms is None else matched_terms
         if not terms:
             return "(No glossary terms matched for this chapter.)"
 
@@ -239,7 +258,7 @@ target_lang)
                     notes_map[cn] = row["note"]
 
         lines = [
-            "| Chinese | English | Context |",
+            f"| Chinese | {target_language_label(target_lang)} | Context |",
             "|----------|---------|---------|",
         ]
         for cn, en in sorted(terms.items(), key=lambda x: len(x[0]), reverse=True):

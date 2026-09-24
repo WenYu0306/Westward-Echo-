@@ -312,6 +312,48 @@ class TestFormattedText:
             "(No glossary terms matched for this chapter.)"
         )
 
+    def test_zero_matches_in_a_populated_glossary_is_still_the_placeholder(self, temp_store):
+        """Regression: ``matched_terms or self._dict`` conflated ``{}`` with
+        ``None``, so a chapter that matched nothing dumped the *entire* glossary
+        into the WRITE prompt — 41,824 chars for a 2,000-term book. The test
+        above did not catch it because it ran against an empty glossary, where
+        "no matches" and "no terms" are indistinguishable.
+        """
+        for i in range(50):
+            temp_store.add(f"术语{i}", f"Term{i}")
+        assert temp_store.to_formatted_text({}) == (
+            "(No glossary terms matched for this chapter.)"
+        )
+        assert temp_store.to_formatted_text_with_notes({}) == (
+            "(No glossary terms matched for this chapter.)"
+        )
+
+    def test_no_filter_still_dumps_the_whole_glossary(self, temp_store):
+        """``None`` means "no filter", which must stay a full dump — some callers
+        rely on it and the fix above must not have changed that."""
+        temp_store.add("聋婆婆", "Deaf Granny")
+        temp_store.add("王三", "Wang San")
+        table = temp_store.to_formatted_text()
+        assert "Deaf Granny" in table
+        assert "Wang San" in table
+
+    def test_target_column_is_labelled_per_language(self, temp_store):
+        """The target column used to be hard-coded "English", which told the
+        model the Spanish column was English."""
+        temp_store.add("霸总", "jefe dominante", target_lang="es-ES")
+        assert temp_store.to_formatted_text(
+            {"霸总": "jefe dominante"}, target_lang="es-ES"
+        ).startswith("| Chinese | Spanish |")
+        assert temp_store.to_formatted_text_with_notes(
+            {"霸总": "jefe dominante"}, target_lang="es-ES"
+        ).startswith("| Chinese | Spanish | Context |")
+
+    def test_english_target_column_is_unchanged(self, temp_store):
+        temp_store.add("霸总", "dominant CEO")
+        assert temp_store.to_formatted_text(
+            {"霸总": "dominant CEO"}, target_lang="en-US"
+        ).startswith("| Chinese | English |")
+
     def test_matched_terms_restrict_the_table(self, temp_store):
         temp_store.add("聋婆婆", "Deaf Granny")
         temp_store.add("王三", "Wang San")

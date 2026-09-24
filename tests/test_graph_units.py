@@ -35,10 +35,14 @@ class FakeExact:
     def to_dict(self):
         return dict(self._dict)
 
-    def to_formatted_text(self, matched_terms=None):
+    def to_formatted_text(self, matched_terms=None, target_lang="en-US"):
+        self.plain_calls = getattr(self, "plain_calls", [])
+        self.plain_calls.append({"matched": matched_terms, "lang": target_lang})
         return f"PLAIN::{self.formatted}"
 
     def to_formatted_text_with_notes(self, matched_terms=None, target_lang="en-US"):
+        self.notes_calls = getattr(self, "notes_calls", [])
+        self.notes_calls.append({"matched": matched_terms, "lang": target_lang})
         return f"NOTES::{self.formatted}"
 
     def add_batch(self, terms, **kwargs):

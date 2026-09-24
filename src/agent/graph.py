@@ -19,7 +19,7 @@ import logging
 from langgraph.graph import END, StateGraph
 
 from ..chapter_slicer import build_segment_title, should_split, split_chapter
-from ..config import MAX_RETRANSLATION_ATTEMPTS
+from ..config import MAX_RETRANSLATION_ATTEMPTS, target_language_label
 from ..glossary.exact_store import ExactGlossary
 from ..glossary.semantic_store import SemanticGlossary
 from .nodes.fix import fix_node
@@ -260,7 +260,7 @@ class TranslationAgent:
         exact_text = (
             self.exact_store.to_formatted_text_with_notes(exact_matches, target_lang=lang)
             if exact_matches
-            else self.exact_store.to_formatted_text(exact_matches)
+            else self.exact_store.to_formatted_text(exact_matches, target_lang=lang)
         )
 
         # Semantic matches: culturally related terms for context
@@ -271,7 +271,7 @@ class TranslationAgent:
             semantic_hits = self.semantic_store.search(content, top_k=15, target_lang=lang)
         # Filter out terms already covered by exact matches
         semantic_hits = [t for t in semantic_hits if t["term_cn"] not in exact_matches]
-        semantic_text = self._format_semantic(semantic_hits)
+        semantic_text = self._format_semantic(semantic_hits, target_lang=lang)
 
         return {
             # Input
@@ -542,11 +542,17 @@ class TranslationAgent:
         return result
 
     @staticmethod
-    def _format_semantic(terms: list[dict]) -> str:
-        """Format semantic results as a markdown table."""
+    def _format_semantic(terms: list[dict], target_lang: str = "en-US") -> str:
+        """Format semantic results as a markdown table.
+
+        The target column is labelled from ``target_lang``; it used to be
+        hard-coded "English" (see exact_store.to_formatted_text for the same
+        defect on the exact-glossary path).
+        """
         if not terms:
             return "(No semantic matches.)"
-        lines = ["| Chinese | English | Category |",
+        target = target_language_label(target_lang)
+        lines = [f"| Chinese | {target} | Category |",
                  "|----------|---------|----------|"]
         for t in terms:
             lines.append(
