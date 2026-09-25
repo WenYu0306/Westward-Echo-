@@ -370,13 +370,21 @@ class TestCurationRoutesToStores:
 
 class TestSnapshotAndContext:
     def test_glossary_snapshot_is_always_written(self, agent):
-        agent.exact_store.snapshot = lambda: '{"王三": "Wang San"}'
+        # Scoped to es-ES, not the en-US every other test uses: if _post_process
+        # stopped passing `target_lang` through to snapshot(), the store would
+        # read its active (en-US) bucket and a Spanish job would checkpoint an
+        # empty glossary. The literal makes that failure visible.
+        seen = {}
+        agent.exact_store.snapshot = lambda target_lang=None: (
+            seen.setdefault("lang", target_lang), '{"王三": "Wang San"}',
+        )[1]
         result = make_result()
-        out = agent._post_process(result, "en-US")
+        out = agent._post_process(result, "es-ES")
         assert out["glossary_snapshot_json"] == '{"王三": "Wang San"}'
+        assert seen["lang"] == "es-ES"
 
     def test_snapshot_recorded_even_with_no_terms(self, agent):
-        agent.exact_store.snapshot = lambda: "{}"
+        agent.exact_store.snapshot = lambda target_lang=None: "{}"
         result = make_result(new_terms=[])
         agent._post_process(result, "en-US")
         assert result["glossary_snapshot_json"] == "{}"

@@ -28,11 +28,15 @@ class FakeExact:
         self.restored = None
         self.snapshot_value = "{}"
 
-    def match_in_text(self, text):
+    def match_in_text(self, text, target_lang=None):
         self.match_calls.append(text)
+        self.match_langs = getattr(self, "match_langs", [])
+        self.match_langs.append(target_lang)
         return dict(self._matches)
 
-    def to_dict(self):
+    def to_dict(self, target_lang=None):
+        self.dict_langs = getattr(self, "dict_langs", [])
+        self.dict_langs.append(target_lang)
         return dict(self._dict)
 
     def to_formatted_text(self, matched_terms=None, target_lang="en-US"):
@@ -48,11 +52,14 @@ class FakeExact:
     def add_batch(self, terms, **kwargs):
         self.added.append(list(terms))
 
-    def snapshot(self):
+    def snapshot(self, target_lang=None):
+        self.snapshot_langs = getattr(self, "snapshot_langs", [])
+        self.snapshot_langs.append(target_lang)
         return self.snapshot_value
 
-    def restore_snapshot(self, snapshot_json):
+    def restore_snapshot(self, snapshot_json, target_lang=None):
         self.restored = snapshot_json
+        self.restored_lang = target_lang
 
 
 class FakeSemantic:

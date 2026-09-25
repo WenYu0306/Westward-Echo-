@@ -117,9 +117,16 @@ def build_graph(
 class TranslationAgent:
     """High-level wrapper around the v0.15 reader-centric LangGraph pipeline."""
 
-    def __init__(self, book_id: str = "default", api_key: str = ""):
+    def __init__(self, book_id: str = "default", api_key: str = "",
+                 target_lang: str = "en-US"):
         self.book_id = book_id            # token ledger attribution key
-        self.exact_store = ExactGlossary(book_id=book_id)
+        self.target_lang = target_lang
+        # The store is constructed with this job's language as its *active*
+        # language. Callers that export the glossary without naming a language
+        # (`to_dict()`, `snapshot()`, `len()`) then read this job's terms rather
+        # than whichever bucket the instance defaulted to. A job translates one
+        # language, so active == the job's language is the right default.
+        self.exact_store = ExactGlossary(book_id=book_id, target_lang=target_lang)
         self.semantic_store = SemanticGlossary(book_id=book_id)
         self.graph = build_graph(self.exact_store, self.semantic_store)
         from ..style_memo import StyleMemoStore
@@ -139,8 +146,13 @@ class TranslationAgent:
         if len(self._chapter_context) > 5:
             self._chapter_context = self._chapter_context[-5:]
 
-    def _build_cold_read_context(self, chapter_number: int = 0) -> str:
-        """Build a one-page briefing for the cold reader — no LLM needed."""
+    def _build_cold_read_context(self, chapter_number: int = 0,
+                                 target_lang: str = "en-US") -> str:
+        """Build a one-page briefing for the cold reader — no LLM needed.
+
+        ``target_lang`` scopes the character roster: a store holding several
+        languages must not brief the reader with another job's renderings.
+        """
         parts = []
 
         # ── 1. What's happened recently ──
@@ -155,7 +167,7 @@ class TranslationAgent:
                          "This is an early chapter.\n")
 
         # ── 2. Who's who (from exact glossary) ──
-        known = self.exact_store.to_dict()
+        known = self.exact_store.to_dict(target_lang=target_lang)
         char_list = []
         for cn, en in known.items():
             if len(cn) >= 2 and len(en) >= 2:
@@ -189,9 +201,16 @@ class TranslationAgent:
     def load_glossary(self, target_lang: str = "en-US"):
         self.exact_store.load_from_db(target_lang)
 
-    def load_glossary_snapshot(self, snapshot_json: str):
+    def load_glossary_snapshot(self, snapshot_json: str, target_lang: str = "en-US"):
+        """Restore a checkpoint's glossary into the given language's bucket.
+
+        The flat snapshot shape carries no language of its own, so the caller
+        must say which one it belongs to. Restoring a Spanish checkpoint without
+        this would file its terms under en-US and then match nothing, since
+        every lookup is scoped to the chapter's language.
+        """
         if snapshot_json and snapshot_json != "{}":
-            self.exact_store.restore_snapshot(snapshot_json)
+            self.exact_store.restore_snapshot(snapshot_json, target_lang=target_lang)
 
     def set_prefetched_glossary(self, exact_matches: dict, semantic_matches: list[dict]):
         """Accept pre-computed glossary results from ChapterPrefetcher.
@@ -263,7 +282,11 @@ class TranslationAgent:
             exact_matches = self._prefetched_exact
             self._prefetched_exact = None
         else:
-            exact_matches = self.exact_store.match_in_text(content)
+            # Scoped to this chapter's language, not the store's active one: a
+            # store can now hold several languages at once, and defaulting to
+            # the active language would inject another job's renderings into
+            # this prompt.
+            exact_matches = self.exact_store.match_in_text(content, target_lang=lang)
         exact_text = (
             self.exact_store.to_formatted_text_with_notes(exact_matches, target_lang=lang)
             if exact_matches
@@ -292,7 +315,7 @@ class TranslationAgent:
             "genre": genre,
             "content_type": content_type,
             # Glossary
-            "exact_glossary": self.exact_store.to_dict(),
+            "exact_glossary": self.exact_store.to_dict(target_lang=lang),
             "semantic_terms": semantic_hits,
             "exact_matches_text": exact_text,
             "semantic_matches_text": semantic_text,
@@ -333,6 +356,7 @@ class TranslationAgent:
             # Cold reader briefing
             "cold_read_context": self._build_cold_read_context(
                 chapter_number=number,
+                target_lang=lang,
             ),
             # Kept for backward compat (unused by new nodes, harmless)
             "term_conflicts": [],
@@ -560,8 +584,13 @@ class TranslationAgent:
             # Write ALL terms to semantic store
             self.semantic_store.add_batch(new_terms, target_lang=target_lang)
 
-        # Snapshot exact glossary for checkpoint
-        result["glossary_snapshot_json"] = self.exact_store.snapshot()
+        # Snapshot exact glossary for checkpoint. Scoped to this chapter's
+        # language: `snapshot()` with no argument reads the *active* language,
+        # and a Spanish job whose store still had en-US active would checkpoint
+        # an empty glossary — losing every term it had accumulated.
+        result["glossary_snapshot_json"] = self.exact_store.snapshot(
+            target_lang=target_lang
+        )
 
         # ── Feed the cold reader's context buffer ──
         chapter_summary = result.get("chapter_summary", "")

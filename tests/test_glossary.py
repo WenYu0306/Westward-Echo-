@@ -1,5 +1,6 @@
 """Tests for the double-layer glossary."""
 
+import json
 import os
 import tempfile
 
@@ -425,3 +426,133 @@ class TestSqliteLockTimeout:
         ExactGlossary(db_path=str(tmp_path / "lock.db"), book_id="lock-timeout")
         assert seen, "the store must open a connection"
         assert all(kwargs.get("timeout") == 30 for kwargs in seen)
+
+
+# ── Clause 13-A: one instance, several languages ──────────────────
+
+class TestMultiLanguageIsolation:
+    """One store instance holds several languages at once without crosstalk.
+
+    The old flat ``_dict`` could only hold the language loaded last, so a
+    Spanish job's terms silently replaced — or were replaced by — the English
+    ones. Every assertion here uses a literal rendering, never a value read back
+    out of the store, so a regression that cross-wires two languages fails
+    instead of matching by accident.
+    """
+
+    def test_two_languages_coexist_without_crosstalk(self, temp_store):
+        temp_store.add("苏念", "Su Nian", target_lang="en-US")
+        temp_store.add("苏念", "Su Nian (ES)", target_lang="es-ES")
+
+        assert temp_store.get("苏念", target_lang="en-US") == "Su Nian"
+        assert temp_store.get("苏念", target_lang="es-ES") == "Su Nian (ES)"
+
+    def test_default_reads_follow_the_active_language(self, temp_store):
+        temp_store.add("苏念", "Su Nian", target_lang="en-US")
+        temp_store.add("苏念", "Su Nian (ES)", target_lang="es-ES")
+
+        # temp_store is constructed with en-US active.
+        assert temp_store.active_lang == "en-US"
+        assert temp_store.get("苏念") == "Su Nian"
+
+        temp_store.set_active_lang("es-ES")
+        assert temp_store.get("苏念") == "Su Nian (ES)"
+
+    def test_add_without_a_language_lands_in_the_active_one(self, temp_store):
+        temp_store.set_active_lang("es-ES")
+        temp_store.add("苏念", "Su Nian (ES)")
+
+        assert temp_store.get("苏念", target_lang="es-ES") == "Su Nian (ES)"
+        assert temp_store.get("苏念", target_lang="en-US") is None
+
+    def test_match_in_text_only_scans_one_language(self, temp_store):
+        temp_store.add("苏念", "Su Nian", target_lang="en-US")
+        temp_store.add("苏念", "Su Nian (ES)", target_lang="es-ES")
+
+        text = "苏念走进了房间。"
+        assert temp_store.match_in_text(text, target_lang="en-US") == {"苏念": "Su Nian"}
+        assert temp_store.match_in_text(text, target_lang="es-ES") == {
+            "苏念": "Su Nian (ES)"
+        }
+
+    def test_loaded_languages_reports_both(self, temp_store):
+        temp_store.add("甲", "A", target_lang="en-US")
+        temp_store.add("乙", "B", target_lang="es-ES")
+        assert temp_store.loaded_languages() == ["en-US", "es-ES"]
+
+    def test_len_and_contains_are_scoped_to_the_active_language(self, temp_store):
+        temp_store.add("苏念", "Su Nian", target_lang="en-US")
+        temp_store.add("裴衍舟", "Pei Yanzhou", target_lang="es-ES")
+
+        assert len(temp_store) == 1
+        assert "苏念" in temp_store
+        assert "裴衍舟" not in temp_store
+
+        temp_store.set_active_lang("es-ES")
+        assert len(temp_store) == 1
+        assert "裴衍舟" in temp_store
+        assert "苏念" not in temp_store
+
+
+class TestMultiLanguagePersistence:
+    """Loading one language must not disturb another's in-memory terms."""
+
+    def test_load_from_db_leaves_other_languages_intact(self, temp_store):
+        temp_store.add("苏念", "Su Nian (ES)", target_lang="es-ES")
+        # Load en-US (empty in this DB) — must not wipe the es-ES bucket.
+        temp_store.load_from_db("en-US")
+
+        assert temp_store.active_lang == "en-US"
+        assert temp_store.get("苏念", target_lang="es-ES") == "Su Nian (ES)"
+
+    def test_load_from_db_reads_only_the_named_language(self, temp_store):
+        temp_store.add("苏念", "Su Nian (DE)", target_lang="de")
+
+        other = ExactGlossary(db_path=temp_store._db_path, book_id="query-surface")
+        other.load_from_db("de")
+        assert other.get("苏念", target_lang="de") == "Su Nian (DE)"
+        # Nothing was loaded for en-US, so it must be empty, not cross-filled.
+        assert other.get("苏念", target_lang="en-US") is None
+
+
+class TestSnapshotLanguageCompat:
+    """The flat snapshot shape must keep working — production checkpoints use it."""
+
+    def test_snapshot_is_flat_for_one_language(self, temp_store):
+        temp_store.add("苏念", "Su Nian", target_lang="en-US")
+        temp_store.add("苏念", "Su Nian (ES)", target_lang="es-ES")
+
+        snap = json.loads(temp_store.snapshot(target_lang="en-US"))
+        # Flat {term: rendering}, NOT {lang: {term: rendering}}.
+        assert snap == {"苏念": "Su Nian"}
+
+    def test_restore_flat_snapshot_into_a_named_language(self, temp_store):
+        # A historical checkpoint: flat, carrying no language of its own.
+        legacy = json.dumps({"苏念": "Su Nian (legacy)"}, ensure_ascii=False)
+        temp_store.restore_snapshot(legacy, target_lang="es-ES")
+
+        assert temp_store.get("苏念", target_lang="es-ES") == "Su Nian (legacy)"
+        # The default (en-US) bucket must not have silently received it.
+        assert temp_store.get("苏念", target_lang="en-US") is None
+
+    def test_restore_nested_snapshot_loads_every_language(self, temp_store):
+        nested = json.dumps(
+            {"en-US": {"苏念": "Su Nian"}, "es-ES": {"苏念": "Su Nian (ES)"}},
+            ensure_ascii=False,
+        )
+        temp_store.restore_snapshot(nested)
+
+        assert temp_store.get("苏念", target_lang="en-US") == "Su Nian"
+        assert temp_store.get("苏念", target_lang="es-ES") == "Su Nian (ES)"
+
+    def test_restore_rejects_a_non_object_snapshot(self, temp_store):
+        with pytest.raises(TypeError):
+            temp_store.restore_snapshot("[1, 2, 3]")
+
+    def test_snapshot_roundtrips_through_a_fresh_store(self, temp_store):
+        temp_store.add("苏念", "Su Nian (ES)", target_lang="es-ES")
+        snap = temp_store.snapshot(target_lang="es-ES")
+
+        fresh = ExactGlossary(db_path=temp_store._db_path, book_id="roundtrip")
+        fresh.restore_snapshot(snap, target_lang="es-ES")
+        assert fresh.get("苏念", target_lang="es-ES") == "Su Nian (ES)"

@@ -61,7 +61,7 @@ if _celery_ok:
             chunks = split_chapters(text)
             translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
-            agent = TranslationAgent()
+            agent = TranslationAgent(target_lang=target_lang)
             all_translations = []
 
             # ── Pre-load glossary from preset (warm start) ──
@@ -167,10 +167,10 @@ if _celery_ok:
             chunks = split_chapters(text)
             translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
-            agent = TranslationAgent()
+            agent = TranslationAgent(target_lang=target_lang)
 
             # Restore glossary from the checkpoint snapshot
-            agent.load_glossary_snapshot(glossary_snapshot)
+            agent.load_glossary_snapshot(glossary_snapshot, target_lang=target_lang)
 
             # Load previously-translated chapters from checkpoints
             all_translations = []

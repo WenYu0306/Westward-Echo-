@@ -230,7 +230,8 @@ async def _translate_accepted(
         import traceback as _tb
         try:
             chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-            agent = TranslationAgent(book_id=job_id, api_key=api_key)
+            agent = TranslationAgent(book_id=job_id, api_key=api_key,
+                                     target_lang=target_lang)
             if preset_glossary_json:
                 try:
                     preset_terms = json.loads(preset_glossary_json)
@@ -251,7 +252,9 @@ async def _translate_accepted(
                     start_i = ckpt.get("last_idx", -1) + 1
                     prev_summary = ckpt.get("previous_summary", "")
                     if ckpt.get("glossary_snapshot"):
-                        agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
+                        agent.load_glossary_snapshot(
+                            ckpt["glossary_snapshot"], target_lang=target_lang
+                        )
                     logger.info(
                         "Web sync: resuming %s from chapter %d/%d",
                         job_id, start_i + 1, len(chapters_list),
@@ -336,10 +339,14 @@ async def _translate_accepted(
                 with Path(ckpt_path).open("w", encoding="utf-8") as ckpt_f:
                     json.dump({
                         "last_idx": i,
-                        "glossary_snapshot": agent.exact_store.snapshot(),
+                        "glossary_snapshot": agent.exact_store.snapshot(
+                            target_lang=target_lang
+                        ),
                         "previous_summary": prev_summary,
                     }, ckpt_f, ensure_ascii=False)
-            glossary_snapshot = json.dumps(agent.exact_store.to_dict(), ensure_ascii=False)
+            glossary_snapshot = json.dumps(
+                agent.exact_store.to_dict(target_lang=target_lang), ensure_ascii=False
+            )
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
             Path(glossary_path).write_text(glossary_snapshot, encoding="utf-8")
             # Marking a job "completed" is a promise to the user that the
@@ -494,7 +501,8 @@ async def translate_multi(
                 _asyncio.set_event_loop(loop)
                 try:
                     chapters_list = [c for c in chapters if c.action != ParagraphTag.SKIP]
-                    agent = TranslationAgent(book_id=job_id, api_key=api_key)
+                    agent = TranslationAgent(book_id=job_id, api_key=api_key,
+                                             target_lang=lang)
                     prev_summary = ""
 
                     if preset_glossary_json:
@@ -517,7 +525,9 @@ async def translate_multi(
                             start_i = ckpt.get("last_idx", -1) + 1
                             prev_summary = ckpt.get("previous_summary", "")
                             if ckpt.get("glossary_snapshot"):
-                                agent.load_glossary_snapshot(ckpt["glossary_snapshot"])
+                                agent.load_glossary_snapshot(
+                                    ckpt["glossary_snapshot"], target_lang=lang
+                                )
                             logger.info(
                                 "Multi-lang sync: resuming %s from chapter %d/%d",
                                 jid, start_i + 1, len(chapters_list),
@@ -627,13 +637,17 @@ async def translate_multi(
                         with Path(ckpt_path).open("w", encoding="utf-8") as ckpt_f:
                             json.dump({
                                 "last_idx": i,
-                                "glossary_snapshot": agent.exact_store.snapshot(),
+                                "glossary_snapshot": agent.exact_store.snapshot(
+                                    target_lang=lang
+                                ),
                                 "previous_summary": prev_summary,
                             }, ckpt_f, ensure_ascii=False)
                     # glossary_count was hard-coded 0 here, discarding the real
                     # term count. And a partially delivered job must not be
-                    # marked completed.
-                    term_count = len(agent.exact_store)
+                    # marked completed. `len(store)` reads the active language,
+                    # which is not this job's language here — count this
+                    # language's bucket explicitly.
+                    term_count = len(agent.exact_store.to_dict(target_lang=lang))
                     if failed_indexes:
                         logger.warning(
                             "Multi-lang job %s (%s) delivered %d/%d chapters; %d failed: %s",

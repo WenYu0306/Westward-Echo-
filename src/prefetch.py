@@ -100,7 +100,13 @@ class ChapterPrefetcher:
         applied here so it is done once in the background, not in the
         critical path.
         """
-        exact = self.exact_store.match_in_text(content)
+        # Both lookups must be scoped to the same language. `match_in_text` used
+        # to be called without `target_lang` while `search` got it, so on a
+        # multi-language store the prefetched exact matches came from whichever
+        # language the instance happened to hold — the same "takes the parameter
+        # but does not use it" defect class as the hard-coded English table
+        # header (see clause 13-A).
+        exact = self.exact_store.match_in_text(content, target_lang=target_lang)
         semantic = self.semantic_store.search(content, top_k=15, target_lang=target_lang)
         # Filter out semantic hits already covered by exact matches
         semantic = [t for t in semantic if t["term_cn"] not in exact]

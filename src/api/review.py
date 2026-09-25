@@ -26,15 +26,24 @@ from ..job_store import job_store
 app = FastAPI(title="Westward Echo Review API")
 
 
-# One store per (book_id, target_lang) namespace. A single shared store was the
-# bug: ExactGlossary keeps an in-memory `_dict` loaded for whichever namespace
-# was last requested, so switching books or languages through one cached
-# instance served stale terms from the previous one.
+# One store per (book_id, target_lang) namespace.
+#
+# Historically this cache existed to work around a real bug: ExactGlossary kept
+# a single flat `_dict`, so it could only ever hold the namespace loaded last
+# and switching books or languages through one shared instance served the
+# previous namespace's terms.
+#
+# Clause 13-A removed that bug — ExactGlossary now buckets terms per language
+# (`_by_lang`), so one instance could serve several namespaces of the same book.
+# The per-namespace cache is kept anyway as the simple, obviously-correct
+# choice: each cached store loads only its own namespace, and `load_from_db`
+# below refreshes it on every request so a term confirmed elsewhere is picked
+# up. This is a preference now, not a workaround.
 _stores: dict[tuple[str, str], ExactGlossary] = {}
 
 
 def _get_store(book_id: str, target_lang: str) -> ExactGlossary:
-    """Return the store for one namespace, with its in-memory dict loaded."""
+    """Return the store for one namespace, with that namespace's terms loaded."""
     key = (book_id, target_lang)
     store = _stores.get(key)
     if store is None:

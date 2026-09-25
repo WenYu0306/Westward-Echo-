@@ -9,7 +9,11 @@ from src.prefetch import ChapterPrefetcher
 
 class FakeExactStore:
     """Minimal fake for ExactGlossary used by the prefetcher."""
-    def match_in_text(self, content: str) -> dict:
+    def __init__(self):
+        self.langs_seen = []
+
+    def match_in_text(self, content: str, target_lang: str = None) -> dict:
+        self.langs_seen.append(target_lang)
         # Return some fake matches keyed by content hash
         if "苏念" in content:
             return {"苏念": "Su Nian"}
@@ -85,3 +89,21 @@ class TestPrefetchBasic:
         prefetcher.submit_next("第一章", "en-US")
         prefetcher.shutdown()
         # Must not raise — executor is shut down
+
+
+class TestPrefetchLanguageScoping:
+    """``match_in_text`` must receive the same language as ``search``.
+
+    It used to be called without ``target_lang``, so on a store holding several
+    languages the prefetched exact matches came from whichever language the
+    instance happened to hold — Spanish terms for an English job, or vice
+    versa. The literal here is ``"es-ES"`` rather than the ``"en-US"`` every
+    other test in this file passes, so dropping the argument again (and leaving
+    the fake's ``None`` default) fails visibly instead of matching by accident.
+    """
+
+    def test_exact_lookup_receives_target_lang(self, prefetcher):
+        content = "第一章 苏念醒来"
+        prefetcher.submit_next(content, "es-ES")
+        time.sleep(0.2)
+        assert prefetcher.exact_store.langs_seen == ["es-ES"]

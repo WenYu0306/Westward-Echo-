@@ -457,7 +457,7 @@ temp_glossary_db = os.path.join(tempfile.mkdtemp(), "test_glossary.db")
 try:
     store = ExactGlossary(db_path=temp_glossary_db)
     store.add("", "", category="culture")
-    if "" in store._dict:
+    if "" in store:
         record_result("BUG", "5.1 add('', '')", "Empty term_cn stored in glossary dict")
     else:
         record_result("OK", "5.1 add('', '')", "Empty term was not stored in dict")
