@@ -250,7 +250,15 @@ class TestBuildColdReadContext:
         ctx = a._build_cold_read_context(chapter_number=1)
         assert "## CHARACTERS" in ctx
         assert "**Deaf Granny**" in ctx
-        assert "(聋婆婆)" in ctx
+
+    def test_character_roster_omits_the_chinese_source_name(self):
+        """Clause 10: the cold reader is blind, so the roster must not leak the
+        Chinese source name. It used to render `- **Deaf Granny** (聋婆婆)`.
+        """
+        a = bare_agent(exact=FakeExact(terms={"聋婆婆": "Deaf Granny"}))
+        ctx = a._build_cold_read_context(chapter_number=1)
+        assert "聋婆婆" not in ctx
+        assert "**Deaf Granny**" in ctx
 
     def test_single_char_terms_are_not_a_roster(self):
         a = bare_agent(exact=FakeExact(terms={"鬼": "Ghost"}))

@@ -171,7 +171,14 @@ class TranslationAgent:
         char_list = []
         for cn, en in known.items():
             if len(cn) >= 2 and len(en) >= 2:
-                char_list.append(f"  - **{en}** ({cn})")
+                # Render the English name only. The cold reader is a blind
+                # target-language reader, so the trailing Chinese source name
+                # `(cn)` was a source-text leak (clause 10) — metadata-level,
+                # but stripping it makes the roster strictly blind. The
+                # `len(cn) >= 2` guard still reads the source length to tell a
+                # real name from a single-character term; it just no longer
+                # prints the source.
+                char_list.append(f"  - **{en}**")
             if len(char_list) >= 15:
                 break
         if char_list:
