@@ -86,6 +86,15 @@ TARGETS = {
     # stats.py feeds the dashboard's live metrics, so a surviving mutant means
     # a wrong number gets displayed as fact.
     "stats": ("src/stats.py", ["tests/test_stats.py"]),
+    # Full-corpus deliverable scan (clause 13 gap 4). Pure logic, no LLM, runs
+    # on the real 2301-chapter corpus in ~0.4 s. A surviving mutant here means a
+    # bad chapter ships as "delivered" — the exact fake-green this replaces:
+    # _report.json claims chapters_translated 2301 behind 2.56% cold-read
+    # coverage. Its checks are calibrated on measured corpus behaviour, so the
+    # calibration constants are load-bearing and must not drift silently.
+    "scan_deliverable": ("scripts/scan_deliverable.py", [
+        "tests/test_scan_deliverable.py",
+    ]),
 }
 
 COMPARE_FLIP = {
