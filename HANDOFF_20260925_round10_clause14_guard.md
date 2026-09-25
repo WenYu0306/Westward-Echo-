@@ -3,11 +3,11 @@
 > **本文件是最新入口。** 上一轮 `HANDOFF_20260925_round9_clause13_rerank.md` 的全部改动**已提交**，不要重做。
 > 本轮按 round9 §六 位次表完成 **位次 1（13-A）→ 位次 2（条款10）→ 位次 3（条款14）**，共 4 个提交，工作区干净。
 > ✅ **条款14 判定完成**：三类缺陷（句中截断 / JSON信封残留 / 脚手架文本）的**根因全部堵死并有回归测试钉住**（验收标准=根因修复，非清历史，见 §三-A/D）。历史坏章清理（§三-E）是独立收尾项，不属条款14 验收。
-> ⚠️ **四件待拍板事项用户本轮已全部拍板**（见下），其中 #2/#3/#4 已批未执行。
+> ⚠️ **round9 四件待拍板事项用户已全部拍板，另新增第 5 件（条款15 选 b）**（见下），其中 #2/#3/#4/#5 已批未执行。
 
 ## 🛑 先读这里
 
-### A. round9 四件待拍板事项 —— 用户已全部决定
+### A. 待拍板事项 —— round9 四件 + 本轮新增条款15，用户已全部决定
 
 | # | 事项 | **用户决定** | 执行状态 |
 |---|---|---|---|
@@ -15,6 +15,7 @@
 | **2** | `term_conflicts`/`resolved_conflicts` 死字段删不删 | **删掉并同步清理引用** | ⬜ **已批未执行**。见 §四-1 |
 | **3** | `token_ledger.jsonl` 8811 行测试残留清不清 | **先备份再清理，同步更正指纹记录** | ⬜ **已批未执行**（破坏性，见铁律7）。见 §四-2 |
 | **4** | 是否给条款12 收尾 + 条款3 批 A/B 预算 | **批，两项合并一批** | ⬜ **已批未执行**。按铁律6，**实际调 API 前必须先报具体金额等批准**。见 §四-3 |
+| **5** | 条款15 circuit_breaker 死配置（round5 §五 三选一） | **选 (b)：真正实现滚动窗口 + 试探限流** | ⬜ **已批未执行**。零成本、不需预算，但**会改变生产熔断时机**，且必须重写一条既有测试的语义。**完整实现规格见 §七**（含来历、三个死字段实测、设计取舍、陷阱清单、完成判据） |
 
 > #2/#3/#4 是用户**直接拍板**的授权，不是我推断的。#3/#4 涉及破坏性操作与真实花钱，执行前仍需按铁律走确认/报预算流程。
 
@@ -160,11 +161,11 @@ python3.11 scripts/static_audit.py --self-test         # → 27/27
 | **四-2** | `token_ledger.jsonl` 8811 行残留 | **备份+清理+更正指纹** | 实测 8813 行中生产数据仅 2 行（`book_id` 非空且不以 `test_` 开头）。**破坏性**：① 先 `/tmp` 快照 ② 删 8811 行 `book_id` 空或 `test_*` 的残留，保留 2 行生产 ③ **同步更正 round5 §〇 记的"8813 行生产指纹"**为"2 行"，否则后续窗口误判生产数据被污染。成因：`conftest.py:36` 的 `XIDU_TOKEN_LEDGER` 重定向是后加的 |
 | **四-3** | 条款12 收尾 + 条款3 A/B 预算 | **批，合并一批** | 杠杆已接通，降档=一个环境变量 `XIDU_NODE_MODEL_READBACK=qwen3.8-flash`（READBACK 单节点约 15 倍降幅）。**铁律6：实际调 API 前先报具体金额等批准**。建议把 §三 B 档 6 章重译也并入这一批（都要跑真实章节，省一次预算审批） |
 
-### 待拍板（不自行投入）
+### 已拍板选 (b)：真正实现，不留死配置
 
 | 位次 | 条款 | 状态 |
 |---|---|---|
-| **9** | 15 · circuit_breaker 死配置 | ⬜ round5 §五 三选一，前轮建议"暂不动"。**本轮用户未决定，仍需拍板** |
+| **9** | 15 · circuit_breaker 死配置 | 🟡 **用户已拍板选 (b)：真正实现滚动窗口 + 试探限流**（不是删配置、不是暂不动）。完整实现规格见 **§七**。⚠️ 会改变生产熔断跳闸/恢复时机，且**必然要改掉一条既有测试的语义**（见 §七-C） |
 
 ### 需预算组（位次 12–14，按此序，可与四-3 攒一批）
 
@@ -222,6 +223,73 @@ python3.11 scripts/scan_deliverable.py novels/output/difu_segmented/difu_en.md
 **⚠️ 需用户确认/批准才能做的**：
 - §四-2 ledger 清理（破坏性，铁律7）
 - §四-3 A/B + §三-E B 档重译（真实 API，铁律6 先报金额）
-- 位次9 条款15 circuit_breaker（待拍板）
 
-**可直接做、不需再问的**：§三 A 档坏章修复（先备份）、§四-1 死字段删除、位次 4–7。
+**可直接做、不需再问的**：§三-E A 档坏章修复（先备份）、§四-1 死字段删除、位次 4–7、**位次 9 条款15（用户已拍板选 b，规格见 §七）**。
+
+---
+
+## 七、条款15 实现规格（用户已拍板选 **(b) 真正实现**）
+
+> **本节是可直接施工的规格，不是讨论。** 用户明确选 (b)：把 docstring 承诺的行为真做出来，**不是**删配置、**不是**暂不动。
+> ⚠️ 这会改变生产熔断的跳闸/恢复时机，且**必然要改掉一条既有测试的语义**（§七-C）。动之前先读完 §七-E 的陷阱清单。
+
+### A. 这个模块最初是干什么用的（来历，实测 git）
+
+- 首次引入：提交 `158f757`（**2026-07-22**），标题 `feat: production acceptance criteria v2.0 + circuit breaker foundation`，与 backpressure guard、stats collector、observability dashboard **同一批**进来——定位是**上生产前的稳定性地基**。
+- 目的（模块 docstring 原文）：`preventing cascading failures when the LLM API is unreliable`。LLM API 不可靠时，连续失败就"跳闸"停止调用、冷却一段时间，**既不往坏 API 继续烧钱，也不让一个语种的故障拖垮全书**。
+- 核心设计：**按语种隔离**（`One circuit breaker per language — if en-US fails, es-ES, de, and fr continue unaffected`）。状态机 `CLOSED → OPEN → HALF_OPEN`。
+- **它不是摆设**：实测接在 **5 个生产调用点**，每次 `llm.invoke` 都过它——`read.py:156`、`write.py:131`（含 `write_fallback` L168、重试 L279）、`readback.py:87`、`fix.py:68`。跳闸后由 `routes.py:283/565`、`celery_app.py:103/219` 捕获；`dashboard.py:231/277` 读状态做展示。
+
+### B. 死配置的实测事实（三个，不是两个）
+
+| 字段 | 位置 | 实测状态 |
+|---|---|---|
+| `half_open_max` | `__init__` L38 参数、L52 赋值 | **只写不读**。docstring L46 承诺 "Max calls allowed while HALF_OPEN before deciding"，未实现——真实行为写死"成功1次即恢复 / 失败1次即重新跳闸" |
+| `window_seconds` | `__init__` L39 参数、L53 赋值；模块级 `_WINDOW_SECONDS=60.0` L200、`get_breaker` L207/222 一路传下来 | **只写不读**。docstring L47 承诺 "Rolling window for counting failures (resets on success)"，未实现——真实行为是"连续失败计数，成功一次清零" |
+| 🆕 `_last_failure_time` | L58 初始化、L118 每次失败时写入 | **只写不读**（全仓 grep 确认零读取方）。本轮新查出的第三个死字段，round5 §五 只记了前两个 |
+
+**假绿测试**：`tests/test_fault_injection.py:307-321`（`TestCircuitBreakerDefaults` 两个用例）断言 `cb._window_seconds == 60.0` / `cb._half_open_max == 1` ——断言的是**从不被使用的字段值**。变异能杀掉，但杀的是空壳，给人"有覆盖"的错觉。实现后这两条断言要升级为**断言行为**而非断言字段值。
+
+**真实风险（这是选 (b) 的理由）**：API 在窗口内零星失败、但中间夹着成功时，连续计数被清零、**永不跳闸**，于是持续往一个半坏的 API 烧钱。滚动窗口正是要治这个。
+
+### C. ⚠️ 必须改掉的既有测试语义（施工前先看这条）
+
+`tests/test_fault_injection.py:136-152` `test_single_success_resets_failure_count`：
+
+```
+# 2 failures then 1 success then 2 more failures → should NOT trip
+assert cb.state == CircuitBreaker.CLOSED  # not tripped
+assert cb._failure_count == 2             # reset after success, then 2 more
+```
+
+**这条测试把"成功一次就清零失败计数"钉死了——而它正是 §B 那个烧钱隐患的根源。** 实现真正的滚动窗口后，失败记录应**由窗口过期**自然移除，而不是被一次成功抹掉。所以：
+- 这条测试**必须重写**（不是删除）：改为断言"成功不再清零窗口内的失败记录"，并补一条"4 次失败夹 1 次成功、仍在窗口内 → 应跳闸"的新用例来钉住修复。
+- 改测试时按铁律12/15：**断言不能假绿**，用字面值，别用被测常量推导期望。
+
+### D. 建议实现方案
+
+1. **滚动窗口**：`_failure_count: int` → `_failure_times: deque[float]`（`collections.deque`，需新增 import）。每次 `record_failure` 追加 `time.monotonic()`；判跳闸前先剔除早于 `now - _window_seconds` 的记录，再比 `len(...) >= _failure_threshold`。
+2. **试探限流**：`call()` 里 HALF_OPEN 分支已有 `self._half_open_attempts += 1`（L93）但**从不与 `_half_open_max` 比较**。补上：`_half_open_attempts >= _half_open_max` 时应 `raise CircuitBreakerOpenError`（快速失败，不放行第 N+1 个探测）。注意 L84 进 HALF_OPEN 时已把 attempts 归零。
+3. **`_failure_count` 兼容性**：现有 5 处测试读它（L72/118/152/206/708），其中 **L708 是直接赋值** `breaker._failure_count = 0`（测试清理用）。建议**保留为只读 property**返回 `len(窗口内失败)`，并给 L708 那处提供一个明确的复位方法（如 `_reset()`），否则 property 无 setter 会让该测试 `AttributeError`。
+4. **`_last_failure_time`**：实现窗口后它仍无用 → 按 (b) 的"彻底解决"精神**删掉**（铁律4：优先消除而非豁免），同时确认无读取方（已实测为零）。
+5. **`snapshot()`**：dashboard 在读（`dashboard.py:231/277`）。现有键 `failure_count`/`failure_threshold`/`recovery_timeout` 必须保留；建议**新增** `window_seconds`/`half_open_max` 两个键，让死配置真正可见于观测面。
+6. **`get_breaker()`**：L207 已接 `window_seconds` 但没接 `half_open_max` → 补上参数透传，否则新实现无法从注册表配置。
+
+### E. 施工陷阱清单
+
+- **时间源**：模块用 `time.monotonic()`（L116/185/189），不是 `time.time()`。写测试时用 `_fresh_breaker` 的短 `recovery`，或 monkeypatch 时间，**别 sleep 长时长**。
+- **锁纪律**：`snapshot()` L164-166 有注释明确警告——`self.state` 会重新获取 `_lock` 导致**死锁**，所以内部直接读 `self._state`。新增任何在持锁期间调用的辅助方法都要注意这点。
+- **`call()` 的锁边界**：L95 注释说明 fn 在**锁外**执行（不能在持锁时做 I/O）。试探限流的判断必须在锁内完成、抛错也在锁内决定，但**不要在锁内调用 fn**。
+- **`_fresh_breaker`（L38-44）不传 `window_seconds`/`half_open_max`** → 新测试若要验证窗口行为，必须自己构造 breaker 或扩展该辅助函数（扩展时注意别影响既有 20+ 用例的默认语义）。
+- **单例污染**：`get_breaker` 是模块级单例注册表，测试用完要 `_breakers.pop(...)`（参考 L186-187、L320-321 的既有清理写法），否则会毒化后续用同语种的测试。
+- **变异验证**：`circuit_breaker` 已是变异目标（`mutation_test.py:76`，跑 `tests/test_fault_injection.py`）。实现后必须重跑并确认 **0 存活**；新增的 `_half_open_max` 比较与窗口剔除逻辑都是典型变异点，务必有针对性断言。
+- **这条改动不需要 API 预算**：纯本地逻辑 + 测试，零成本。但因为它改变生产熔断时机，建议**单独一个提交**，便于回滚。
+
+### F. 完成判据（照此自检再报完成）
+
+1. `window_seconds` / `half_open_max` / （若保留）`_failure_count` 全部有**真实读取方**，`grep` 可证。
+2. §C 那条测试已重写，且新增"失败夹成功仍跳闸"用例钉住修复。
+3. `TestCircuitBreakerDefaults` 的假绿断言升级为行为断言。
+4. `_last_failure_time` 已删且全仓零引用。
+5. 全量 pytest 绿 + `static_audit --self-test` 27/27 + `mutation_test.py circuit_breaker` **0 存活** + `.mutation_backup` 残留 0。
+6. dashboard 的 breaker 展示仍正常（`snapshot()` 键未破坏）。
