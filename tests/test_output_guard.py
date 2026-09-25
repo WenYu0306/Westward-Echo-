@@ -197,6 +197,28 @@ class TestJsonResidueOnLine:
         # Only a line that IS the brace counts; prose containing one does not.
         assert json_residue_on_line("He wrote {x} on the board.") is None
 
+    def test_compact_single_line_envelope_is_detected(self):
+        """Regression: the key need not be at line start.
+
+        The old ``startswith(key)`` rule missed a compact truncated envelope
+        (``{"translated_text": "..."`` all on one line) because the line begins
+        with ``{``, not the key. Measured: it returned None. This is the Ch1472
+        failure shape in its compact form.
+        """
+        line = '{"translated_text": "Grand Warden Xin shouted, and then'
+        assert json_residue_on_line(line) == 'unpacked envelope key "translated_text"'
+
+    def test_envelope_key_after_leading_text_is_detected(self):
+        # Key mid-line (e.g. after a `{` and other fields) still counts.
+        line = '{"x": 1, "new_terms_found": ["a"], and it ran on'
+        assert json_residue_on_line(line) == 'unpacked envelope key "new_terms_found"'
+
+    def test_prose_mentioning_a_key_without_a_colon_is_not_residue(self):
+        # "translated_text" as a plain word (no `"..."` + colon) is legitimate.
+        assert json_residue_on_line(
+            "The translated_text field matters here."
+        ) is None
+
 
 class TestMetaTextOnLine:
     """Line-level scaffolding detection. Each pattern tested on its own."""

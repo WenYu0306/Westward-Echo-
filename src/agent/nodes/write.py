@@ -590,6 +590,32 @@ def _parse_write_response(
             "chapter_summary": "",
         }
 
+    # ── Envelope-residue guard (before the prose/markdown rescue layers) ──
+    # Reaching here means Layer 1-3 all failed: the reply is NOT a parseable
+    # envelope. A *well-formed* envelope would have returned at Layer 1 (strict
+    # JSON), so any envelope key still sitting in the text now belongs to a
+    # malformed or truncated one — exactly the case Layer 4 ("markdown-as-
+    # translation") and Layer 5 ("prose rescue") used to swallow whole:
+    #   • Ch366  — prose ending in a ```json fence + bare `{`, rescued by Layer 4
+    #     because the body started with a capital letter.
+    #   • Ch1472 — a compact, truncated `{"translated_text": "..."}` rescued by
+    #     Layer 5, whose own log line claimed "no JSON envelope".
+    # Both shipped the envelope into the deliverable. Discard instead so the
+    # empty-output retry in write_node fires. The judgement is shared with the
+    # production guard and scan_deliverable (output_guard is the single source).
+    from ...output_guard import json_residue_on_line
+    for line in text.split("\n"):
+        if json_residue_on_line(line):
+            record_event(None, chapter_number, "parse_fallback",
+                         "envelope residue in malformed reply — discarded, "
+                         "not rescued as prose", target_lang)
+            return {
+                "translated_text": "",
+                "new_terms_found": [],
+                "adaptation_notes": [],
+                "chapter_summary": "",
+            }
+
     # Layer 4: Markdown-as-translation
     if re.match(r'^(#+\s|>|\*\*|[A-Z][a-z])', text):
         record_event(None, chapter_number, "parse_fallback",

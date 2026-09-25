@@ -119,6 +119,66 @@ class TestLayerFive:
         assert r["translated_text"] == "Clean output."
 
 
+class TestEnvelopeResidueNotRescued:
+    """A malformed/truncated envelope must NOT be rescued as prose.
+
+    Layer 1-3 all fail on a cut-off envelope (no closing brace, no closed
+    string), so it used to fall through to Layer 4 ("markdown") or Layer 5
+    ("prose rescue") and ship the raw envelope into the deliverable — Ch366
+    (```json fence + bare `{`) and Ch1472 (compact truncated envelope, whose
+    Layer 5 log even claimed "no JSON envelope"). The guard now discards it so
+    the empty-output retry fires.
+
+    The compact single-line case is the one that matters most: the *pretty*
+    two-line shape was incidentally caught by the bare-`{` rule, but a compact
+    ``{"translated_text": "..."`` starts with ``{`` and slipped past the old
+    line-start judgement entirely (measured: returned None).
+    """
+
+    def test_compact_truncated_envelope_is_discarded(self):
+        # Ch1472 shape, compact: one line, cut off before the closing brace.
+        body = '{"translated_text": "Grand Warden Xin Lianshan shouted, and the'
+        r = _parse_write_response(body, chapter_number=1)
+        assert r["translated_text"] == ""
+
+    def test_prose_then_compact_envelope_is_discarded(self):
+        # Layer 4 used to rescue this: body starts with a capital letter, but it
+        # still carries an envelope key.
+        body = (
+            "She opened the door and stepped into the cold hall, shivering at "
+            "the draft.\n{\"translated_text\": \"and then he said to her"
+        )
+        r = _parse_write_response(body, chapter_number=1)
+        assert r["translated_text"] == ""
+
+    def test_json_fence_residue_is_discarded(self):
+        # Ch366 shape: prose ending in a ```json fence + bare `{`.
+        body = (
+            "He had them right there in his pocket, waiting for the moment.\n"
+            "```json\n{"
+        )
+        r = _parse_write_response(body, chapter_number=1)
+        assert r["translated_text"] == ""
+
+    def test_clean_prose_is_still_rescued(self):
+        # Negative control: genuine prose with no envelope must survive Layer 5.
+        body = (
+            "Su Nian woke up to find herself lying on a large unfamiliar bed, "
+            "the morning light filtering through paper windows above her."
+        )
+        r = _parse_write_response(body, chapter_number=1)
+        assert r["translated_text"] == body
+
+    def test_well_formed_envelope_is_still_parsed_at_layer_one(self):
+        # Negative control: a *complete* envelope must parse cleanly, not be
+        # discarded by the residue guard (which only runs after Layer 1-3 fail).
+        r = _parse_write_response(
+            '{"translated_text": "A complete chapter.", "new_terms_found": []}',
+            chapter_number=1,
+        )
+        assert r["translated_text"] == "A complete chapter."
+
+
 def _state(content: str) -> dict:
     return {
         "chapter_title": "Test Chapter",
@@ -873,15 +933,20 @@ class TestFenceHandlingDoesNotPolluteTelemetry:
 class TestWriteNodeEnvelopeResidue:
     """End-to-end: an envelope / scaffolding leak must not become the chapter.
 
-    Mirrors ``TestWriteNodeTruncation`` — same recovery contract (discard the
-    bad body, let the retry run). These are the Ch366 (```json fence + bare
-    ``{``), Ch1472 (unpacked envelope) and Ch1077/Ch1286 ("End of Chapter."
-    scaffolding) failures that reached a delivered file because nothing checked
-    for them at production time.
+    Two defence layers, tested separately:
 
-    The positive control matters as much as the negatives: a *properly* fenced
-    reply that Layer 1 unpacks cleanly must still ship, or the guard would
-    reject every legitimate JSON response.
+    1. **Parse layer** (``_parse_write_response``'s residue guard, tested in
+       ``TestEnvelopeResidueNotRescued``): a malformed/truncated envelope that
+       Layer 1-3 cannot parse is discarded there instead of being rescued as
+       prose by Layer 4/5. This is the Ch366 / Ch1472 shape.
+    2. **Node layer** (this class): even when Layer 1 parses the envelope fine,
+       the ``translated_text`` field can itself still carry residue or
+       scaffolding — the WRITE node's own guard catches that and discards it so
+       the retry fires. This is the Ch1077 / Ch1286 "End of Chapter." shape
+       (clean parse, scaffolding inside the field).
+
+    The positive control matters as much as the negatives: a properly fenced
+    reply that Layer 1 unpacks cleanly must still ship.
     """
 
     def _invoke_with_content(self, content):
@@ -890,9 +955,10 @@ class TestWriteNodeEnvelopeResidue:
         mock_llm.invoke.return_value = resp
         return mock_llm
 
-    def test_json_fence_residue_is_not_shipped(self):
-        # Ch366 shape: prose that Layer 4 rescues, trailing a ```json fence and
-        # a bare `{`. Every attempt is identical, so nothing survives.
+    def test_parse_layer_discards_a_malformed_envelope(self):
+        # Ch366 shape: prose trailing a ```json fence + bare `{`. Layer 1-3 fail
+        # on it, so the parse-layer residue guard discards it before Layer 4
+        # could rescue it. Every attempt is identical, so nothing survives.
         bad = (
             "She opened the door and stepped into the cold hall, shivering "
             "at the draft that swept past her.\n```json\n{"
@@ -905,11 +971,13 @@ class TestWriteNodeEnvelopeResidue:
             result = write_node(_state(_LONG_SOURCE))
         assert result["translated_text"] == ""
 
-    def test_meta_text_scaffolding_is_not_shipped(self):
-        # Ch1077/Ch1286 shape: clean prose with an "END OF CHAPTER" tail.
+    def test_node_layer_discards_scaffolding_inside_a_parsed_field(self):
+        # Ch1077/Ch1286 shape: a *clean* envelope (Layer 1 parses it fine) whose
+        # translated_text field still carries "END OF CHAPTER" scaffolding. The
+        # parse-layer guard cannot see this — only the node-layer guard can.
         bad = (
-            "She opened the door and stepped into the cold hall, shivering "
-            "at the draft that swept past her.\nEND OF CHAPTER 7"
+            '{"translated_text": "She opened the door and stepped into the cold '
+            'hall, shivering at the draft that swept past her.\\nEND OF CHAPTER 7"}'
         )
         with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
              patch("src.agent.nodes.write.job_store") as js:
@@ -919,10 +987,13 @@ class TestWriteNodeEnvelopeResidue:
             result = write_node(_state(_LONG_SOURCE))
         assert result["translated_text"] == ""
 
-    def test_residue_records_an_event(self):
+    def test_node_layer_records_a_residue_event(self):
+        # Node-layer guard (not parse-layer): the envelope parses cleanly, so the
+        # residue lives inside the field and is caught by the WRITE node, which
+        # records json_envelope_residue.
         bad = (
-            "She opened the door and stepped into the cold hall, shivering "
-            "at the draft that swept past her.\n```json\n{"
+            '{"translated_text": "She opened the door and stepped into the cold '
+            'hall.\\n```json\\n{"}'
         )
         with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
              patch("src.agent.nodes.write.job_store") as js, \

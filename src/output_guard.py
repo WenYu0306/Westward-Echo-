@@ -133,8 +133,18 @@ def sanitize_translation(text: str) -> str:
 # A line that is exactly one of these is the model's JSON envelope, not prose.
 _BARE_JSON_LINES = frozenset(("{", "}", "},", "{,"))
 _JSON_FENCE = "```json"
-_JSON_KEYS = ('"translated_text"', '"chapter_title_en"', '"new_terms_found"',
-              '"polished_text"', '"changes_made"')
+_JSON_KEYS = ("translated_text", "chapter_title_en", "new_terms_found",
+              "polished_text", "changes_made")
+# An envelope key followed by a colon, ANYWHERE on the line — not just at line
+# start. The earlier ``startswith(key)`` form only caught *pretty-printed*
+# envelopes (where the key begins its own line, as in Ch1472's two-line shape).
+# A *compact* truncated envelope — ``{"translated_text": "Grand Warden...`` all
+# on one line, cut off before the closing brace — starts with ``{``, so the key
+# was not at line start and slipped through. Measured: the old rule returned
+# None for that line. These are internal field names; they never occur in a
+# legitimately translated chapter, so a hit always means an envelope leaked.
+_JSON_KEY_RE = re.compile(r'"(' + "|".join(_JSON_KEYS) + r')"\s*:')
+
 
 # Scaffolding the model invents around the translation. These are NOT in the
 # prompt or anywhere in src/ — they are LLM hallucination, which is exactly why
@@ -160,9 +170,9 @@ def json_residue_on_line(line: str) -> str | None:
         return f"bare {stripped!r} line"
     if _JSON_FENCE in stripped:
         return "```json fence"
-    for key in _JSON_KEYS:
-        if stripped.startswith(key):
-            return f"unpacked envelope key {key}"
+    m = _JSON_KEY_RE.search(stripped)
+    if m:
+        return f'unpacked envelope key "{m.group(1)}"'
     return None
 
 
