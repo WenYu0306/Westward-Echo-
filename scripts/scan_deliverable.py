@@ -44,6 +44,14 @@ Checks
 5. ``CHINESE_RESIDUE``  — untranslated CJK in the body, via output_guard
 6. ``CHAPTER_NUMBERING`` — EN/CN heading map is not monotonic, or one CN chapter
                           maps to several EN chapters
+7. ``QUOTE_STYLE``（条款16）— 双引号风格偏离全书主导：同章混用两套，或整章
+                          通篇用少数派
+8. ``GLOSSARY_CONFLICTS``（条款16）— 术语表内部冲突：同一英文渲染对应互相矛盾
+                          的中文源词（值含脏标记 / 同音形近字）
+
+7 和 8 是**整份交付物**级别的判据，单独成节报告、不进逐章 findings：difu 实测
+203 章引号偏离，混进逐章清单会把 1–6 那 17 条高价值分诊项冲掉。但两者都计入
+``--strict`` 与结论行，口径与 6（章号异常）一致。
 
 Zero cost: this script never imports an LLM client and makes no network call, so
 it needs no cost gate (contrast the 20 bare scripts in HANDOFF round5 §四-C).
@@ -62,6 +70,7 @@ Exit codes: 0 = scanned clean (or findings present without --strict),
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import re
 import sys
@@ -83,6 +92,9 @@ from src.output_guard import (  # noqa: E402
 # layout constant is not behaviour worth testing in itself.
 _RULE_WIDTH = 72          # width of the '=' separator rules
 _CHECK_COL = 20           # column width for check-name fields
+# 引号偏离章列表的显示上限。difu 实测通篇弯引号 183 章，全列出来会把逐章
+# 缺陷明细挤出视野；照 _OFFSET_OUTLIER_LIMIT 的做法截断，总数仍然印全。
+_QUOTE_LIST_LIMIT = 20
 
 # ── Parsing ───────────────────────────────────────────────────────────
 # Deliverable headings look like:  ## Chapter 2: 第1章 鬼节，鬼敲门
@@ -323,11 +335,155 @@ def check_numbering(chapters: list[dict]) -> dict:
     }
 
 
+# ── Check 7: 引号风格一致性（条款16）───────────────────────────────────
+# 实测标定（difu_en.md，2301 章）：
+#   直双引号 "     79,399 次
+#   弯双引号 “ ”    4,010 / 3,995 次   → 直引号占 90.8%，是全书主导
+#   同章混用两套     20 章
+#   通篇只用弯引号  183 章
+#   合计偏离主导    203 章（8.8%），分散在 171 个连续段、最长段仅 4 章
+#                   → 散点式，不是某个时段/模型的配置问题
+#
+# ⚠️ 混用章数按**正文**算是 20，不是 22。差的 Ch157/Ch1345 弯引号只出现在
+# 标题行（中文原标题："第一节是语文课，“知耻而后勇”的陈大计…"、
+# "第1343章 “鬼”的警告"），正文全是直引号。标题携带中文原文是合法的
+# （同 check_chinese_residue 的既有口径），扫标题会把这两章误报成不一致。
+#
+# 判据形态照 check_numbering 的 dominant_offset：**主导风格本身不是缺陷，
+# 偏离主导才是**。否则会把 2,098 章正常章节报成缺陷。
+#
+# ⚠️ 只判**双**引号。弯单引号 ’ (U+2019) 实测 3,089 次，绝大多数是英文撇号
+# （woman's / aren't / wasn't），纳入判据会大规模误报。这是 round9 §八
+# "裸判据 95% 误报"的同类陷阱，实测后排除。
+_QUOTE_STRAIGHT = '"'
+_QUOTE_CURLY = ("\u201c", "\u201d")      # “ ”
+
+
+def dominant_quote_style(chapters: list[dict]) -> str:
+    """全书主导的双引号风格："straight" 或 "curly"。
+
+    并列或全书无引号时返回 "straight"——此时不会有任何章被判偏离。
+    """
+    straight = curly = 0
+    for ch in chapters:
+        for _, line in ch["body"]:
+            straight += line.count(_QUOTE_STRAIGHT)
+            curly += sum(line.count(q) for q in _QUOTE_CURLY)
+    return "curly" if curly > straight else "straight"
+
+
+def check_quote_style(chapters: list[dict], dominant: str) -> dict:
+    """全书双引号风格一致性汇总（条款16）。
+
+    照 check_numbering 的形态单独成节，不进逐章 findings：difu 实测有 205 章
+    偏离主导，塞进分诊清单会把条款14 那 12 条高价值缺陷冲掉；而且"把弯引号
+    统一成直引号"是一次性机械修，不需要逐章人工判读。
+    """
+    mixed: list[dict] = []      # 同章混用两套
+    off_dominant: list[int] = []  # 通篇用少数派
+    for ch in chapters:
+        body = ch["body"]
+        straight = sum(line.count(_QUOTE_STRAIGHT) for _, line in body)
+        curly = sum(sum(line.count(q) for q in _QUOTE_CURLY) for _, line in body)
+        minority = curly if dominant == "straight" else straight
+        if not minority:
+            continue
+        first_line = next(
+            (line_no for line_no, line in body
+             if any(q in line for q in (_QUOTE_CURLY if dominant == "straight"
+                                        else (_QUOTE_STRAIGHT,)))),
+            body[0][0] if body else 0,
+        )
+        entry = {"en": ch["en"], "line": first_line,
+                 "straight": straight, "curly": curly}
+        if straight and curly:
+            mixed.append(entry)
+        else:
+            off_dominant.append(ch["en"])
+    return {
+        "dominant": dominant,
+        "chapters_total": len(chapters),
+        "mixed_chapters": mixed,
+        "off_dominant_chapters": off_dominant,
+        # 缺陷数 = 混用章 + 通篇少数派章。主导风格自身的章节不算。
+        "defects": len(mixed) + len(off_dominant),
+    }
+
+
+# ── Check 8: 术语表内部冲突（条款16）───────────────────────────────────
+# 实测标定（difu _glossary.json，1467 条）：同一英文渲染对应多个中文源词
+# 共 29 组，实测分成三类，**只有前两类是缺陷**：
+#
+#   A 值含脏标记（斜杠/括号）3 组 —— 术语表自身脏数据：
+#       'Dog Ni'            <- ['犬封恶鬼/犬尼', '犬尼']
+#       'County Chief Hong' <- ['洪贤长', '洪贤（避嫌，通县）长']
+#       'Young General'     <- ['少将军', '少将军 (addressing Chen Daji)', ...]
+#   B 等长且恰好一个字不同 10 组 —— 同音字/形近字，必有一个是错的：
+#       '白无畏'/'白无谓'、'常怀元'/'常怀远'、'法庆'/'法清'、
+#       '空禅'/'空蝉'、'幽荧'/'幽莹'、'女妭'/'女魃' …
+#   C 其余 16 组是**合法变体**（简称/全称、敬称、限定语），不报：
+#       '容慧'/'容慧禅师'、'鬼母'/'鬼母邪神'、'常二爷'/'常家二爷'、
+#       '大将军庙'/'将军庙' …
+#
+# C 类与 B 类判据不重叠：实测 16 组无一满足"等长且仅一字不同"（最短的
+# '灰家仙'/'灰老六'、'绝圣女帝'/'绝圣帝君' 都差 2 个字）。故 A+B 合计
+# 13 组全部为真缺陷、零误报。C 类作为度量另报，供人工核对而不判缺陷。
+#
+# ⚠️ 这里不做"术语在源文出现却没在译文出现"的判据：completeness.py:187-194
+# 已实测否决该判据（11 个截断章缺 8-24 术语、8 个健康对照缺 5-16，区间重叠，
+# WRITE 本就有权压缩次要提及），重造会得到同一个不可分离的信号。
+_GLOSSARY_DIRTY = re.compile(r"[/()（）]")
+
+
+def check_glossary_conflicts(glossary: dict) -> dict:
+    """术语表内部一致性：同一英文渲染不得对应互相矛盾的中文源词。"""
+    by_en: dict[str, set] = defaultdict(set)
+    for cn, en in glossary.items():
+        by_en[en].add(cn)
+
+    conflicts: list[dict] = []
+    variants_only: list[dict] = []
+    for en, cns in sorted(by_en.items()):
+        if len(cns) < 2:
+            continue
+        forms = sorted(cns)
+        dirty = [c for c in forms if _GLOSSARY_DIRTY.search(c)]
+        if dirty:
+            conflicts.append({
+                "kind": "DIRTY_TERM", "en": en, "variants": forms,
+                "detail": f"值含脏标记（斜杠/括号）: {dirty}",
+            })
+            continue
+        near = [(a, b) for a, b in itertools.combinations(forms, 2)
+                if len(a) == len(b)
+                and sum(1 for x, y in zip(a, b) if x != y) == 1]
+        if near:
+            conflicts.append({
+                "kind": "HOMOPHONE_CLASH", "en": en, "variants": forms,
+                "detail": "等长且仅一字不同（同音/形近字）: "
+                          + ", ".join(f"{a}/{b}" for a, b in near),
+            })
+            continue
+        # 剩下的都是简称/全称/敬称变体：合法，只报出来供人工核对。
+        variants_only.append({"en": en, "variants": forms})
+
+    return {
+        "terms_total": len(glossary),
+        "one_en_many_cn": sum(1 for cns in by_en.values() if len(cns) > 1),
+        "conflicts": conflicts,
+        "legitimate_variants": variants_only,
+    }
+
+
 # ── Driver ──────────────────────────────────────────────────────────────
 def scan_file(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     chapters = _split_chapters(text)
     findings: list[dict] = []
+
+    # 主导引号风格是**全书**属性，必须先算一次再比对——不能在章循环里逐章
+    # 各自判断，否则每章都自认主导、永远查不出混用。
+    quote_dominant = dominant_quote_style(chapters)
 
     for ch in chapters:
         body, heading_line, en = ch["body"], ch["start_line"], ch["en"]
@@ -348,6 +504,7 @@ def scan_file(path: Path) -> dict:
 
     by_check = Counter(f["check"] for f in findings)
     numbering = check_numbering(chapters)
+    quotes = check_quote_style(chapters, quote_dominant)
 
     # Numbering anomalies are defects too, surfaced separately from the
     # per-chapter list so the counts stay readable.
@@ -356,6 +513,10 @@ def scan_file(path: Path) -> dict:
         + len(numbering["ambiguous_cn_to_en"])
         + len(numbering["offset_outliers"])
     )
+
+    # 术语表是交付物同目录的 _glossary.json。缺失或损坏时给 terms_total=0
+    # 而不是抛错：不是每本交付物都带术语表，"没有表"不等于"扫描失败"。
+    glossary_report = check_glossary_conflicts(_load_glossary(path))
 
     return {
         "file": str(path),
@@ -366,8 +527,22 @@ def scan_file(path: Path) -> dict:
         "findings_total": len(findings),
         "numbering_defects": numbering_defects,
         "numbering": numbering,
+        "quotes": quotes,
+        "glossary": glossary_report,
         "findings": sorted(findings, key=lambda f: f["line"]),
     }
+
+
+def _load_glossary(deliverable: Path) -> dict:
+    """读取交付物同目录的 _glossary.json；缺失/损坏/非映射 → {}。"""
+    path = deliverable.parent / "_glossary.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _print_human(report: dict) -> None:
@@ -402,6 +577,9 @@ def _print_human(report: dict) -> None:
     if n["headings_without_cn_number"]:
         print(f"  ⚠ 标题无中文章号: {n['headings_without_cn_number']}")
 
+    _print_quotes(report["quotes"])
+    _print_glossary(report["glossary"])
+
     if report["findings"]:
         print(f"\n逐章缺陷明细（{report['findings_total']} 条）:")
         for f in report["findings"]:
@@ -414,10 +592,48 @@ def _print_human(report: dict) -> None:
             if f["evidence"]:
                 print(f"           └ {f['evidence']!r}")
 
+    g = report["glossary"]
     print(f"\n结论: {report['findings_total']} 条逐章缺陷 "
-          f"+ {report['numbering_defects']} 条章号异常")
+          f"+ {report['numbering_defects']} 条章号异常 "
+          f"+ {report['quotes']['defects']} 章引号风格偏离 "
+          f"+ {len(g['conflicts'])} 组术语表冲突")
     print("  这是**分诊清单**而非通过/失败门禁——TRUNCATED_BODY 经标定"
           "仍有 ~18% 误报（诗词署名、干支纪年），需人工判读。")
+
+
+def _print_quotes(q: dict) -> None:
+    """引号风格节。长列表按 _QUOTE_LIST_LIMIT 截断（183 章全列会淹没其余缺陷）。"""
+    label = "直" if q["dominant"] == "straight" else "弯"
+    print("\n引号风格（条款16）:")
+    print(f"  主导: {label}双引号"
+          f"（{q['chapters_total'] - q['defects']}/{q['chapters_total']} 章一致，属正常）")
+    if q["mixed_chapters"]:
+        shown = q["mixed_chapters"][:_QUOTE_LIST_LIMIT]
+        print(f"  ✗ 同章混用两套引号: {len(q['mixed_chapters'])} 章"
+              f"（前 {len(shown)}）: {[x['en'] for x in shown]}")
+    if q["off_dominant_chapters"]:
+        shown = q["off_dominant_chapters"][:_QUOTE_LIST_LIMIT]
+        print(f"  ✗ 通篇用少数派引号: {len(q['off_dominant_chapters'])} 章"
+              f"（前 {len(shown)}）: {shown}")
+    if not q["defects"]:
+        print("  ✓ 全书引号风格一致")
+
+
+def _print_glossary(g: dict) -> None:
+    """术语表一致性节。只判真冲突；合法变体报数量供人工核对。"""
+    print("\n术语表一致性（条款16）:")
+    if not g["terms_total"]:
+        print("  （同目录无 _glossary.json，跳过）")
+        return
+    print(f"  条目 {g['terms_total']} | 同一英文对应多个中文 {g['one_en_many_cn']} 组")
+    for c in g["conflicts"]:
+        kind = "脏标记" if c["kind"] == "DIRTY_TERM" else "同音/形近字"
+        print(f"  ✗ [{kind}] {c['en']} <- {c['variants']}")
+    if g["legitimate_variants"]:
+        print(f"  ⚠ 简称/全称/敬称变体 {len(g['legitimate_variants'])} 组"
+              f"（合法，不判缺陷，供人工核对）")
+    if not g["conflicts"]:
+        print("  ✓ 无内部冲突")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -461,8 +677,15 @@ def main(argv: list[str] | None = None) -> int:
             _print_human(report)
 
     if args.strict:
+        # 全书级缺陷计数（章号异常 / 引号风格偏离 / 术语表冲突）与逐章
+        # findings 一并算脏。numbering_defects 本来就在里面，另两项是同类的
+        # "整份交付物的缺陷计数、单独成节"，漏掉它们会让 --strict 自相矛盾：
+        # 报告印着 203 章引号偏离，退出码却是 0。
         dirty = [r for r in reports
-                 if r["findings_total"] or r["numbering_defects"]]
+                 if (r["findings_total"]
+                     or r["numbering_defects"]
+                     or r["quotes"]["defects"]
+                     or r["glossary"]["conflicts"])]
         return 1 if dirty else 0
     return 0
 
