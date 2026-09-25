@@ -365,9 +365,6 @@ class TranslationAgent:
                 chapter_number=number,
                 target_lang=lang,
             ),
-            # Kept for backward compat (unused by new nodes, harmless)
-            "term_conflicts": [],
-            "resolved_conflicts": [],
             "dialect_context": "",
         }
 

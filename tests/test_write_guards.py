@@ -207,8 +207,6 @@ def _state(content: str) -> dict:
         "skip_readback": False,
         "use_flash_writer": False,
         "cold_read_context": "",
-        "term_conflicts": [],
-        "resolved_conflicts": [],
         "dialect_context": "",
     }
 

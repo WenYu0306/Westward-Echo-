@@ -52,12 +52,6 @@ class TranslatorState(TypedDict):
     # === Glossary snapshot (for checkpoint) ===
     glossary_snapshot_json: str     # JSON string of exact glossary for SQLite checkpoint
 
-    # === Term conflict arbitration ===
-    term_conflicts: Annotated[list[dict], operator.add]
-    # [{term_cn, existing_en, proposed_en, chapter_existing, chapter_proposed}]
-    resolved_conflicts: Annotated[list[dict], operator.add]
-    # [{term_cn, correct_en, wrong_en, reason}]
-
     # === Dialect adaptation ===
     dialect_context: str             # Detected dialect hints for this chapter
 
