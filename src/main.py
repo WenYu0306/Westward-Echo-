@@ -112,12 +112,23 @@ def create_app() -> FastAPI:
 
     # CMS API
     from .api.cms import app as cms_api
-    app.mount("/api/cms", cms_api)
 
-    # API routes
-    app.mount("/api", api_router)
+    # Mount order is load-bearing: Starlette matches mounts in registration
+    # order, so the catch-all "/api" must come LAST. Registering it first —
+    # as this did — swallowed every more specific sub-app beneath it, so
+    # /api/review/* and /api/editor/* returned 404 and both UIs were dead:
+    # the review page's three fetch calls (web_ui.py:1837/1886/1897) never
+    # reached the server. That is why `status='confirmed'` matched zero rows in
+    # the real checkpoints.db — the human curation loop had never run at all,
+    # not merely been scoped to the wrong book.
+    #
+    # The directly-registered /api/dashboard/metrics and /api/usage/events
+    # above are unaffected: plain routes registered earlier still win over a
+    # later mount, which is why /api/cms (mounted before /api) always worked.
+    app.mount("/api/cms", cms_api)
     app.mount("/api/review", review_api_router)
     app.mount("/api/editor", editor_api_router)
+    app.mount("/api", api_router)
 
     logger.info(
         f"Westward Echo v{VERSION} (Celery + Redis + Auth + Logging + Health + CMS + Editor)"

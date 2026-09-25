@@ -1714,6 +1714,21 @@ body{
 .filter-btn:hover{background:#f5f5f7}
 .filter-btn.active{background:#0071e3;color:#fff;border-color:#0071e3;font-weight:600}
 
+/* Namespace selectors — which book + language the term list is scoped to.
+   Without these the page could only ever address book_id="default", which on
+   real data holds 28 of 131 terms and no production book. */
+.ns-bar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.ns-label{font-size:13px;color:#6e6e73;white-space:nowrap}
+.ns-select{
+  flex:1;min-width:180px;padding:9px 12px;font-size:13px;color:#1d1d1f;
+  background:#fff;border:1px solid #e5e5ea;border-radius:8px;cursor:pointer;
+}
+.ns-count{font-size:12px;color:#8e8e93;white-space:nowrap}
+.ns-empty{
+  padding:14px 16px;font-size:13px;color:#8e8e93;background:#fff;
+  border:1px solid #e5e5ea;border-radius:10px;margin-bottom:24px;
+}
+
 /* Term cards */
 .term-list{display:flex;flex-direction:column;gap:10px;margin-bottom:40px}
 .term-card{
@@ -1795,6 +1810,16 @@ body{
     <div class="stats" id="stats"></div>
   </div>
 
+  <div class="ns-bar">
+    <span class="ns-label">书目 / 语种</span>
+    <select class="ns-select" id="ns-book"></select>
+    <select class="ns-select" id="ns-lang"></select>
+    <span class="ns-count" id="ns-count"></span>
+  </div>
+  <div class="ns-empty" id="ns-empty" style="display:none">
+    术语库中暂无数据。先运行翻译任务，机器提取的术语会出现在这里。
+  </div>
+
   <div class="filter-bar" id="filter-bar">
     <button class="filter-btn active" data-filter="all">全部</button>
     <button class="filter-btn" data-filter="pending_review">待审核</button>
@@ -1818,9 +1843,20 @@ const loading=document.getElementById('loading');
 const empty=document.getElementById('empty');
 const stats=document.getElementById('stats');
 const toast=document.getElementById('toast');
+const nsBook=document.getElementById('ns-book');
+const nsLang=document.getElementById('ns-lang');
+const nsCount=document.getElementById('ns-count');
+const nsEmpty=document.getElementById('ns-empty');
+const filterBar=document.getElementById('filter-bar');
 
 let allTerms=[];
 let currentFilter='all';
+// Which (book_id, target_lang) namespace the list is scoped to. Null until
+// /namespaces returns; every request below reads these, so a term is never
+// confirmed or rejected against the wrong book/language.
+let currentBook='';
+let currentLang='';
+let namespaces=[];
 
 // Category labels
 const catLabels={'character':'角色','location':'地点','technique':'功法','culture':'文化','item':'物品','era':'年代'};
@@ -1830,15 +1866,73 @@ function showToast(msg){
   setTimeout(()=>toast.classList.remove('show'),2000);
 }
 
+// Human-readable book label. job_id namespaces are opaque hex, so fall back to
+// the raw id rather than inventing a title we do not have.
+function bookLabel(id){
+  return id==='default'?'默认词库 (default)':id;
+}
+
+function langsFor(bookId){
+  return namespaces.filter(n=>n.book_id===bookId).map(n=>n.target_lang);
+}
+
+async function loadNamespaces(){
+  try{
+    const r=await fetch('/api/review/namespaces');
+    if(!r.ok)throw new Error(await r.text());
+    const d=await r.json();
+    namespaces=d.namespaces||[];
+  }catch(e){
+    showToast('命名空间加载失败: '+e.message);
+    namespaces=[];
+  }
+  if(!namespaces.length){
+    nsEmpty.style.display='block';
+    filterBar.style.display='none';
+    nsBook.innerHTML='';nsLang.innerHTML='';nsCount.textContent='';
+    termList.innerHTML='';stats.textContent='';
+    return false;
+  }
+  nsEmpty.style.display='none';
+  filterBar.style.display='flex';
+  // The API orders namespaces by term_count desc, so the first book is the
+  // most-used one — a sane default the reviewer rarely has to change.
+  const books=[...new Set(namespaces.map(n=>n.book_id))];
+  nsBook.innerHTML=books.map(b=>'<option value="'+escAttr(b)+'">'+esc(bookLabel(b))+'</option>').join('');
+  currentBook=books[0];
+  nsBook.value=currentBook;
+  repopulateLangs();
+  return true;
+}
+
+function repopulateLangs(){
+  const langs=langsFor(currentBook);
+  nsLang.innerHTML=langs.map(l=>'<option value="'+escAttr(l)+'">'+esc(l)+'</option>').join('');
+  currentLang=langs[0]||'';
+  nsLang.value=currentLang;
+}
+
+function nsQuery(extra){
+  // Book and language are always sent: omitting them would silently scope the
+  // request to default/en-US, the exact defect these selectors exist to remove.
+  const p=new URLSearchParams({book_id:currentBook,target_lang:currentLang});
+  if(extra)for(const k in extra)p.set(k,extra[k]);
+  return p.toString();
+}
+
 async function fetchTerms(){
+  if(!currentBook||!currentLang)return;
   loading.style.display='block';
   termList.innerHTML='';empty.style.display='none';
   try{
-    const url=currentFilter==='all'?'/api/review/terms':'/api/review/terms?status='+currentFilter;
-    const r=await fetch(url);
+    const q=currentFilter==='all'?null:{status:currentFilter};
+    const r=await fetch('/api/review/terms?'+nsQuery(q));
+    if(!r.ok)throw new Error(await r.text());
     const d=await r.json();
     allTerms=d.terms;
-    stats.textContent=d.count+' 个术语';
+    const ns=namespaces.find(n=>n.book_id===currentBook&&n.target_lang===currentLang);
+    nsCount.textContent=ns?(ns.term_count+' 条'):(d.count+' 条');
+    stats.textContent=d.count+' 个术语 · '+bookLabel(currentBook)+' · '+currentLang;
     renderTerms();
   }catch(e){
     showToast('加载失败: '+e.message);
@@ -1883,8 +1977,12 @@ function escAttr(s){return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replac
 
 async function confirmTerm(cn){
   try{
-    const r=await fetch('/api/review/terms/'+encodeURIComponent(cn)+'/confirm',{method:'POST'});
+    const r=await fetch('/api/review/terms/'+encodeURIComponent(cn)+'/confirm?'+nsQuery(),{method:'POST'});
     if(!r.ok)throw new Error(await r.text());
+    const d=await r.json();
+    // ok:true alone used to be the whole contract, and the endpoint returned it
+    // even when the UPDATE matched zero rows. Check what actually happened.
+    if(!d.ok)throw new Error('未生效');
     showToast('已确认: '+cn);
     const card=document.getElementById('card-'+encodeURIComponent(cn));
     if(card){card.classList.add('fading');setTimeout(()=>card.remove(),350)}
@@ -1894,9 +1992,11 @@ async function confirmTerm(cn){
 async function rejectTerm(cn){
   if(!confirm('确定要删除术语 "'+cn+'" 吗？此操作不可撤销。'))return;
   try{
-    const r=await fetch('/api/review/terms/'+encodeURIComponent(cn)+'/reject',{method:'POST'});
+    const r=await fetch('/api/review/terms/'+encodeURIComponent(cn)+'/reject?'+nsQuery(),{method:'POST'});
     if(!r.ok)throw new Error(await r.text());
-    showToast('已删除: '+cn);
+    const d=await r.json();
+    if(!d.ok)throw new Error('未生效');
+    showToast(d.deleted?('已删除: '+cn):('已记录拒绝译法: '+cn));
     const card=document.getElementById('card-'+encodeURIComponent(cn));
     if(card){card.classList.add('fading');setTimeout(()=>card.remove(),350)}
   }catch(e){showToast('操作失败: '+e.message)}
@@ -1912,8 +2012,24 @@ document.querySelectorAll('.filter-btn').forEach(btn=>{
   });
 });
 
-// Load on start
-fetchTerms();
+// Namespace selectors. Changing the book repopulates the language list, because
+// a book need not have every language — offering an unavailable combination
+// would 404 on load.
+nsBook.addEventListener('change',()=>{
+  currentBook=nsBook.value;
+  repopulateLangs();
+  fetchTerms();
+});
+nsLang.addEventListener('change',()=>{
+  currentLang=nsLang.value;
+  fetchTerms();
+});
+
+// Load on start: the namespace list must resolve before any term request, since
+// fetchTerms refuses to run without a book and language.
+(async function init(){
+  if(await loadNamespaces())fetchTerms();
+})();
 </script>
 </body>
 </html>"""

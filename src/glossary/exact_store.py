@@ -335,6 +335,31 @@ target_lang)
     # Review API — human-in-the-loop glossary curation
     # ------------------------------------------------------------------
 
+    @classmethod
+    def list_namespaces(cls, db_path: typing.Optional[str] = None) -> list[dict]:
+        """List every ``(book_id, target_lang)`` namespace that has terms.
+
+        Class method on purpose: an instance is already scoped to one book_id,
+        and the review UI needs to see *all* of them to offer a choice. Without
+        this the UI could only ever show whichever book_id its store was
+        constructed with — measured as 28 of 131 rows (21.4%) on the real
+        checkpoints.db, which is why its confirm/reject loop never touched a
+        production book and `status='confirmed'` matched zero rows.
+
+        Returns [{"book_id", "target_lang", "term_count"}] ordered by size, so
+        the most-used namespace is the default choice.
+        """
+        path = db_path or CHECKPOINT_DB_PATH
+        with sqlite3.connect(path) as conn:
+            rows = conn.execute(
+                """SELECT book_id, target_lang, COUNT(*) AS n
+                   FROM exact_glossary
+                   GROUP BY book_id, target_lang
+                   ORDER BY n DESC, book_id, target_lang""",
+            ).fetchall()
+        return [{"book_id": b, "target_lang": lang, "term_count": n}
+                for b, lang, n in rows]
+
     def get_all_terms(self, status_filter: typing.Optional[str] = None,
                       target_lang: str = "en-US") -> list[dict]:
         """List all terms, optionally filtered by status."""
@@ -360,26 +385,39 @@ target_lang)
                 ).fetchall()
         return [dict(row) for row in rows]
 
-    def confirm_term(self, term_cn: str, target_lang: str = "en-US"):
-        """Set a term's status to 'confirmed'."""
+    def confirm_term(self, term_cn: str, target_lang: str = "en-US") -> int:
+        """Set a term's status to 'confirmed'. Returns the rows updated.
+
+        The count matters: terms are keyed by (book_id, term_cn, target_lang),
+        so a call naming the wrong namespace matches nothing. Returning 0 lets
+        the caller say "no such term" instead of reporting success for an
+        update that never happened — which is exactly what the review API did
+        before it started checking this.
+        """
         with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
+            cur = conn.execute(
                 "UPDATE exact_glossary SET status = 'confirmed' "
                 "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
                 (self._book_id, term_cn, target_lang),
             )
             conn.commit()
+            return cur.rowcount
 
-    def reject_term(self, term_cn: str, target_lang: str = "en-US"):
-        """Delete a term from the exact_store entirely."""
+    def reject_term(self, term_cn: str, target_lang: str = "en-US") -> int:
+        """Delete a term from the exact_store entirely. Returns the rows deleted.
+
+        See confirm_term: a namespace mismatch deletes nothing, and the caller
+        must be able to tell that apart from a successful rejection.
+        """
         self._dict.pop(term_cn, None)
         with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
+            cur = conn.execute(
                 "DELETE FROM exact_glossary "
                 "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
                 (self._book_id, term_cn, target_lang),
             )
             conn.commit()
+            return cur.rowcount
 
     def stats(self) -> dict:
         return {"total_terms": len(self._dict)}

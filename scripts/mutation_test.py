@@ -54,7 +54,20 @@ TARGETS = {
         "tests/test_fidelity_check.py",
     ]),
     "cms": ("src/cms.py", ["tests/test_cms_connector.py"]),
-    "exact_store": ("src/glossary/exact_store.py", ["tests/test_glossary.py", "tests/test_glossary_accumulation.py"]),
+    # test_review_api.py is included because list_namespaces and the
+    # confirm_term/reject_term row-counts are asserted only there: running the
+    # glossary suites alone left 4 survivors on this module. Those row-counts are
+    # what let the review API report "no such term" instead of claiming success
+    # for an UPDATE that matched zero rows.
+    "exact_store": ("src/glossary/exact_store.py", [
+        "tests/test_glossary.py",
+        "tests/test_glossary_accumulation.py",
+        "tests/test_review_api.py",
+    ]),
+    # The review API had zero coverage before this round, which is how a
+    # mount-order bug could leave every endpoint 404ing while all suites passed.
+    # A survivor here means human curation can silently stop working again.
+    "review_api": ("src/api/review.py", ["tests/test_review_api.py"]),
     "semantic_store": ("src/glossary/semantic_store.py", ["tests/test_semantic_store.py"]),
     "style_memo": ("src/style_memo.py", ["tests/test_style_memo.py"]),
     "job_store": ("src/job_store.py", ["tests/test_job_store.py"]),
