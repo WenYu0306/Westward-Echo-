@@ -987,6 +987,25 @@ class TestWriteNodeEnvelopeResidue:
             result = write_node(_state(_LONG_SOURCE))
         assert result["translated_text"] == ""
 
+    def test_node_layer_discards_scaffolding_rescued_by_layer_four(self):
+        # Ch1077's *actual* shape in difu_en.md: bare prose (no envelope) ending
+        # in "End of Chapter.". Layer 1-3 fail, Layer 4 rescues it as markdown
+        # (the body starts with a capital letter), so the scaffolding arrives in
+        # translated_text via the parse path — and only the node-layer guard
+        # (has_meta_text_leak) catches it. The parse-layer envelope guard does
+        # not fire here because there is no JSON residue, only scaffolding.
+        bad = (
+            "She opened the door and stepped into the cold hall, shivering "
+            "at the draft that swept past her.\nEnd of Chapter."
+        )
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            cls.return_value = self._invoke_with_content(bad)
+            result = write_node(_state(_LONG_SOURCE))
+        assert result["translated_text"] == ""
+
     def test_node_layer_records_a_residue_event(self):
         # Node-layer guard (not parse-layer): the envelope parses cleanly, so the
         # residue lives inside the field and is caught by the WRITE node, which

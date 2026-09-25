@@ -1,8 +1,9 @@
 # 西渡 · 交接（2026-09-25 第10轮 · 条款13-A/10/14 收尾 · **新窗口从这里开始**）
 
 > **本文件是最新入口。** 上一轮 `HANDOFF_20260925_round9_clause13_rerank.md` 的全部改动**已提交**，不要重做。
-> 本轮按 round9 §六 位次表完成 **位次 1（13-A）→ 位次 2（条款10）→ 位次 3（条款14 的"防复发"半）**，共 3 个提交，工作区干净。
-> ⚠️ **四件待拍板事项用户本轮已全部拍板**（见下）。**条款14 只完成了一半**：防复发（生产守卫）已做并提交；清历史（坏章修复）已精确分诊但**未执行**，留给下一位，是新窗口的第一步。
+> 本轮按 round9 §六 位次表完成 **位次 1（13-A）→ 位次 2（条款10）→ 位次 3（条款14）**，共 4 个提交，工作区干净。
+> ✅ **条款14 判定完成**：三类缺陷（句中截断 / JSON信封残留 / 脚手架文本）的**根因全部堵死并有回归测试钉住**（验收标准=根因修复，非清历史，见 §三-A/D）。历史坏章清理（§三-E）是独立收尾项，不属条款14 验收。
+> ⚠️ **四件待拍板事项用户本轮已全部拍板**（见下），其中 #2/#3/#4 已批未执行。
 
 ## 🛑 先读这里
 
@@ -19,7 +20,8 @@
 
 ### B. 本轮没碰、下一位接着做的（全部零成本、不需再拍板）
 
-round9 §六 **位次 3 的"坏章修复"半 + 位次 4–7**：条款14 坏章修复（§三）→ 条款6 API管控 → 条款16 术语一致性 → 条款9 主笔评估 → 条款4 项目边界。
+round9 §六 **位次 4–7**：条款6 API管控 → 条款16 术语一致性 → 条款9 主笔评估 → 条款4 项目边界。
+（条款14 本轮已完成，见 §三；其历史坏章清理 §三-E 是独立可选收尾项，非条款验收，A 档 4 章零成本但需先备份已交付产物。）
 
 ### C. 硬规矩（承接 round9 §一/§九，本轮全程遵守，未出事故）
 
@@ -33,22 +35,24 @@ round9 §六 **位次 3 的"坏章修复"半 + 位次 4–7**：条款14 坏章�
 ## 〇、基线（实测，非声称）
 
 ```bash
-python3.11 -m pytest -q --no-header                    # → 1565 passed, 4 deselected
+python3.11 -m pytest -q --no-header                    # → 1574 passed, 4 deselected
 python3.11 scripts/static_audit.py --self-test         # → 27/27
 ```
-- 1565 = round9 基线 1524 + 本轮 **41 个新测试**（13-A +14、条款10 +1、条款14 +26）
+- 1574 = round9 基线 1524 + 本轮 **50 个新测试**（13-A +14、条款10 +1、条款14 +35）
 - 本轮触及的变异目标，全部 **0 存活**：
   | 目标 | 结果 | 关联提交 |
   |---|---|---|
   | `exact_store` | 60/60 killed | 13-A |
   | `graph_post_process` | 73/73 killed | 13-A、条款10 |
   | `review_api` | 18/18 killed | 13-A |
-  | `output_guard` | 25/25 killed | 条款14 |
+  | `output_guard` | 26/26 killed | 条款14（compact 判据 `_JSON_KEY_RE` 升级后 +1） |
   | `scan_deliverable` | 51/51 killed | 条款14（由 round9 的 53→51，判据字面量移入 output_guard 单一来源，重复变异点消失，总覆盖不减反增） |
-  | `write_guards` | 58/58 killed | 条款14 |
+  | `write_guards` | 59/59 killed | 条款14（解析层 guard + 节点层守卫；Layer 4 脚手架回归测试后实测仍 59，本轮第三次只加测试未改源码故变异点不变） |
 - 提交历史（新→旧）：
   | 提交 | 内容 |
   |---|---|
+  | `3ef7493` | 条款14：堵住信封泄漏的根因（Layer 4/5 救援）+ 修复 compact 判据缺口 |
+  | `79f9a75` | round10 交接文档（首版） |
   | `26c9bf6` | 条款14：JSON信封残留/脚手架文本升级为生产期守卫（单一来源） |
   | `9623a2d` | 条款10：READBACK 冷读简报剥离角色中文名（关闭一整条） |
   | `c7854f0` | 条款13-A：术语库内存 `_dict` 改为按语种分桶（缺口③ 收尾） |
@@ -86,22 +90,38 @@ python3.11 scripts/static_audit.py --self-test         # → 27/27
 
 ---
 
-## 三、条款14 完成"防复发"半（`26c9bf6`）—— 位次3，**坏章修复未做**
+## 三、条款14 完成（`26c9bf6` + `3ef7493`）—— 位次3，根因已堵死
 
-### 已做：两类缺陷升级为生产期守卫
+> **验收标准（用户明确）**：条款14 的目的是"查清为什么会出现这些问题、并把出现这些问题的原因修复掉"。**根因修复完成 = 条款14 完成**，不以"清掉历史坏章"为验收条件。清历史（§三-C）是独立的产物收尾项，不属于条款14 的验收。
 
-**根因**：difu_en.md 的坏章能进交付物，是因为这两类缺陷此前**只有 scan_deliverable.py 事后扫描能发现，生产路径 WRITE 节点无任何对应守卫**。截断那类已被 round9 之前的 `_was_truncated`（提交 `291ded9`，2026-09-21）堵上，但信封/脚手架完全裸奔。difu_en.md 产出于 **2026-08-04**，早于截断守卫一个半月——这是大部分坏章的时间背景。
+### A. 三类缺陷的根因与堵点（每条都有实测证据）
 
-**改法（`output_guard.py` 作单一来源，杜绝 round9 §八"两套判据各自漂移"）**：
-- `output_guard` 新增行级判据 `json_residue_on_line` / `meta_text_on_line` + 章级包装 `has_json_envelope_residue` / `has_meta_text_leak`。
-- `write.py` 在 `sanitize` 后、重试前接入守卫：命中即丢弃正文触发既有重试，并记录 `*_residue` 事件；**重试路径对称补同一守卫**（`continue` 进下一次重试，全部耗尽走既有 for-else 跳过）。
-- `scan_deliverable.py` 的 `check_json_residue`/`check_meta_text` 改为**委托** output_guard 共享判据，删除自身 `_JSON_KEYS`/`_JSON_FENCE`/`_META_PATTERNS` 副本。
-- **委托后真实语料扫描结果逐条不变**（实测：12 章 / JSON_RESIDUE 4 / META_TEXT_LEAK 2 / TRUNCATED_BODY 11，Ch366/1077/1286/1472 全部同样命中）→ 证明重构功能等价。
-- 正对照证明守卫不误伤：正确解包的 fenced JSON（Layer 1）仍照常交付。
+| 缺陷类 | 根因（WHY） | 堵在哪 | 实测证据 |
+|---|---|---|---|
+| **句中截断** | WRITE 撞 `max_tokens=16384` 被腰斩；旧管线从不读 `finish_reason`，截断与完整不可区分，Layer 5 把半截正文当成品 | `_was_truncated`（接手前 `291ded9`，2026-09-21 已堵） | round9 已验证；difu 产出于 08-04，早于此守卫，故历史坏章属遗留 |
+| **JSON 信封残留** | 截断/畸形信封逃过 Layer 1/2/3（无闭合括号/字符串），被 `_parse_write_response` 的 **Layer 4**（markdown-as-translation）和 **Layer 5**（prose rescue，日志竟称"no JSON envelope"）当散文救回 | ① 解析层 guard（Layer 4/5 前拒绝含信封残片的 body）② 节点层守卫 `has_json_envelope_residue` | Ch366 走 Layer 4、Ch1472 走 Layer 5，均实测被拦；compact 单行截断信封实测从"漏判"修到"拦截" |
+| **脚手架文本** | 模型在字段内/正文尾幻觉生成 `END OF CHAPTER`（全仓 grep 确认 prompt/源码无此串） | 节点层守卫 `has_meta_text_leak`（首次产出 + 重试路径对称） | 实测两条路径均拦下：Layer 1 解析成功（字段内含脚手架）+ Layer 4 救援（纯 prose 含脚手架，Ch1077 真实形态） |
 
-### ⚠️ 未做：坏章修复（清历史）—— **新窗口第一步，已精确分诊**
+### B. 本轮发现并修掉的两个"上一提交没堵死"的缺口
 
-⚠️ **本轮没动 `difu_en.md`**（已交付产物，按铁律7 破坏性操作需确认）。下表是**实测分诊**（用 scan_deliverable 判据剥残片后逐章核对正文是否完整收束），不是估计：
+`26c9bf6` 只加了 write_node 事后守卫。用户提出"修根因"后实测，发现两处仍漏：
+
+1. **判据漏判 compact 信封**：`json_residue_on_line` 原用 `startswith(key)`，只抓 pretty-print（key 单独成行，Ch1472 两行形态）。紧凑单行 `{"translated_text": "...`（行首是 `{`）实测返回 None。→ 升级为 `_JSON_KEY_RE`（key 后跟冒号、不限行首）。实测覆盖 pretty/compact/混合三形态，正常散文不误伤（`"The translated_text field matters"` 无引号+冒号→放过），真实语料复扫仍 12 章不变。
+2. **根因未堵**：上一提交只在"事后"拦，没堵"信封为什么会被当 prose 救回"。→ 在 `_parse_write_response` 的 Layer 4/5 之前加 guard：能走到这里说明信封已畸形（好信封 Layer 1 早返回），body 仍含信封残片即丢弃返回空、触发既有重试。
+
+### C. 两道防线分工（测试分别覆盖，不可互相替代）
+
+- **解析层 guard**（`_parse_write_response`）：拦"整个回复是畸形信封、本不该被 Layer 4/5 当 prose 救回"——Ch366/Ch1472 真实形态，记 `parse_fallback` 事件。
+- **节点层 guard**（`write_node`，`sanitize` 后）：拦"Layer 1 解析成功、但 `translated_text` 字段内部仍混入残片/脚手架"——Ch1077/Ch1286 形态，记 `*_residue` 事件。解析层看不到这类（信封本身合法）。
+- 两者都用 `output_guard` 的**单一来源判据**，与 `scan_deliverable.py` 事后扫描共用，杜绝 round9 §八"两套判据各自漂移"。
+
+### D. 完成判定
+
+三类缺陷根因**全部堵死且有回归测试钉住**（含 compact 漏判、Layer 4 脚手架两条本轮新发现路径）。全量 1574 passed / static_audit 27/27 / 变异 output_guard 26-26、write_guards 59-59、scan_deliverable 51-51 全 0 存活。**条款14 判定完成。**
+
+### E.（独立收尾项，非条款14 验收）历史坏章清理
+
+⚠️ **本轮没动 `difu_en.md`**（已交付产物，按铁律7 破坏性操作需确认）。根因已堵，新产出的章节不会再有这三类缺陷；但 08-04 产出的 difu 里仍存着历史坏章。若要清，下表是**实测分诊**（用 scan_deliverable 判据剥残片后逐章核对正文是否完整收束）：
 
 | 档 | 章号 | 行号 | 性质 | 修法 |
 |---|---|---|---|---|
@@ -114,25 +134,23 @@ python3.11 scripts/static_audit.py --self-test         # → 27/27
 | **C 合法不动（2 章）** | Ch116 | 10475 | 诗词署名 `— Su Shi, *Butterflies in Love with Flowers*` | 不动（round9 已标定为合法） |
 | | Ch2296 | 203607 | 干支纪年 `Jie Yu, Guimao year, Guihai month, Jichou day` | 不动 |
 
-**执行建议**：A 档 4 章纯文本手术**零成本**，可立即做，但 `difu_en.md` 是已交付产物——**改前先 `/tmp` 快照备份**，改后用 `scan_deliverable.py` 复扫确认 A 档清零、B/C 档不误伤。B 档 6 章并入 §四-3 的 A/B 预算批次（重译要真实 API，铁律6 先报预算）。
-
-**另**：`scan_deliverable.py --all` 还查出 `limitless_horror_full_en.md` **14 章正文首行是未翻译的中文章节名**（round9 §三-C 已记），同样属"清历史"，可一并纳入 A 档思路（删/译首行中文）。
+**执行建议**：A 档 4 章纯文本手术**零成本**，但 `difu_en.md` 是已交付产物——**改前先 `/tmp` 快照备份**，改后用 `scan_deliverable.py` 复扫确认 A 档清零、B/C 档不误伤。B 档 6 章并入 §四-3 的 A/B 预算批次（重译要真实 API，铁律6 先报预算）。`scan_deliverable.py --all` 另查出 `limitless_horror_full_en.md` 14 章正文首行是未翻译中文章节名（round9 §三-C），同属历史清理。
 
 ---
 
 ## 四、剩余任务（按 round9 §六 位次，状态已更新）
 
-**已完成 6 条**：1 工程审计 / 5 交接验证 / 11 通用性 / 12 档位（主体）/ **13 全部**（13-A 本轮收尾）/ **10**（本轮关闭）
+**已完成 7 条**：1 工程审计 / 5 交接验证 / 11 通用性 / 12 档位（主体）/ **13 全部**（13-A 本轮收尾）/ **10**（本轮关闭）/ **14**（本轮完成，根因全堵）
 
 ### 零成本、不需拍板（接着做）
 
 | 位次 | 条款 | 状态 | 备注 |
 |---|---|---|---|
-| **3后半** | **14 坏章修复** | 🟡 **防复发✅，清历史待执行** | §三 已精确分诊，A 档 4 章零成本可立即做（先备份），B 档 6 章并入 A/B 批次 |
 | **4** | 6 · API 调用管控 | ⬜ 大半落地，20 个裸露脚本 | round9 两次污染生产库正是这条要防的。建议闸门扩成"成本+写库"双闸门 |
 | **5** | 16 · 术语一致性 | ⬜ 未开始 | **用户决定 TM 预算转投这里**（§A-1）。实测证据最强：八爷四种称呼、咒语 7 种译法、弯/直引号混用。复用 scan_deliverable 加判据 |
 | **6** | 9 · 主笔 agent 评估 | ⬜ 倾向"缺" | 纯代码调查。核实 `style_memo` 是否真被 WRITE/FIX 消费（消费侧未验证） |
 | **7** | 4 · 项目边界（剧本/游戏线） | ⬜ 未开始 | 含真实 `UnboundLocalError`：`scripts/run_script_pilot.py:174`（`glossary` 全在 While 块内赋值，却在无条件路径读取） |
+| 收尾 | 14 · 历史坏章清理（§三-E） | ✅ 条款完成，清历史可选 | 根因已堵，新章节不再产生三类缺陷；difu 历史坏章 A 档 4 章零成本可清（先备份已交付产物），B 档 6 章并入 A/B 批次。**非条款验收项** |
 
 ### 已批待执行（用户已拍板，见 §A）
 
@@ -167,13 +185,13 @@ python3.11 scripts/static_audit.py --self-test         # → 27/27
 - `src/api/review.py` — 过时注释更正（13-A 后 per-namespace 缓存非缺陷规避）
 - `scripts/scan_deliverable.py` — `check_json_residue`/`check_meta_text` 委托 output_guard；删判据副本；新增 `_RULE_WIDTH`/`_CHECK_COL` 布局常量（消除内联宽度的不可杀变异点）
 
-**测试（4 M）**
+**测试（4 M，本轮净 +50）**
 - `tests/test_glossary.py` +13（多语种隔离/持久化/快照兼容 3 个测试类）
 - `tests/test_prefetch.py` +1（语种传递守护）
-- `tests/test_graph_units.py`（FakeExact 同步新签名；角色名单剥中文名断言）
+- `tests/test_graph_units.py` +1（角色名单剥中文名断言；FakeExact 同步新签名）
 - `tests/test_post_process_gates.py`（snapshot 假对象接 `target_lang` + 断言语种传递）
-- `tests/test_output_guard.py` +18（判据逐分支 + 章级包装 3 个测试类）
-- `tests/test_write_guards.py` +4（端到端信封/脚手架守卫 + 正对照）
+- `tests/test_output_guard.py` +21（判据逐分支 + 章级包装 + compact 漏判回归）
+- `tests/test_write_guards.py` +10（解析层 guard `TestEnvelopeResidueNotRescued` + 节点层守卫两道防线分工 + Layer 4 脚手架路径 + 正对照）
 
 ---
 
@@ -181,23 +199,29 @@ python3.11 scripts/static_audit.py --self-test         # → 27/27
 
 ```bash
 # 1. 确认基线（都应绿）
-python3.11 -m pytest -q --no-header                     # → 1565 passed
+python3.11 -m pytest -q --no-header                     # → 1574 passed
 python3.11 scripts/static_audit.py --self-test          # → 27/27
 
-# 2. 条款14 坏章修复（位次3后半，清历史）——先做 A 档零成本 4 章
-#    ⚠️ difu_en.md 是已交付产物：改前 /tmp 快照备份，改后 scan_deliverable 复扫
-python3.11 scripts/scan_deliverable.py novels/output/difu_segmented/difu_en.md
-#    A 档（纯文本可修）：Ch366 / Ch656 / Ch1077 / Ch1286（§三 表，含精确行号与修法）
-#    B 档（必须重译）：Ch1472 / Ch269/430/548/811/820 → 并入 §四-3 A/B 批次
-#    C 档（合法不动）：Ch116 / Ch2296
+# 2. 接着做位次 4–7（全部零成本、不需拍板）：
+#    条款6 API管控 → 条款16 术语一致性（TM 预算转投这里）→ 条款9 主笔评估 → 条款4 项目边界
+#    条款4 含一个真实 UnboundLocalError：scripts/run_script_pilot.py:174
 
-# 3. 已批清理（§四-1 死字段、§四-2 ledger）—— 用户已拍板，但 #3 破坏性需走确认
-# 4. 然后位次 4–7：条款6 → 16（TM 预算转投这里）→ 9 → 4
+# 3. 已批待执行的清理（用户已拍板，§四-1/2/3）：
+#    §四-1 死字段删除（零成本，可直接做）
+#    §四-2 ledger 清理（破坏性，铁律7 先确认）
+#    §四-3 条款12收尾+条款3 A/B（真实 API，铁律6 先报金额）
+
+# 4.（可选收尾，非条款验收）条款14 历史坏章清理 §三-E：
+#    difu_en.md 是已交付产物，改前 /tmp 快照备份，改后 scan_deliverable 复扫
+python3.11 scripts/scan_deliverable.py novels/output/difu_segmented/difu_en.md
+#    A 档纯文本可修 4 章：Ch366 / Ch656 / Ch1077 / Ch1286（§三-E 表，含精确行号与修法）
+#    B 档必须重译 6 章：Ch1472 / Ch269/430/548/811/820 → 并入 §四-3 A/B 批次
+#    C 档合法不动 2 章：Ch116 / Ch2296
 ```
 
 **⚠️ 需用户确认/批准才能做的**：
 - §四-2 ledger 清理（破坏性，铁律7）
-- §四-3 + §三 B 档重译（真实 API，铁律6 先报金额）
+- §四-3 A/B + §三-E B 档重译（真实 API，铁律6 先报金额）
 - 位次9 条款15 circuit_breaker（待拍板）
 
 **可直接做、不需再问的**：§三 A 档坏章修复（先备份）、§四-1 死字段删除、位次 4–7。
