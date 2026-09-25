@@ -74,6 +74,11 @@ TARGETS = {
     "epub_builder": ("src/epub_builder.py", ["tests/test_epub_builder.py"]),
     "backpressure": ("src/backpressure.py", ["tests/test_fault_injection.py"]),
     "circuit_breaker": ("src/circuit_breaker.py", ["tests/test_fault_injection.py"]),
+    # The trial-phase cost gate (clause 6). Single source of truth for the four
+    # script-level gates that used to be four drifting copies. A surviving
+    # mutant here means real money can be spent on an expensive tier while the
+    # gate claims it refused — the failure mode it exists to prevent.
+    "cost_gate": ("src/cost_gate.py", ["tests/test_cost_gate.py"]),
     "error_tracker": ("src/error_tracker.py", ["tests/test_error_tracker.py"]),
     "parse_utils": ("src/agent/parse_utils.py", ["tests/test_v15_pipeline.py"]),
     # Scene-level completeness check: source-aware mirror for the WRITE prompt's

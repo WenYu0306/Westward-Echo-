@@ -12,29 +12,17 @@ DATA.mkdir(parents=True, exist_ok=True)
 
 ROOT = Path("/Users/wenyudemac/Documents/dev/Westward Echo（西渡）")
 sys.path.insert(0, str(ROOT))
-# ── 试验阶段成本闸门 ──────────────────────────────────────────────
-# 探针只为了测 token 结构，不需要高价档。默认拒绝在 max 档上跑：
-# 同一次探测，qwen3.8-max 输出价 36 元/M，qwen3.8-flash 2.7 元/M（13 倍差）。
-def _guard_tier():
-    import os, sys
-    m = os.getenv("QWEN_MODEL", "qwen3.8-max")
-    if sys.argv[-1] == "--allow-expensive" or os.getenv("XIDU_ALLOW_EXPENSIVE") == "1":
-        return
-    if "max" in m or "prime" in m:
-        print(f"""
-⛔ 拒绝运行：QWEN_MODEL={m} 是高价档，而探针只需要 token 结构。
+# ── 试验阶段成本闸门（单一来源：src/cost_gate.py）──────────────────────
+# 探针只为了测 token 结构，不需要高价档。原先这里有一份 _guard_tier 副本，
+# 只读 QWEN_MODEL：逐节点覆盖 XIDU_NODE_MODEL_<NODE> 升档时它会放行，
+# 而实际按高价档计费。改读 config.NODE_MODELS 后两个方向都正确。
+# 本脚本无 argparse，--allow-expensive 从 argv 直接识别后交给统一闸门。
+from src.cost_gate import guard_tier
 
-   试验阶段请用 flash 档（同样的信息，1/13 的钱）：
-       QWEN_MODEL=qwen3.8-flash  python3 {Path(sys.argv[0]).name}
-       QWEN_MODEL=qwen3.7-flash  python3 {Path(sys.argv[0]).name}   # 最便宜，0.2/0.8
-
-   确实要用 max 档，明说：
-       python3 {Path(sys.argv[0]).name} --allow-expensive
-       （上一轮我在 max 档上跑了 8 章，烧掉 ¥5.05；flash 档同样 8 章约 ¥0.4）
-""", flush=True)
-        sys.exit(2)
-
-_guard_tier()
+guard_tier(
+    allow_expensive="--allow-expensive" in sys.argv,
+    purpose="探针只需要 token 结构，flash 档给的信息完全一样（约 1/13 的钱）。",
+)
 
 from src.stats import TranslationStats
 

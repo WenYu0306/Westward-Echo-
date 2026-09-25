@@ -74,6 +74,7 @@ _MUTATION_COVERED = {
     "src/agent/nodes/write.py", "src/health.py", "src/stats.py",
     "src/agent/nodes/read.py", "src/agent/nodes/readback.py",
     "src/agent/nodes/fix.py", "src/agent/nodes/review_terms.py", "src/config.py",
+    "src/cost_gate.py",
 }
 
 

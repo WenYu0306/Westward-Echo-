@@ -98,16 +98,28 @@ def predict_chapter(cal, genre, src_chars, en_chars):
     return tot
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", default=None, help="只估这一本（key 见脚本 BOOKS）")
     ap.add_argument("--fix-rate", type=float, default=0.5, help="FIX 触发率，默认 0.5（实测）")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     from src.text_io import detect_and_read
     from src.chapter_splitter import split_chapters, ParagraphTag
 
     pts = load_points()
     cal = calibrate(pts)
+
+    # --book 传了未登记的 key 时，原先只是静默跳过所有书：退出码 0、除标定行
+    # 外没有任何输出。调用方（包括 scripts/run_novel.py 打印的提示命令）无从
+    # 得知估算根本没跑。宁可硬失败，也不要一个看着成功的空结果。
+    if args.book and args.book not in BOOKS:
+        print(f"error: 未知书目 {args.book!r}；可用: {', '.join(sorted(BOOKS))}",
+              file=sys.stderr)
+        print("注：这里的 key 与 scripts/run_novel.py 的 NOVELS key 不一致"
+              "（同一本书可能叫 wuxian / limitless_horror），且只包含已有实测"
+              "标定点的书。", file=sys.stderr)
+        return 2
+
     print(f"标定：{len(pts)} 个实测点（无 API 调用）")
     fix_cost = (4992 / 1e6) * PRICE["fix"][0] + (7016 / 1e6) * PRICE["fix"][1]
 
@@ -144,4 +156,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

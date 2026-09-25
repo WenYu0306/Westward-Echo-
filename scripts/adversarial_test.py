@@ -26,10 +26,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
-import textwrap
 from pathlib import Path
 from typing import Optional
 
@@ -42,41 +40,30 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 
 # ---------------------------------------------------------------------------
-# Trial-phase cost gate
+# Trial-phase cost gate — single source of truth in src/cost_gate.py.
 # ---------------------------------------------------------------------------
-# Mirrors scripts/cost/probe_nodes.py::_guard_tier. The billable tests here only
-# need "can two evaluators agree" / "where does output collapse", which flash
-# answers just as well as the deep tiers: qwen3.8-max outputs at ¥36/M versus
-# qwen3.8-flash at ¥2.7/M, and glm-5.3 at ¥28/M versus glm-5.3-flash at
-# ¥2.8/M — 10-13x. Refuse any expensive tier unless asked.
+# The billable tests here only need "can two evaluators agree" / "where does
+# output collapse", which flash answers just as well as the deep tiers:
+# qwen3.8-max outputs at ¥36/M versus qwen3.8-flash at ¥2.7/M, and glm-5.3 at
+# ¥28/M versus glm-5.3-flash at ¥2.8/M — 10-13x. Refuse any expensive tier
+# unless asked.
 #
-# All three tiers are checked, not just GLM: the cross-evaluator test is a
-# judgement task and runs on the READBACK tier (MODEL_MAP["readback"] ==
-# QWEN_MODEL), whose default is qwen3.8-max. A gate that only looked at GLM
-# would let the single most expensive call in this script through.
+# All routed tiers are checked, not just GLM: the cross-evaluator test is a
+# judgement task and runs on the READBACK tier, whose default is qwen3.8-max.
+# A gate that only looked at GLM would let the single most expensive call in
+# this script through. cost_gate reads config.NODE_MODELS, so per-node
+# overrides (XIDU_NODE_MODEL_<NODE>) are seen too — this local copy used to
+# read QWEN_MODEL/GLM_MODEL and missed them.
 def _guard_tier(allow_expensive: bool) -> None:
-    from src.config import GLM_FULL_MODEL, GLM_MODEL, QWEN_MODEL
-    if allow_expensive or os.getenv("XIDU_ALLOW_EXPENSIVE") == "1":
-        return
-    tiers = (("QWEN_MODEL", QWEN_MODEL),
-             ("GLM_MODEL", GLM_MODEL),
-             ("GLM_FULL_MODEL", GLM_FULL_MODEL))
-    expensive = [f"{name}={value}" for name, value in tiers
-                 if "max" in value or "prime" in value]
-    if not expensive:
-        return
-    print(f"""
-⛔ 拒绝运行：{', '.join(expensive)} 是高价档，而对抗测试只需要
-   "两个评估器是否一致" / "输出在哪里塌掉"，flash 档同样能回答（约 1/10 的钱）。
-
-   试验阶段请用 flash 档：
-       QWEN_MODEL=qwen3.8-flash GLM_MODEL=glm-5.3-flash GLM_FULL_MODEL=glm-5.3-flash \\
-           python3 scripts/adversarial_test.py --allow-api
-
-   确实要用高价档，明说：
-       python3 scripts/adversarial_test.py --allow-api --allow-expensive
-""", flush=True)
-    sys.exit(2)
+    from src.cost_gate import guard_tier
+    guard_tier(
+        allow_expensive=allow_expensive,
+        purpose='对抗测试只需要"两个评估器是否一致" / "输出在哪里塌掉"，'
+                "flash 档同样能回答（约 1/10 的钱）。",
+        # 本脚本的计费测试还要 --allow-api 才会跑，所以放行需两个 flag。
+        hint="   注意：本脚本还需 --allow-api 才会跑计费测试，"
+             "故放行是 --allow-api --allow-expensive 两个一起。",
+    )
 
 # ---------------------------------------------------------------------------
 # CLI entry point

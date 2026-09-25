@@ -43,29 +43,18 @@ TIMEOUT = 30
 def _guard_tier(args) -> None:
     """Refuse to burn an expensive tier on a latency probe.
 
-    Mirrors scripts/cost/probe_nodes.py: a probe only needs to observe timing,
-    and a flash tier answers that for roughly a tenth of the price.
+    Single source of truth is ``src.cost_gate``. This local copy used to check
+    only QWEN_MODEL and GLM_MODEL — it missed GLM_FULL_MODEL (which the FIX
+    node routes through, default glm-5.3 at ¥28/M) and had no
+    XIDU_ALLOW_EXPENSIVE escape hatch, unlike the other three copies.
     """
-    from src.config import GLM_MODEL, QWEN_MODEL
-
-    if args.allow_expensive:
-        return
-    expensive = [m for m in (QWEN_MODEL, GLM_MODEL) if "max" in m or "prime" in m]
-    if expensive:
-        print(f"""
-⛔ 拒绝运行：配置的模型 {', '.join(expensive)} 是高价档，而本探针只测延迟。
-
-   试验阶段请用 flash 档（同样能看出挂在哪一层，价格约 1/13）：
-       QWEN_MODEL=qwen3.8-flash GLM_MODEL=glm-5.3-flash \\
-           python3 {Path(sys.argv[0]).name}
-
-   确实要用高价档，明说：
-       python3 {Path(sys.argv[0]).name} --allow-expensive
-
-   只想看提示词体积（免费、不调 API）：
-       python3 {Path(sys.argv[0]).name} --tests 6
-""", flush=True)
-        sys.exit(2)
+    from src.cost_gate import guard_tier
+    guard_tier(
+        allow_expensive=args.allow_expensive,
+        purpose="本探针只测延迟，flash 档同样能看出挂在哪一层（价格约 1/13）。",
+        hint="   只想看提示词体积（免费、不调 API）：\n"
+             f"       python3 {Path(sys.argv[0]).name} --tests 6",
+    )
 
 
 def _load_chapter():

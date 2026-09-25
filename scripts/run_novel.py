@@ -15,6 +15,7 @@ from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
 from src.text_io import detect_and_read
 from src.circuit_breaker import CircuitBreakerOpenError
+from src.cost_gate import describe_tiers
 from src import token_ledger
 
 # ═══════════════════════════════════════════════════════════════
@@ -157,6 +158,22 @@ def main():
               f"{sorted(sample_points & set(range(1, total_chapters + 1)))} instead.")
 
     print(f"Source: {cfg['name']} — {total_chapters} chapters, {cfg['genre']}")
+
+    # ── 成本预检（铁律6：跑之前先报金额）──────────────────────────────
+    # 这是全书最贵的入口，且默认路由就在高价档上（read/readback/review_terms
+    # = qwen3.8-max，输出 ¥36/M）。这里**只报价、不拒绝**：生产批处理本来就
+    # 允许跑高价档，闸门（src/cost_gate.guard_tier）是给"不需要高价档"的探针
+    # 和对抗测试用的。打印逐节点单价，并把整本书的估算指给零成本的
+    # estimate_offline.py，避免在这里再造一套成本模型。
+    #
+    # 不带 --book：estimate_offline.py 有自己的 BOOKS 标定表，key 与本脚本的
+    # NOVELS 并不一致（同一本书它叫 wuxian、这里叫 limitless_horror），且只
+    # 标定了 8 个实测点。照搬 key 会打印出一条静默失效的命令。
+    print(f"Model routing: {describe_tiers()}")
+    if total_chapters:
+        print("整本书花费估算（零 API 成本、不调模型）: "
+              "python3 scripts/cost/estimate_offline.py")
+    print()
 
     ckpt_file = os.path.join(cfg["output_dir"], "_checkpoint.json")
     out_file = os.path.join(cfg["output_dir"], cfg["output_file"])
