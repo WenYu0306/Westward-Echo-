@@ -116,3 +116,73 @@ def sanitize_translation(text: str) -> str:
     for pattern, _ in CHATTER_PATTERNS:
         text = re.sub(pattern, '', text, flags=re.MULTILINE)
     return text.strip()
+
+
+# ── JSON-envelope residue & scaffolding leak ────────────────────────────
+# Single source of truth for these two defect classes.
+#
+# scripts/scan_deliverable.py imports these so the *production* guard (runs on
+# each finished chapter inside WRITE) and the *post-hoc* full-corpus scan can
+# never drift apart — the §八 failure mode where two copies of one rule
+# silently diverge. Before this, scan_deliverable held the only copy and the
+# production path had no equivalent check at all, which is how Ch366 (```json
+# fence + bare `{`), Ch1472 (whole chapter sealed in an unpacked
+# {"translated_text": ...} envelope) and Ch1077/Ch1286 ("End of Chapter."
+# scaffolding) reached a delivered file.
+
+# A line that is exactly one of these is the model's JSON envelope, not prose.
+_BARE_JSON_LINES = frozenset(("{", "}", "},", "{,"))
+_JSON_FENCE = "```json"
+_JSON_KEYS = ('"translated_text"', '"chapter_title_en"', '"new_terms_found"',
+              '"polished_text"', '"changes_made"')
+
+# Scaffolding the model invents around the translation. These are NOT in the
+# prompt or anywhere in src/ — they are LLM hallucination, which is exactly why
+# a guard (not the prompt) has to catch them. Line-anchored: "END OF CHAPTER"
+# at line start is scaffolding, the same words mid-sentence are legitimate.
+_META_PATTERNS = [
+    (re.compile(r"^END OF CHAPTER\b", re.I), "chapter-end scaffolding"),
+    (re.compile(r"\bAs an AI\b", re.I), "model self-reference"),
+    (re.compile(r"\bI cannot (?:fulfil|comply|provide)\b", re.I), "model refusal"),
+    (re.compile(r"^(?:Note|Disclaimer):\s", re.I), "model preamble"),
+]
+
+
+def json_residue_on_line(line: str) -> str | None:
+    """Label for this line if it is JSON-envelope residue, else ``None``.
+
+    Line-oriented so the production guard and the corpus scan apply the *same*
+    rule to the *same* granularity. A whole finished chapter is checked by
+    scanning its lines (see ``has_json_envelope_residue``).
+    """
+    stripped = line.strip()
+    if stripped in _BARE_JSON_LINES:
+        return f"bare {stripped!r} line"
+    if _JSON_FENCE in stripped:
+        return "```json fence"
+    for key in _JSON_KEYS:
+        if stripped.startswith(key):
+            return f"unpacked envelope key {key}"
+    return None
+
+
+def meta_text_on_line(line: str) -> str | None:
+    """Label for this line if it is LLM scaffolding/refusal, else ``None``."""
+    for pattern, label in _META_PATTERNS:
+        if pattern.search(line):
+            return label
+    return None
+
+
+def has_json_envelope_residue(text: str) -> bool:
+    """True if a finished chapter still carries the model's JSON envelope."""
+    if not text:
+        return False
+    return any(json_residue_on_line(line) for line in text.split("\n"))
+
+
+def has_meta_text_leak(text: str) -> bool:
+    """True if a finished chapter carries scaffolding like ``END OF CHAPTER``."""
+    if not text:
+        return False
+    return any(meta_text_on_line(line) for line in text.split("\n"))

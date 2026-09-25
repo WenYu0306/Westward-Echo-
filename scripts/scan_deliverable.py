@@ -71,7 +71,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.output_guard import find_untranslated_chinese  # noqa: E402
+from src.output_guard import (  # noqa: E402
+    find_untranslated_chinese,
+    json_residue_on_line,
+    meta_text_on_line,
+)
 
 # ── Human-report layout ───────────────────────────────────────────────
 # Named rather than inlined at each print site: two copies of the same width
@@ -124,11 +128,10 @@ def _split_chapters(text: str) -> list[dict]:
 
 
 # ── Check 1: JSON residue ───────────────────────────────────────────────
-_JSON_FENCE = "```json"
-_JSON_KEYS = ('"translated_text"', '"chapter_title_en"', '"new_terms_found"',
-              '"polished_text"', '"changes_made"')
-
-
+# The judgement lives in output_guard.json_residue_on_line so the production
+# WRITE guard and this scanner share one rule and cannot drift (§八's repeated
+# "two copies of one rule diverge" failure). This function only adds the
+# line-number / evidence packaging the corpus scan needs.
 def check_json_residue(body: list[tuple[int, str]]) -> list[dict]:
     """A bare ``{``/``}`` line or a JSON key means the model's envelope was
     written to the deliverable instead of being unpacked.
@@ -139,22 +142,12 @@ def check_json_residue(body: list[tuple[int, str]]) -> list[dict]:
     """
     findings = []
     for line_no, line in body:
-        stripped = line.strip()
-        hit = None
-        if stripped in ("{", "}", "},", "{,"):
-            hit = f"bare {stripped!r} line"
-        elif _JSON_FENCE in stripped:
-            hit = "```json fence"
-        else:
-            for key in _JSON_KEYS:
-                if stripped.startswith(key):
-                    hit = f"unpacked envelope key {key}"
-                    break
+        hit = json_residue_on_line(line)
         if hit:
             findings.append({
                 "check": "JSON_RESIDUE",
                 "line": line_no,
-                "evidence": stripped[:120],
+                "evidence": line.strip()[:120],
                 "detail": hit,
             })
     return findings
@@ -204,26 +197,17 @@ def check_body_completeness(body: list[tuple[int, str]],
 
 
 # ── Check 4: meta-text leak ─────────────────────────────────────────────
-_META_PATTERNS = [
-    # Case-insensitive, so this also catches "End of Chapter." — measured hit on
-    # difu_en.md Ch1077 alongside the shouty Ch1286 variant.
-    (re.compile(r"^END OF CHAPTER\b", re.I), "chapter-end scaffolding"),
-    (re.compile(r"\bAs an AI\b", re.I), "model self-reference"),
-    (re.compile(r"\bI cannot (?:fulfil|comply|provide)\b", re.I), "model refusal"),
-    (re.compile(r"^(?:Note|Disclaimer):\s", re.I), "model preamble"),
-]
-
-
+# Judgement lives in output_guard.meta_text_on_line (single source, shared with
+# the production WRITE guard). This only adds line-number / evidence packaging.
 def check_meta_text(body: list[tuple[int, str]]) -> list[dict]:
     findings = []
     for line_no, line in body:
-        for pattern, label in _META_PATTERNS:
-            if pattern.search(line):
-                findings.append({
-                    "check": "META_TEXT_LEAK", "line": line_no,
-                    "evidence": line.strip()[:120], "detail": label,
-                })
-                break
+        label = meta_text_on_line(line)
+        if label:
+            findings.append({
+                "check": "META_TEXT_LEAK", "line": line_no,
+                "evidence": line.strip()[:120], "detail": label,
+            })
     return findings
 
 

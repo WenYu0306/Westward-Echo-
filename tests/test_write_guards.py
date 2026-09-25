@@ -868,3 +868,84 @@ class TestFenceHandlingDoesNotPolluteTelemetry:
         out, ev = self._parse('Here you go:\n```json\n{"translated_text": "rescued"}\n```')
         assert out["translated_text"] == "rescued"
         assert ev.called is True
+
+
+class TestWriteNodeEnvelopeResidue:
+    """End-to-end: an envelope / scaffolding leak must not become the chapter.
+
+    Mirrors ``TestWriteNodeTruncation`` — same recovery contract (discard the
+    bad body, let the retry run). These are the Ch366 (```json fence + bare
+    ``{``), Ch1472 (unpacked envelope) and Ch1077/Ch1286 ("End of Chapter."
+    scaffolding) failures that reached a delivered file because nothing checked
+    for them at production time.
+
+    The positive control matters as much as the negatives: a *properly* fenced
+    reply that Layer 1 unpacks cleanly must still ship, or the guard would
+    reject every legitimate JSON response.
+    """
+
+    def _invoke_with_content(self, content):
+        resp = _Resp(content=content, metadata={"finish_reason": "stop"})
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = resp
+        return mock_llm
+
+    def test_json_fence_residue_is_not_shipped(self):
+        # Ch366 shape: prose that Layer 4 rescues, trailing a ```json fence and
+        # a bare `{`. Every attempt is identical, so nothing survives.
+        bad = (
+            "She opened the door and stepped into the cold hall, shivering "
+            "at the draft that swept past her.\n```json\n{"
+        )
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            cls.return_value = self._invoke_with_content(bad)
+            result = write_node(_state(_LONG_SOURCE))
+        assert result["translated_text"] == ""
+
+    def test_meta_text_scaffolding_is_not_shipped(self):
+        # Ch1077/Ch1286 shape: clean prose with an "END OF CHAPTER" tail.
+        bad = (
+            "She opened the door and stepped into the cold hall, shivering "
+            "at the draft that swept past her.\nEND OF CHAPTER 7"
+        )
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            cls.return_value = self._invoke_with_content(bad)
+            result = write_node(_state(_LONG_SOURCE))
+        assert result["translated_text"] == ""
+
+    def test_residue_records_an_event(self):
+        bad = (
+            "She opened the door and stepped into the cold hall, shivering "
+            "at the draft that swept past her.\n```json\n{"
+        )
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js, \
+             patch("src.error_tracker.record_event") as ev:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            cls.return_value = self._invoke_with_content(bad)
+            write_node(_state(_LONG_SOURCE))
+        types = [c.args[2] for c in ev.call_args_list]
+        assert "json_envelope_residue" in types
+
+    def test_cleanly_unpacked_fence_is_still_shipped(self):
+        """Positive control: a well-formed fenced JSON reply (Layer 1) ships.
+
+        Without this the guard could be rejecting every legitimate response and
+        the negatives above would still pass.
+        """
+        good = '```json\n{"translated_text": "' + ("clean prose " * 30) + '"}\n```'
+        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
+             patch("src.agent.nodes.write.job_store") as js:
+            js.get_confirmed_terms.return_value = {}
+            js.get_rejected_terms.return_value = []
+            cls.return_value = self._invoke_with_content(good)
+            result = write_node(_state(_LONG_SOURCE))
+        assert "clean prose" in result["translated_text"]
+        assert "```json" not in result["translated_text"]

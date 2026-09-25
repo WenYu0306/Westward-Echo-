@@ -207,6 +207,8 @@ def write_node(state: TranslatorState) -> dict:
     # Output quality guard: check for obvious garbage
     from ...output_guard import (
         check_and_record,
+        has_json_envelope_residue,
+        has_meta_text_leak,
         has_untranslated_chinese,
         sanitize_translation,
         strip_chinese_residue,
@@ -230,6 +232,33 @@ def write_node(state: TranslatorState) -> dict:
             logger.warning("Output guard ch%d: %s", chapter_number, w)
 
     translated_text = sanitize_translation(translated_text)
+
+    # JSON-envelope residue / scaffolding leak guard. Same recovery contract as
+    # the truncation guard above: discard the bad body so the empty-output retry
+    # below fires, rather than shipping it. These two defect classes reached a
+    # delivered file (Ch366 ```json fence, Ch1472 unpacked envelope, Ch1077 /
+    # Ch1286 "End of Chapter." scaffolding) because nothing checked for them at
+    # production time — scan_deliverable.py only found them after the fact. The
+    # judgements are shared with that scanner (output_guard is the single
+    # source), so the two can never drift.
+    residue = (
+        "json_envelope" if has_json_envelope_residue(translated_text)
+        else "meta_text" if has_meta_text_leak(translated_text)
+        else ""
+    )
+    if residue:
+        logger.warning(
+            "WRITE ch%d: %s residue in output (%d chars discarded) — treating as "
+            "failed output", chapter_number, residue, len(translated_text),
+        )
+        try:
+            from ...error_tracker import record_event
+            record_event(None, chapter_number, f"{residue}_residue",
+                         f"WRITE ch{chapter_number}: {residue} in finished body",
+                         target_lang)
+        except Exception:
+            pass
+        translated_text = ""
 
     # Auto-retry if output is empty (up to 2 additional attempts)
     if not translated_text or len(translated_text.strip()) < RETRY_THRESHOLD:
@@ -279,6 +308,22 @@ def write_node(state: TranslatorState) -> dict:
                             chapter_number, retry_num, removed,
                         )
                     translated_text = sanitize_translation(retry_text)
+                    # Symmetric with the first-attempt guard: a retry that
+                    # re-emits the envelope or scaffolding is not a success.
+                    # `continue` falls through to the next attempt; if all
+                    # retries are exhausted the for-else below logs the skip.
+                    retry_residue = (
+                        "json_envelope" if has_json_envelope_residue(translated_text)
+                        else "meta_text" if has_meta_text_leak(translated_text)
+                        else ""
+                    )
+                    if retry_residue:
+                        logger.warning(
+                            "WRITE ch%d retry%d: %s residue again — discarding",
+                            chapter_number, retry_num, retry_residue,
+                        )
+                        translated_text = ""
+                        continue
                     result = retry_result
                     logger.info("WRITE ch%d: retry %d successful", chapter_number, retry_num)
                     break  # Success — exit retry loop

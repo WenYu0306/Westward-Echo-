@@ -6,7 +6,11 @@ from src.output_guard import (
     check_and_record,
     check_translation_output,
     find_untranslated_chinese,
+    has_json_envelope_residue,
+    has_meta_text_leak,
     has_untranslated_chinese,
+    json_residue_on_line,
+    meta_text_on_line,
     sanitize_translation,
     strip_chinese_residue,
 )
@@ -158,3 +162,89 @@ class TestNullAndRecordedOutputs:
         )
         assert isinstance(result, list)
         assert result == []
+
+
+class TestJsonResidueOnLine:
+    """Line-level envelope detection. Every branch is tested separately so a
+    mutation that drops one key or one bare-brace variant fails (iron rule 2:
+    assertions must have teeth)."""
+
+    def test_bare_open_brace(self):
+        assert json_residue_on_line("{") == "bare '{' line"
+
+    def test_bare_close_brace(self):
+        assert json_residue_on_line("}") == "bare '}' line"
+
+    def test_bare_close_brace_comma(self):
+        assert json_residue_on_line("},") == "bare '},' line"
+
+    def test_bare_open_brace_comma(self):
+        assert json_residue_on_line("{,") == "bare '{,' line"
+
+    def test_json_fence_detected(self):
+        assert json_residue_on_line("He had them in his pocket...```json") == "```json fence"
+
+    def test_each_envelope_key_detected(self):
+        for key in ('"translated_text"', '"chapter_title_en"',
+                    '"new_terms_found"', '"polished_text"', '"changes_made"'):
+            label = json_residue_on_line(key + ': "some value"')
+            assert label == f"unpacked envelope key {key}", key
+
+    def test_clean_prose_line_is_not_residue(self):
+        assert json_residue_on_line("She stepped into the hall and closed the door.") is None
+
+    def test_a_brace_inside_prose_is_not_a_bare_line(self):
+        # Only a line that IS the brace counts; prose containing one does not.
+        assert json_residue_on_line("He wrote {x} on the board.") is None
+
+
+class TestMetaTextOnLine:
+    """Line-level scaffolding detection. Each pattern tested on its own."""
+
+    def test_end_of_chapter_upper(self):
+        assert meta_text_on_line("END OF CHAPTER 1286") == "chapter-end scaffolding"
+
+    def test_end_of_chapter_mixed_case(self):
+        assert meta_text_on_line("End of Chapter.") == "chapter-end scaffolding"
+
+    def test_as_an_ai(self):
+        assert meta_text_on_line("As an AI, I cannot help with that.") == "model self-reference"
+
+    def test_model_refusal(self):
+        assert meta_text_on_line("I cannot provide a translation of this.") == "model refusal"
+
+    def test_note_preamble(self):
+        assert meta_text_on_line("Note: the following is a translation.") == "model preamble"
+
+    def test_disclaimer_preamble(self):
+        assert meta_text_on_line("Disclaimer: this is fiction.") == "model preamble"
+
+    def test_clean_prose_line_is_not_meta(self):
+        assert meta_text_on_line("The chapter ended quietly, and the snow fell.") is None
+
+    def test_mid_sentence_end_of_chapter_is_not_scaffolding(self):
+        # Line-anchored: the words inside a sentence are legitimate prose.
+        assert meta_text_on_line("She reached the end of chapter three at last.") is None
+
+
+class TestChapterLevelGuards:
+    """The whole-chapter wrappers the WRITE node calls."""
+
+    def test_has_json_envelope_residue_true(self):
+        body = "Some prose.\n```\n{\n  \"translated_text\": \"hi\"\n}"
+        assert has_json_envelope_residue(body) is True
+
+    def test_has_json_envelope_residue_false_on_clean(self):
+        assert has_json_envelope_residue("Just a clean chapter of prose. It ends well.") is False
+
+    def test_has_json_envelope_residue_false_on_empty(self):
+        assert has_json_envelope_residue("") is False
+
+    def test_has_meta_text_leak_true(self):
+        assert has_meta_text_leak("Prose line.\nEND OF CHAPTER 7") is True
+
+    def test_has_meta_text_leak_false_on_clean(self):
+        assert has_meta_text_leak("A clean chapter with no scaffolding at all.") is False
+
+    def test_has_meta_text_leak_false_on_empty(self):
+        assert has_meta_text_leak("") is False
