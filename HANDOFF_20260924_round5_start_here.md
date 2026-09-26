@@ -16,7 +16,17 @@ python3.11 -m pytest -q --no-header     # → 1280 passed, 4 deselected
 ```
 - **必须用 `python3.11`**，本机 `python3` 是 3.9
 - 全量变异测试 **957/957 killed，0 survived，0 timed out，0 STALE，0 blocked**，1 个登记豁免（`stats.py`，证明已独立复核成立）
-- 生产数据四指纹零污染：ledger **8813 行** / translation_events.db / checkpoints.db / output **817 文件**（mtime 均早于本轮）
+- 生产数据四指纹零污染：ledger **0 行** / translation_events.db / checkpoints.db / output **817 文件**（mtime 均早于本轮）
+  > ⚠️ **2026-09-26（round12）更正**：此处原记 **8813 行**。该行数**不是生产指纹**——
+  > round9 已查明其中真实生产数据只有 2 行，其余是 `conftest.py:36` 加
+  > `XIDU_TOKEN_LEDGER` 重定向**之前**的 pytest 污染。round11 进一步查明那 2 行
+  > 也不是真实书目翻译，而是 `scripts/diag_api_hang.py:140` 的 `book_id='diag_test'`
+  > 诊断残留（cost ¥0.421 / ¥0.468）。用户据此拍板**全部视为残留删除**，故当前值为
+  > **0 行**（清理时实测 8816 行 = 8814 测试残留 + 2 行 diag_test）。
+  > 后续窗口请以 **ledger 0 行** 为生产指纹基线；**不要**把任何非零行数当成"原有数据"
+  > ——账本归零后若再出现真实行，那才是污染信号。快照（还原依据）：
+  > `/tmp/xidu_ledger_snapshot_20260926_135145/token_ledger.jsonl`，
+  > SHA-256 `c54772a367f469de557049380b8e4e9d773fe232830d2c155546bb90298ea571`。
 - 工作区改动**未提交**：**35 M，9 ??**（本轮在上轮 27 M 基础上 +8 个新改文件）
 - `pytest` 裸跑**恒 ¥0**（conftest 强制的机器可检不变量，非文档声称）
 
