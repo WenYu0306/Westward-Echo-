@@ -818,7 +818,13 @@ try:
     xss_text = "第1章 <script>alert('xss')</script>\n正常的内容在这里。"
     result = split_chapters(xss_text)
     has_xss = "<script>" in result[0].title
-    record_result("OK" if not has_xss else "OK",
+    # Neither outcome is a chapter_splitter defect: splitting must preserve text
+    # verbatim, and escaping is the renderer's job. The observation that matters
+    # is which of the two happened, and that already lives in `detail`. This used
+    # to read `record_result("OK" if not has_xss else "OK", ...)` — both branches
+    # identical, so the condition was unobservable dead code (and invisible to
+    # mutation testing, whose operators don't cover ternaries).
+    record_result("OK",
         "8.5 XSS in chapter title",
         f"XSS {'preserved' if has_xss else 'absent'} in title — renderer should escape, not chapter_splitter")
 except Exception as e:
