@@ -39,9 +39,15 @@ D 类误报因此从 14 条收敛到 1 条真阳性。
 抓不到的：字典下标键存在性（`MODEL_MAP["translate"]`）。需手工核，参见
 条款5 记录——本轮即靠人工发现 3 条此类 KeyError。
 
-⚠️ 当前尚未接入 pre-commit/CI：scripts/ 两个剧本残留脚本仍有 5 条已知断头
-（见条款4），接进去会天生红。按"优先消除而非豁免"，等断头修完/删完再接，
-这样闸门天生是绿的，不需要基线豁免机制。
+✅ 已接入 CI（.github/workflows/test.yml 的 "Static audit" 步骤，在 pytest
+之前跑 --self-test 与扫描）。原先刻意不接，因为 scripts/ 下两个剧本残留脚本
+带着 5 条已知断头，接进去会天生红——按"优先消除而非豁免"的策略，这两个文件
+已在同一轮删除（它们 import 的 src/script_splitter 与 config.DEEPSEEK_API_KEY
+早在 869ce2e "drop script/game branch" 时就没了，属重构遗漏的死代码），扫描
+归零后才接入。所以这个闸门从接入那天起就是绿的，不需要基线豁免机制。
+
+pre-commit 尚未接：钩子未 install（.git/hooks/pre-commit 不存在），且
+ruff/mypy 在 CI 里也只覆盖 src/ 与 tests/。CI 是当前的强制层。
 """
 from __future__ import annotations
 

@@ -33,6 +33,32 @@ jobs:
           pip install mypy
           mypy src/agent/ --ignore-missing-imports --no-strict-optional
 
+      # Clause 4 / clause 6: the repo's own static auditor, as a hard gate.
+      #
+      # It scans for three classes of defect that pytest cannot see: unparseable
+      # files, imports of a module/symbol that no longer exists, and locals that
+      # are only assigned inside a conditional block but read on an unconditional
+      # path (UnboundLocalError). Its --self-test is the positive/negative
+      # control that proves the tool itself is not vacuously green.
+      #
+      # --include-src covers src/ too (102 files vs 40): mypy above only checks
+      # src/agent/, and a dead import in src/api/ or src/glossary/ would
+      # otherwise reach CI unnoticed. Both scopes report 0 findings as of this
+      # commit.
+      #
+      # It used to be deliberately un-wired: two leftover script-pipeline files
+      # carried 5 known findings, so adding this step would have been red from
+      # day one. Per scripts/static_audit.py's own note ("wait until the dead
+      # ends are fixed or deleted, then the gate is green from birth and needs no
+      # baseline-exemption mechanism"), those two files were deleted in the same
+      # commit — they imported src.script_splitter and config.DEEPSEEK_API_KEY,
+      # both removed by 869ce2e "drop script/game branch".
+      - name: Static audit (dead imports / unbound locals)
+        run: |
+          python scripts/static_audit.py --self-test
+          python scripts/static_audit.py
+          python scripts/static_audit.py --include-src
+
       - name: Run tests
         run: |
           pip install pytest
