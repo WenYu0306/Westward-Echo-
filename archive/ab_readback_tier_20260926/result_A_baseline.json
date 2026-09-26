@@ -1,0 +1,366 @@
+[
+  {
+    "ch": 10,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 5,
+    "engagement_gaps": 2,
+    "impression": "This is a quiet, atmospheric chapter that mostly works. The scene between Deaf Granny and the ancient pine is genuinely beautiful — one of those moments where folk-religion fiction earns its keep. But I'm clearly walking into the middle of something, and there are a couple of technical glitches that pulled me out.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: a single Chinese character: . Fierce. Danger. — There's literally nothing between the colon and the period. The character is missing. Same thing happens later with 'the character . Return.' I assume these are supposed to be actual Chinese characters rendered in the text, but they came through as blanks. This broke the moment both times.",
+      "COLD_READER: Lord Chang the Eighth basked in Deaf Granny's respectful gaze as he held out the — I'm gathering from 'shed skin' and 'molt' that Lord Chang is a snake spirit, but nothing in this chapter confirms it. He appears for three lines and vanishes. I have no idea what his deal is or why he's here.",
+      "COLD_READER: You simply borrowed Granny Hemp-Mourning's strength to go fetch reinforcements. — Granny Hemp-Mourning is listed in the character sheet but I have zero context for who she is or what 'borrowing her strength' means. This reads like an inside joke between characters that I'm not in on.",
+      "COLD_READER: If that Snow Corpse hadn't shown up, Elder Pine, you'd be seeing me soon in a di — 'Snow Corpse' is dropped casually like I should already know what it is. I get that it's something dangerous that helped Deaf Granny, but I have no mental image or understanding of what it actually is.",
+      "COLD_READER: With this ten-thousand-year branch, those lonely wandering ghosts won't dare bul — Is 'ten-thousand-year' literal? Is this a branch that's actually ten thousand years old, or is it a figure of speech meaning 'very old'? The tone suggests it might be literal, which would be wild, but I can't tell.",
+      "BORED: In the deep mountain winters of the 1980s, cloth was worth more than fur. Only t — This narrator intrusion yanked me out of the scene. It reads like the author stepping in to explain historical context to the reader. The quilt detail was already doing the work — I understood it was precious without being told 'only those who lived through it would understand.' That line feels slightly condescending.",
+      "BORED: The opening exchange between Lord Chang, Deaf Granny, and Uncle Li — This whole opening section (first ~8 lines) felt like I was watching the end of a conversation I wasn't part of. It's functional but flat. I didn't feel any tension or curiosity — just people wrapping up logistics."
+    ]
+  },
+  {
+    "ch": 25,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 0,
+    "impression": "This chapter hit hard. The ghost fight has real tension, the 'merit protection' twist with the medals is genuinely satisfying, and Granny Hemp-Mourning is the kind of character you'd follow anywhere. The tonal shift from horror to warmth works because her personality is so vivid. I'd keep reading.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: A half incense stick passed. The screams stopped. — I had to pause and figure out this was a unit of time. I got there eventually — it's clearly 'a short while' — but it's not a phrase I've encountered before and it briefly pulled me out of the scene.",
+      "COLD_READER: from now on, when you ride the spirits, you ride in my name — I'm not sure what 'ride the spirits' means here. Is it mediumship? Commanding them? Channeling? The sentence implies it's something Deaf Granny does regularly, but I don't have a clear picture of the mechanic. It's not a dealbreaker but it's a gap.",
+      "COLD_READER: the ghost-skins would have torn him apart — This is mentioned in passing as part of a summary of off-screen events. I have no idea what ghost-skins are. It doesn't block the scene but it's another unexplained term stacking up."
+    ]
+  },
+  {
+    "ch": 60,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 0,
+    "impression": "This chapter is genuinely fun. The comedy beat with Chen Daji's 'third eye' joke landed perfectly and broke the tension at exactly the right moment, then the tomb mural sequence brought the dread right back. The tonal shift feels earned rather than jarring. I'd keep reading.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: that nine-orifice jade plug—did you hand it over yet? — This is referenced as if I already know what it is and why it matters. I can piece together from context that it's a burial object that plugs orifices (since the joke is about shoving it in Daji's mouth), but I had to do that mental work. A half-sentence of context earlier would help.",
+      "COLD_READER: the dying sun bled through—a sluggish red seep, like blood oozing from a rupture — These two sentences use conflicting metaphors for the sun. First it's blood oozing FROM an eye, then it IS the pupil of the sky-face. I had to re-read to figure out what image I was supposed to be holding in my head. Pick one metaphor and commit.",
+      "COLD_READER: Zhou-shu — Minor, but this is an untranslated honorific. I can guess it means 'Uncle Zhou' from context, but it's a small speed bump for a reader who doesn't know Chinese."
+    ]
+  },
+  {
+    "ch": 75,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 4,
+    "engagement_gaps": 2,
+    "impression": "The banter is genuinely fun — Granny Hemp-Mourning trying to convince Chen Daji to kill himself so he can marry her ghost maidens is the kind of dark comedy that keeps me reading. But the chapter ends with a dense lore dump that reads like a wiki article, and I walked in confused about several plot objects and terms that seem to assume I've read dozens of prior chapters.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: the Nine-Orifice Jade that Uncle Chen Fu found at the mine—a grave robber brough — I have no idea what the Nine-Orifice Jade is or why it matters. It's treated like everyone in the room already knows, but I'm lost. Is it cursed? Powerful? A MacGuffin? The chapter assumes I have context I don't have.",
+      "COLD_READER: the buyer gave it to Zhao Fei's old man like it was a treasure — Who is Zhao Fei? This name appears with zero introduction and the characters react like it's obvious. I had to stop and wonder if I missed something.",
+      "COLD_READER: the head of all Chuma spirit families under heaven — What is 'Chuma'? This term is dropped as if it's common knowledge. Is it a place? A lineage? A rank? I have nothing to anchor it to.",
+      "COLD_READER: He had attained the Way in the time of the ancient Human Sovereigns, over five t — 'The ancient Human Sovereigns' is vague enough that I can't picture the era. It's not a reference point I can grab onto the way 'the Shang dynasty' (which appears later) works.",
+      "BORED: According to one telling, during the Shang dynasty, many beasts of spiritual nat — This entire final paragraph is a lore dump. It's a wall of backstory about Hu Third Patriarch that halts the story dead. I went from snappy dialogue and a cliffhanger ('the thing in the tomb is a violent god') to reading what feels like a mythology textbook entry. The tension deflates completely. I skimmed it.",
+      "BORED: Hu Qingshan noticed Grey Sixth and paused, but only offered congratulations, ask — What change? This is clearly referencing something from a previous chapter, but it's presented in a way that makes me feel like I'm eavesdropping on an inside joke. It's a small thing, but it adds to the feeling of being locked out."
+    ]
+  },
+  {
+    "ch": 100,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 0,
+    "impression": "This chapter is genuinely good. It moves from crude comedy to tender folk ritual to mounting supernatural dread with real confidence, and the Ghost General's arrival at the end landed with genuine tension. My issues are minor — mostly a counting error and one character who feels like a blank spot — but they pulled me out of an otherwise immersive scene.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: Hu Qingshan, patriarch of the foxes, appeared at Hua Jiu Nan's side. Chang Huaiy — I can only count three named figures here (Hu Qingshan, Chang Huaiyuan, Grey Sixth). The text says 'four Immortal Masters.' Is Hua Jiu Nan the fourth? But Hua Jiu Nan seems to be a human character that Chen Daji stands beside earlier. I had to re-read this twice and still couldn't resolve the math.",
+      "COLD_READER: Chen Daji stepped back to stand beside Hua Jiu Nan and waited. — Hua Jiu Nan appears multiple times in this chapter but is never described, never speaks, never does anything. They're a blank silhouette. I assume they're established from earlier chapters, but in this scene they feel like a name dropped without grounding.",
+      "COLD_READER: Hey — isn't that the bitch ghost's stuff? You kept it? — I get that Chen Daji is referring to a previous antagonist's belongings, but 'the bitch ghost' is so casual and specific that it feels like I'm missing a whole subplot. It's not a huge problem — I can infer enough — but it's a small bump."
+    ]
+  },
+  {
+    "ch": 110,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 1,
+    "impression": "This chapter is genuinely fun. The comedic timing is sharp, the tension escalation works, and the Zhang Liang head-turn is legitimately creepy. It reads like an action-comedy scene in a good anime. My main friction is a couple of moments where I felt like I was missing context that should've been established earlier.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: \"Li Guang and the spirit-medium faction were electrified. They had a hidden ace. — Who is Li Guang? What's the spirit-medium faction? This is dropped in as a one-line reaction shot like I'm supposed to already know these people. It yanked me out of the scene for a second. I can infer they're on Hua Jiu Nan's side, but it feels like a reference to something I missed.",
+      "COLD_READER: The previous summary calls him 'Eighth Master Chang' but the chapter uses 'Chang — I had to do a mental double-take to confirm these are the same character. If I were reading this fresh without the summary, I'd be fine, but the inconsistency between the recap and the text made me pause. 'Baye' clearly means something like 'Eighth Master' but it's not transparent to an English reader.",
+      "COLD_READER: \"Heaven rounds, Earth squares — by the Nine Statutes I decree: / I hold the comm — I understand this is a ritual incantation and it's supposed to sound formal/archaic. But 'Heaven rounds, Earth squares' reads like a geometry lesson to me. I get that it's cosmological (round sky, square earth) but the phrasing is just stiff enough to trip me up on first read. I had to re-read it to feel the rhythm.",
+      "BORED: \"He understood: the Five Thunders Skyshatter Method was backlashing. But he was  — This is a very brief, tell-y bridge between the physical crisis and the incantation retry. It's not bad, but after the visceral body-horror of his spine compressing, this summary sentence flattens the momentum slightly. I wanted to stay in his body, not get a narrator's explanation."
+    ]
+  },
+  {
+    "ch": 160,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 2,
+    "impression": "This is a warm, gentle chapter that functions as an emotional breather between bigger events. The core story about the old patriarch walking into the underworld to stand beside his disciple genuinely moved me, and the three-claps ritual is beautifully rendered. But there are a couple of jargon stumbles that yanked me out of the moment, and the chapter is very low-energy overall — pleasant but not gripping.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: When his Chuma disciple was dragged into the Netherworld Court of the Underworld — What is a 'Chuma disciple'? I have zero context for this term. It's dropped into what should be an emotionally powerful anecdote and I had to stop and wonder if I missed an earlier explanation. Also, 'Netherworld Court of the Underworld' sounds redundant — aren't the Netherworld and the Underworld the same place? I re-read this sentence twice trying to figure out if there was a distinction I was missing.",
+      "COLD_READER: the Holy Lord Who Blesses Homes and Guards the Household descended in divine fur — This title is so long it disrupts the sentence's rhythm. I understand it's a deity's full name/title, but reading it mid-sentence feels like hitting a speed bump. I had to parse it carefully to understand who was being referenced.",
+      "COLD_READER: I stopped my cultivation and prepared to rush here — Minor, but 'cultivation' is used casually here without any context for what it actually involves in this world. I've seen the term in other web fiction so I get the gist (meditation/spiritual practice), but a new reader might not.",
+      "BORED: The middle section where Hu Fei'er brings tea, blushes, Deaf Granny teases about — I get that this is meant to be charming, and it is, but it goes on a beat too long. The embarrassment gag hits once, maybe twice, but by the third 'her ears were still red' I was ready for the conversation to move forward. It's cute but slightly overextended.",
+      "BORED: The entire chapter is essentially a conversation in a room — Nothing physically happens here. No tension, no danger, no revelation that changes the situation. It's a family scene. That's fine as a breather, but if I'd picked this up as my first or second chapter, I might have bounced. It works because I'm presumably already invested in these characters."
+    ]
+  },
+  {
+    "ch": 200,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 0,
+    "impression": "This chapter is genuinely good. It has a clear emotional arc—tension dissolving into tenderness, then building into a philosophical confrontation, then releasing into comedy—and it nails every beat. The Ghost Buddha is sympathetic, the strategy scene is clever, and the ending made me laugh out loud.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: The Faceless Ghost Buddha did not smoke the cigar. — I have no idea what cigar this refers to. It reads like a callback to something from a previous chapter that I don't have context for. It's not a huge deal, but it's a slightly disorienting way to open.",
+      "COLD_READER: the familiar vital essence of Master Kongchan—warm beads, the scent of old incen — 'Vital essence' is a little vague to me. Is it spiritual energy? Life force? I get the emotional beat—the beads carry his dead master's presence—but the specific term feels like it should mean something more precise than I'm grasping.",
+      "COLD_READER: Her ghost-palanquin flashed aside — I can picture this—some kind of spectral sedan chair—but it's introduced so casually that I'm not sure if I'm supposed to already know what it is or if it's new. Minor."
+    ]
+  },
+  {
+    "ch": 210,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 0,
+    "impression": "This is a wild, fun fight scene that escalates like a boss battle in a video game. The Ghost Buddha is genuinely entertaining — a suicidal maniac laughing while being impaled is a great image. The twist ending (he's alive inside her) lands well. I had a good time.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: She grabbed her own spine — a long bone weapon topped with the horned skull of a — I had to re-read this. Did she rip out her own spine? Is it a weapon she was already carrying that happens to be shaped like a spine? The phrase 'her own spine' implies she extracted it from her body, which is wild body horror, but it's not 100% clear. Also, 'impaled herself along with him' — I think this means the weapon went through both of them because they were grappled, but the spatial geometry took a second to click.",
+      "COLD_READER: Heaven spurns me, Earth rejects me, no tomb for my bones. Hundred ghosts and wic — The first three lines are evocative and clear. 'Reshape me to my roots' is vague. Does it mean return to her original form? Evolve into something more fundamental? I get that it's a transformation trigger, but the meaning of the phrase itself is fuzzy.",
+      "COLD_READER: Devouring you will save me a thousand years of bitter struggle! — Not a comprehension problem exactly, but this feels like the villain explaining the magic system mid-fight. It pulled me out slightly — she's gloating, but it reads like exposition for the reader rather than something a character would naturally say in this moment."
+    ]
+  },
+  {
+    "ch": 260,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 6,
+    "engagement_gaps": 3,
+    "impression": "This is a fun, high-energy battle chapter with some genuinely charming character moments — Wuxin's 'I'm very fierce!' made me grin, and Zhao Fei sitting on a ghost is great physical comedy. But it's also a wall of unexplained jargon and uniformly maxed-out intensity with no breathing room. I felt like I was watching a cutscene from a game I hadn't played.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: Chen Daji punched his own nose three times — hard, fast, the crack of cartilage. — Why is he punching his own nose? Is this a power-up technique? A ritual? A way to activate something? It's presented without any explanation and it's so specific and weird that it pulled me completely out of the scene. I re-read it twice hoping I'd missed context.",
+      "COLD_READER: Zhao Fei had no long-range attack. — This reads like a game mechanic description, not a narrative sentence. It made me feel like I was reading a character sheet instead of a story. What does 'long-range attack' mean in this world? Spells? Projectiles? It's never clarified.",
+      "COLD_READER: I bow to the Thirty-Three Heavens — the Thirty-Six Celestial Lords, descend befo — This is a lot of cosmological proper nouns dropped in the middle of a fight. I get that it's an incantation, but 'Thirty-Three Heavens' and 'Thirty-Six Celestial Lords' and then 'the Southern Dipper who grants life, the Northern Dipper who takes it' and 'the Emperor of the North Star' — that's five new mythological concepts in three sentences. I stopped tracking and just waited for the cool thing to happen.",
+      "COLD_READER: The blood-vajra — things born from vomited flesh and bile, their skin slick and  — I don't know what Two Boundary Mountain is, I don't know why it was being besieged, and I don't know what a blood-vajra is in relation to the broader world. The inline description helps ('born from vomited flesh') but I still don't understand where these things fit in the hierarchy of this world.",
+      "COLD_READER: Eighth Master, don't go soft! Fuck 'em! — Who is Eighth Master? Is this Chang Baye? Zhao Fei? Someone else entirely? The character list doesn't include anyone by this name. I had to guess based on context and I'm still not sure.",
+      "COLD_READER: The Celestial Master's talisman at his waist flared with pale blue light — Another named artifact I have no context for. What is the Celestial Master? Why does Hua Jiu Nan have this talisman? What are its limits? It just 'flares' and holds ghosts back 'for now' — the 'for now' implies it has limits but I don't know what they are.",
+      "BORED: The entire Hua Jiu Nan summoning sequence (from 'I bow to the Thirty-Three Heave — The concept is cool — tearing open the sky to summon celestial warriors — but the incantation itself is so dense with unfamiliar proper nouns that I glazed over the middle. I was waiting for the payoff instead of experiencing the buildup. The payoff line ('A grinding, inevitable geometry of divine violence') is genuinely great, but I had to wade through jargon to get there.",
+      "BORED: But everything, eventually, runs out. Even the mightiest crossbow, spent at the  — This proverb-style narration drops into the middle of a frantic battle and kills the momentum dead. It's trying to be poetic but it reads like the narrator paused the fight to deliver a fortune cookie. I wanted to be IN the action, not contemplating metaphors about crossbows.",
+      "BORED: The repeated animal metaphors for Wuxin: 'like a kitten bracing against a hurric — Three animal comparisons in four sentences. The first one is charming. The second is fine. The third made me feel like the author was milking the same joke. Pick one and commit."
+    ]
+  },
+  {
+    "ch": 300,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 3,
+    "engagement_gaps": 1,
+    "impression": "This is a fun, brisk chapter that balances comedy and ceremony well. The Daji/Chang Baye bit made me laugh, and the gift presentation at the end has genuine weight. I'd keep reading to see what the soul-nourishing ritual actually looks like.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: Returning the dead to life and nourishing a soul—that's a grand affair, always h — I get that this is important, but I have zero sense of what 'nourishing a soul' actually involves as a process. Is it a ritual? A battle? A waiting period? The text treats it like everyone already knows, and I'm just nodding along pretending I do.",
+      "COLD_READER: Let the Hu family cast the first brick, then—in hopes it draws out the jade. — I can figure out this means 'I'll go first with my modest gift so others will follow with better ones,' but it reads slightly stiff. A beat of confusion before the meaning clicks.",
+      "COLD_READER: His tail cracked out like a whip — Wait, Chang Baye has a tail? I assume this was established earlier, but as someone sampling chapters, it took me a second to recalibrate. Not a real problem if I'd been reading from the start.",
+      "BORED: And uh... what's 'hitched' mean? — This pushed Daji's stupidity past 'endearing' into 'is this guy actually brain-damaged?' territory. The joke would land better if he missed something slightly less basic. Minor, but it made me wince a little."
+    ]
+  },
+  {
+    "ch": 310,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 2,
+    "engagement_gaps": 0,
+    "impression": "This chapter hit me harder than I expected. The Uncle Li farewell scene is genuinely moving — the hunting rifle detail, the pheasants left at Deaf Granny's door, the quiet dignity of it all. It's a short chapter that knows exactly what it's doing emotionally and doesn't overstay its welcome.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: the headless Breeze spirits, the two netherworld constables, and Li Lanxi all cl — I have no idea what 'headless Breeze spirits' are. Is 'Breeze' a name? A type? Are they literally headless? It's a brief moment so it doesn't derail me, but it's a speed bump.",
+      "COLD_READER: Grey Sixth had barely set foot in his ancestral lands when a tiny mouse came run — I'm not sure if Grey Sixth IS a mouse spirit or if the mouse is a messenger. The Grey clan's species isn't made explicit here. I'm guessing mice based on context but I had to think about it."
+    ]
+  },
+  {
+    "ch": 360,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 4,
+    "engagement_gaps": 2,
+    "impression": "The horror is genuinely effective and the fight choreography is vivid, but a massive exposition dump about how the corpses were made lands right in the middle of the action and kills the momentum. I wanted to be in the fight, not reading a recipe for zombie-making. The finger-breaking moment is the best beat in the chapter.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: Zhang Shizu had taught these corpses to play it backward. — This name drops in with zero grounding. I can vaguely tell from context it's a villain, but the sentence reads like it's assuming I have an emotional relationship with this character. I don't. It should either be reintroduced briefly or the sentence should work without knowing who he is.",
+      "COLD_READER: These corpses had been refining for longer than he himself had been a human immo — 'Human immortal' is clearly a power-level term, but I have no idea what it means in practice. Is he 500 years old? 2000? Is this a high rank or a low one? The sentence is trying to tell me the corpses are scary because they're old, but the comparison doesn't land because I don't know the scale.",
+      "COLD_READER: Fang dao, fang dao, xuan miao, xuan miao... — This is just phonetic sounds to me. It doesn't create any atmosphere because I can't parse meaning from it. It reads like the author forgot to translate the chant or decided to leave it as flavor, but for me it's dead text.",
+      "COLD_READER: He drew a small brass bell from his sleeve—a Daoist ritual bell, fitting in the  — 'Chanting words that had weight' is trying to be evocative but it's vague. Weight how? Did the air thicken? Did the ground vibrate? I want to feel the magic, not be told it's heavy.",
+      "BORED: The recipe was simple on paper. Select three human monsters born on the year's d — This is a full paragraph of backstory exposition dropped between 'the corpses are dangerous' and 'Li attacks them.' The tension was building and then I got a two-paragraph Wikipedia article on zombie manufacturing. The details are horrifying and well-written, but they belong somewhere else — a quiet moment, a flashback, a character explaining it later. Here they just stop the scene cold.",
+      "BORED: Alchemist Li heeded Xu Fu's warning. These corpses had been refining for longer  — This is the second time in three paragraphs we've been told the corpses are dangerous. We get it. Let the fight show us."
+    ]
+  },
+  {
+    "ch": 410,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "PASS",
+    "would_keep_reading": true,
+    "comprehension_issues": 5,
+    "engagement_gaps": 1,
+    "impression": "The opening horror sequence is genuinely excellent — the ghost in the back seat, the talisman burning out, the uniform jacket accidentally exorcising the thing. That's some of the best supernatural horror I've read in web fiction in a while. The tonal shift into workplace comedy and then snake-bickering road trip is jarring but mostly works. I had fun. I'm a little lost on the lore, but the scenes themselves are clear and entertaining.",
+    "quality_score": 5.0,
+    "quality_issues": [
+      "COLD_READER: The five copper corpses and the human-flesh lotus had been left at Deaf Granny's — This is dropped so casually that I felt like I walked into the middle of a movie. What are copper corpses? What's a human-flesh lotus? The sentence treats them like groceries someone forgot at home. I get that they're important items, but I have zero context and the breezy tone makes me feel like I should already know.",
+      "COLD_READER: Chen Daji grabbed his father's sleeve. 'Dad! Stay! Me and the boys'll hide in th — Wait — Chen Fu is Chen Daji's father? I had to re-read to confirm. The text doesn't establish this relationship before the reveal; it just drops 'Dad' mid-dialogue. A tiny setup line earlier would have helped.",
+      "COLD_READER: Chen Daji jumped in: 'Points ARE merit! They take your points, they take your me — I had to stop and think about this. The joke is that traffic violation points and spiritual merit are the same thing, right? That's funny once it clicks, but it took me two reads. The word 'points' does a lot of heavy lifting between two different systems and the text doesn't quite bridge them.",
+      "COLD_READER: Chang Baye's head recoiled. 'The cops can take my merit?! Little Master gave me  — Who is Chang Baye's 'boss'? Is it Hua Jiu Nan? Someone else? Also, 'Eight Master' is used earlier as a name for him and I don't understand why. Is 'Baye' a title? A number? It reads like a name I'm supposed to recognize.",
+      "COLD_READER: Zhang Chao, the Contrarian, nodded eagerly. — 'The Contrarian' feels like a nickname I should already know the origin of. It's presented as an established epithet but I have no idea why he's called that. It's a small thing but it adds to the pile of 'I'm missing context' moments.",
+      "BORED: The car rattled on for another forty minutes of snake-con artistry, and then the — This is a summary line that skips over what sounds like it could be a funny scene. 'Forty minutes of snake-con artistry' — I actually wanted to see more of that. The chapter teases the bit and then fast-forwards. Minor, but I felt shortchanged."
+    ]
+  },
+  {
+    "ch": 460,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 7,
+    "engagement_gaps": 2,
+    "impression": "The comedy genuinely made me laugh — the boiled-crab image, the math joke, the crow landing on the kid's bald head. There's a real warmth here. But I'm drowning in unexplained references. Every other sentence assumes I know something I don't, and the emotional climax (Wang San's inner monologue) is undercut because I can't tell what the stakes actually are.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: the Celestial Hound's essence plus the Perfected Sovereign's blood — I know from the previous chapter there was a Celestial Hound, but 'essence' is vague — is this an ingredient? A magical substance? And 'Perfected Sovereign' — is that Wang San's title? Someone else's? I have no idea what rank or category this refers to.",
+      "COLD_READER: Meant for his daughter. Instead turned the village idiot into a precocious math  — Whose daughter? Wang San's? The Sovereign's? I genuinely cannot tell. This line is clearly meant to be poignant but I can't feel it because I don't know who 'his' refers to or who the daughter is.",
+      "COLD_READER: ever since the second crossing into the Underworld — Referenced completely casually, like I should already know what this was. I don't. It sounds important but I have zero context.",
+      "COLD_READER: Though Eighth Master had only started picking up on it after he'd 'half-succeede — Wait — is Chang Baye the 'Eighth Master'? What does 'half-succeeded in his dragon transformation' mean? Is he a snake becoming a dragon? A dog? I'm told he has a tail but I can't picture what he actually IS.",
+      "COLD_READER: But there was someone besides Little Qian Yue who could sense the change in Wang — Who is Little Qian Yue? Named once, never explained, never appears again in this chapter. I have no idea if this is a person, a spirit, an animal.",
+      "COLD_READER: He didn't say the classic Dongbei belligerent retort — I don't know what Dongbei is. This reads like an inside joke or cultural reference that went over my head. It yanked me out of the scene.",
+      "COLD_READER: When the fated battle comes—the one written in the stars before any of you were  — This is clearly meant to be the emotional gut-punch of the chapter, but it's so vague that it just floats. What battle? Why is it fated? I want to feel something here but I don't have enough information to ground the emotion.",
+      "BORED: The opening exchange about Fan Ju's ancestral home and coal money — I skimmed this. It feels like setup for something that doesn't pay off in this chapter. The correction from Hua Jiu Nan about 'Ruicheng County, Jin Prefecture' is the kind of specific detail that means nothing to me and slows the opening down.",
+      "BORED: Wang San's medicinal herbs to balance the potency were still sitting on the coun — This is told to me as exposition rather than shown. It reads like the author is explaining the magic system to make sure I understand the danger, but it feels like a stage direction slipped into the narrative."
+    ]
+  },
+  {
+    "ch": 500,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 5,
+    "engagement_gaps": 3,
+    "impression": "The first scene is genuinely gripping — the Wulang/Li'er sequence has real tension and some excellent prose. But the second scene lost me with unexplained references and a tonal whiplash that made me feel like I'd wandered into the middle of a sitcom I'd never seen. The final joke didn't land at all.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: she was a descendant of one of the five great Chuma spirit clans, families that  — What does 'Chuma' mean? Is it a title, a place, a function? The gloss tells me what the clans DO but not what the word itself signifies. It reads like a proper noun I should already know.",
+      "COLD_READER: the mansion of Radiant Lady Guanghua, you'd be welcomed and taught her deep Daoi — Who is Radiant Lady Guanghua? She's clearly important to Wulang's motivation but she appears from nowhere. I have no sense of her power level, her role, or why getting into her 'mansion' would be a big deal.",
+      "COLD_READER: Wait. The toad girl's on our side now. And I've been good. Haven't peed in the r — Who is the toad girl? Is it Chan Ruyu? This clearly references a prior event I have zero context for. The 'peed in the river' thing is obviously a running gag but it means nothing to me here.",
+      "COLD_READER: Did I hear 'swings'? That sounds like something you eat? Can me and Eighth Maste — This joke completely baffled me. What word is Chen Daji mishearing? Nothing in the preceding dialogue sounds like 'swings.' And why would 'swings' sound like food? This feels like a pun that either didn't survive translation or references something I'm missing. Also, who is 'Eighth Master'?",
+      "COLD_READER: He kept it fluttering near Chan Ruyu, watching. In case she made a sudden move. — The Light Spirit Bird is introduced and explained in one breath, which is fine mechanically, but WHY is he watching Chan Ruyu? The 'toad girl' reference implies a history of violence between them that I don't have. It makes the scene feel like I'm missing every other line of dialogue.",
+      "BORED: The entire transition from the assault scene to 'But for now, let us leave the v — The tonal shift is brutal. I went from a tense, emotionally charged assault scene to a snake-man slurping instant noodles and worrying about peeing in a river. I understand this might be intentional contrast, but it gave me actual whiplash. I needed a beat to decompress.",
+      "BORED: A poet might have said the flowing water loved the fallen blossom — but the blos — This is a pretty metaphor but it stopped me cold because I don't know the cultural reference it's drawing on. It reads like a proverb I should recognize but don't. It pulled me out of the scene.",
+      "BORED: The final three lines with Chen Daji — This is clearly meant to be the comedic button on the chapter, but the joke doesn't work. I re-read it twice trying to figure out what was funny and gave up. Ending a chapter on a joke that doesn't land is a bad taste to leave the reader with."
+    ]
+  },
+  {
+    "ch": 510,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 4,
+    "engagement_gaps": 2,
+    "impression": "This chapter has genuine energy and a satisfying reversal structure. Granny's defiance under torture is the emotional anchor and it lands hard. The reveal sequence (Snow Corpse, then the Chang brother disguise) is well-paced and builds excitement. My main friction is the Chang brother naming, which forced me to re-read a section and still left me uncertain.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: 'Chang Huai-Vault has this much power?! The reports lied! They all lied!' ... 'I — I had to read this three times. Xu Fu exclaims 'Chang Huai-Vault' but the reveal says 'Chang Huai-Soaked.' Are these two different brothers? Is Xu Fu wrong about which brother it is? Is 'Chang Huai-Vault' what he thought Chang Baye's real name was? I genuinely cannot tell. The naming convention (Chang Huai-[something]) makes them blur together, and the reveal logic is unclear.",
+      "COLD_READER: Once I figure out this damn Eight-Gate Labyrinth, I'll break the formation and c — Granny references the 'Eight-Gate Labyrinth' as if I should know what it is. I don't. Is it the formation she's trapped in? A separate thing she's trying to solve? It's dropped in without context.",
+      "COLD_READER: A peak flood-dragon in his own right. — What's a flood-dragon? Is this a power rank? A species? A cultivation level? I have no frame of reference for this term and it's presented as if I should already know what it means.",
+      "COLD_READER: The same wok that, in the hands of the goddess Meng Po, had once been called som — This is a cool concept but it's compressed into three sentences with no breathing room. I get the gist—sacred artifact disguised as a cooking pot—but 'Meng Po' and 'Cycle of Rebirth' are both new terms hitting me at once while I'm also trying to track which Chang brother this is.",
+      "BORED: After the Spring and Autumn era, there were no righteous wars—only winners and c — This philosophical aside pulls me out of the scene right when tension is peaking. I'm watching Granny get tortured and the boys getting desperate, and suddenly I'm getting a history lesson about the Spring and Autumn era. It reads like narrator commentary that belongs in a different kind of book.",
+      "BORED: Zhao Fei, the quiet giant who had been standing at Hua Jiu Nan's side unnoticed  — 'Quiet giant' immediately followed by 'fat man' is a slightly jarring combo. Also, this character appears from nowhere with zero buildup. He just... charges. It feels like I missed an introduction."
+    ]
+  },
+  {
+    "ch": 560,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 4,
+    "engagement_gaps": 2,
+    "impression": "The ending made me laugh out loud — Daji shooting the fox spirit in the crotch is genuinely great comedic writing. But the chapter is so dense with named characters and simultaneous fights that I spent most of it feeling like I was reading a battle summary rather than experiencing a scene. I had to keep a mental roster just to track who was fighting whom.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: Eight Gates of Qi Men Dun Jia, right at the start of a duel? That's a Taoist tec — The inline explanation helps a little, but 'Qi Men Dun Jia' is still opaque jargon to me. I get that it's a space/fortune technique, but I don't understand why it's surprising that a rat spirit knows it. The text tells me it's surprising but doesn't make me FEEL why.",
+      "COLD_READER: A black beetle—a Gu parasite nurtured inside her body for offense—crawled out of — I've heard 'Gu' in passing from internet culture but I don't actually know what it is. The text says 'nurtured inside her body for offense' which gives me a vague sense, but it still feels like I'm missing context. Is this normal for her people? Is it painful? The scene treats it as routine, which is interesting, but I'd like one more beat of grounding.",
+      "COLD_READER: He couldn't face Hua Jiu Nan or Deaf Granny with that news — Deaf Granny appears from nowhere. I have no idea who she is or why Grey Sixth would be ashamed in front of her. It reads like I'm supposed to already know her.",
+      "COLD_READER: Sang Men, the Doom-Bringer — This character just appears mid-fight with a title and no other context. I can't picture them. Are they a ghost? A god? A human? The text says 'a thousand-year-old baleful god' later, but that's buried several paragraphs after their introduction.",
+      "BORED: The entire middle section from 'Growling curses, Diao Ke swung his mourning staf — This is where I started skimming. There are four simultaneous fights happening (Diao Ke vs. Xu Tao's group, Grey Sixth vs. Sang Men, Huang Wulang vs. the Orphan Girl, and the approaching reinforcements) and the narration just hops between them in single paragraphs. It reads like a play-by-play rather than a scene. I couldn't feel the tension because I was too busy tracking logistics.",
+      "BORED: In that instant, a massive golden form came roaring out of the darkness, displac — This SHOULD be a hype moment — reinforcements arriving! But because I've been juggling so many characters and fights, the arrival doesn't land with the weight it should. I had to pause and figure out who Song E was and why he cares about the Orphan Girl."
+    ]
+  },
+  {
+    "ch": 610,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 4,
+    "engagement_gaps": 1,
+    "impression": "This chapter is genuinely moving and funny in equal measure. The Wang San / Black Feather conversation has real emotional weight, and the bald-kid-with-a-bird-on-his-head comedy at the end is charming. But the middle section where Wang San monologues about lineages and cultivation ranks threw me — too many proper nouns I couldn't parse.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: \"I do not want to drag the Solar Ember lineage into this as well.\" — I have no idea what the Solar Ember lineage is. Is it Black Feather's family line? A faction? A species? The sentence treats it like I should already know, but I don't.",
+      "COLD_READER: \"can reach the Sixth Plume in no time at all.\" — What is a Plume? Is this a cultivation rank? A power level? The capitalization tells me it's a proper term, but there's zero context for what it means or why the Sixth one matters. It just floats there.",
+      "COLD_READER: \"The line of the Little Nine — the things they did. They made every living creat — Who is Little Nine? I think it's a person from earlier chapters, but the emotional weight of this passage depends on me knowing their history, and I don't. It reads like a eulogy for someone I've never met.",
+      "COLD_READER: \"the rolling red dust of the mortal world could truly stain all things\" — I get that this means 'the mortal world' but 'rolling red dust' is an unusual phrase in English. It stopped me for a beat. Not a dealbreaker, but it felt like a translation artifact rather than natural English.",
+      "BORED: The paragraph where Wang San's gaze moves from Deaf Granny to Wang Qianyue to Hu — This felt like a roll call. 'Each gaze was a different note of exhaustion and love' is a nice line, but the actual content is just a list of names and states. It's brief enough that I didn't skip it, but it didn't land emotionally the way the Black Feather scene did."
+    ]
+  },
+  {
+    "ch": 660,
+    "tier": "qwen3.8-max",
+    "ok": true,
+    "verdict": "NEEDS_FIX",
+    "would_keep_reading": true,
+    "comprehension_issues": 5,
+    "engagement_gaps": 1,
+    "impression": "This is genuinely funny. The broke snake who has four yuan in coins in his belly and gets manipulated into a fight with instant noodles as bait is great physical comedy. The tone is clear and the chapter moves fast. But I hit a wall of unexplained terminology that made me feel like I walked into the middle of a conversation.",
+    "quality_score": 2.0,
+    "quality_issues": [
+      "COLD_READER: A Chuma immortal? Just a beast. — What is a 'Chuma immortal'? This seems like a classification or rank of spirit, but it's dropped in with zero context. I have no idea if this is a low rank, a type, a species — nothing. It's clearly meant to be dismissive, but I don't know WHY it's dismissive.",
+      "COLD_READER: He looked at the little bastard who held his marker, tears in his eyes. — What marker? This seems to reference something from a previous chapter that I have no context for. It reads like a plot-relevant object but I have no idea what it is or why it matters.",
+      "COLD_READER: No merit points saved up. The debt just kept growing. — Merit points seem to be some kind of currency or status system for spirits, but they're mentioned once and never explained. I can vaguely guess they're like spiritual credit, but I'm not sure.",
+      "COLD_READER: get a proper license, a place in a real spirit hall. Steady work, steady incense — I can sort of piece together that spirits need to be registered at temples/shrines to get worshipped (incense = offerings?), but 'spirit hall' and the licensing system are just dropped in. It's intriguing but confusing.",
+      "COLD_READER: He got me right on my sweet spot—right behind the head! My best spot! He KNOWS t — Wait — is the 'sweet spot' a WEAK point or a STRONG point? He says 'my best spot' but he's clearly hurt by it. The word 'sweet' usually means good/advantageous, but here it seems to mean vulnerable. This is contradictory and confusing.",
+      "BORED: The opening dialogue exchange about the ten thousand yuan compensation — This references a prior event I have no context for. I can tell Chang Baye got hurt and someone paid him, but the emotional weight of 'I'm still crawling out from under that debt' doesn't land because I don't know the full history. It's not boring, just slightly hollow."
+    ]
+  }
+]

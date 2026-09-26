@@ -81,6 +81,7 @@ cold_read_context 三段里，**"PREVIOUSLY 近章摘要"无法从交付产物�
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import os
 import re
@@ -638,10 +639,19 @@ print(f"worker done: {len(rows)} chapters @ {payload[0]['tier'] if payload else 
 def measure_within_tier_variance(a_rows: list[dict], a_rows2: list[dict]) -> dict:
     """实测的同档位组内方差（--repeat-baseline 时用）。
 
-    与 within_tier_variance() 同形（返回 noise_floor 结构），让 compare() 能
-    用同一套显著性判断。区别是这里的基线来自本脚本的**裸 READBACK**（无 FIX
-    循环），口径与 A/B 组一致；而 _quality.json 里的历史基线是走完整管线的
-    产物，口径不同、且只有 1 章样本。
+    返回两种形态，各有用途：
+      noise_floor   逐章最大差（直观，用来描述"单章能抖多少"）
+      paired_deltas **逐章差值列表**（第二遍 − 第一遍），用来与 A/B 的逐章差值
+                    做同尺度比较
+
+    ⚠️ 为什么必须返回 paired_deltas：A/B 的主判据是 58 章的 **SUM 差**，而
+    noise_floor 是 20 章里的**逐章最大差**。拿 SUM 差去比逐章最大差是**尺度不
+    匹配**的——SUM 差会随章数线性放大（58 章 vs 20 章），逐章最大差不会。
+    实测这个错误的后果：comprehension_issues 的 A/B SUM 差是 −26，逐章噪音基线
+    只有 3，于是被判定为"超过噪音 8.7 倍"，看着板上钉钉；但把两边都换算成
+    **逐章配对差值**再做 Welch t，实际 t = −2.15，只是勉强过 p<0.05，而且
+    engagement_gaps 的 t 只有 +0.39（完全不显著）。
+    **只有同尺度的逐章配对差值才能比。**
     """
     first = {r["ch"]: r for r in a_rows if r.get("ok")}
     second = {r["ch"]: r for r in a_rows2 if r.get("ok")}
@@ -650,26 +660,75 @@ def measure_within_tier_variance(a_rows: list[dict], a_rows2: list[dict]) -> dic
         return {"available": False, "note": "基线两遍无共同成功章，取不到方差"}
 
     eg_gaps, ci_gaps = [], []
+    eg_deltas, ci_deltas = [], []
+    same_verdict = 0
     chapters = []
     for c in common:
         eg = [first[c].get("engagement_gaps") or 0, second[c].get("engagement_gaps") or 0]
         ci = [first[c].get("comprehension_issues") or 0, second[c].get("comprehension_issues") or 0]
         eg_gaps.append(max(eg) - min(eg))
         ci_gaps.append(max(ci) - min(ci))
+        # 有符号的配对差值（不是绝对差）：噪音本身可能有系统性偏向，
+        # 只有保留符号才能把这个偏向从 A/B 差里减掉。
+        eg_deltas.append(eg[1] - eg[0])
+        ci_deltas.append(ci[1] - ci[0])
+        if first[c].get("verdict") == second[c].get("verdict"):
+            same_verdict += 1
         chapters.append({"ch": c, "n_runs": 2, "engagement_gaps": eg,
-                         "comprehension_issues": ci})
+                         "comprehension_issues": ci,
+                         "eg_delta": eg[1] - eg[0], "ci_delta": ci[1] - ci[0],
+                         "verdict_same": first[c].get("verdict") ==
+                                         second[c].get("verdict")})
     return {
         "available": True,
         "source": "measured (--repeat-baseline)",
         "n_repeat_chapters": len(common),
         "chapters": chapters,
+        "paired_deltas": {"comprehension_issues": ci_deltas,
+                          "engagement_gaps": eg_deltas},
+        # 同档位重跑的 verdict 一致率：这是判读 A/B verdict 一致率的**必需对照**。
+        # 没有它，"A/B 一致率 74%" 无法解读——如果同档位重跑本身只有 80%，
+        # 那 74% 基本就是噪音，说明档位对 verdict 没有影响。
+        "verdict_agreement": same_verdict / len(common),
+        "n_verdict_same": same_verdict,
         "noise_floor": {
             "engagement_gaps_max_gap": max(eg_gaps),
             "comprehension_issues_max_gap": max(ci_gaps),
             "basis": f"{len(common)} 章同档位（{TIER_A}）裸 READBACK 跑两遍的"
                      f"最大差值，口径与 A/B 组一致。",
+            "warning": "逐章最大差**不能**直接与 A/B 的 SUM 差比较（尺度不匹配，"
+                       "SUM 随章数线性放大）。显著性判断请用 paired_deltas。",
         },
     }
+
+
+def welch_t(deltas_ab: list[float], deltas_baseline: list[float]):
+    """两个独立样本的 Welch t 统计量（不假设等方差，不依赖 scipy）。
+
+    两组都是**逐章差值**，所以尺度一致、可直接比：
+      deltas_ab        B 档 − A 档，每章一个值
+      deltas_baseline  A 档第二遍 − 第一遍，每章一个值（纯噪音）
+    差值的差就是"净档位效应"；t 衡量它相对抽样误差有多大。
+    返回 None 表示**样本不足**（无法判断），调用方必须如实说"判不了"而不是
+    当成"不显著"。
+
+    ⚠️ se == 0 不是"判不了"：零方差意味着**没有不确定性**，结论是确定的。
+      净效应 == 0 → t = 0.0（确定无效应）
+      净效应 != 0 → t = ±inf（确定有效应）
+    早先把 se==0 也归到 None，会把"两组完全一致"这种最强证据误报成判不了。
+    """
+    import math
+    import statistics
+    n1, n2 = len(deltas_ab), len(deltas_baseline)
+    if n1 < 2 or n2 < 2:
+        return None, "样本不足（每组至少 2 章才能估方差）"
+    m1, m2 = statistics.mean(deltas_ab), statistics.mean(deltas_baseline)
+    s1, s2 = statistics.stdev(deltas_ab), statistics.stdev(deltas_baseline)
+    se = math.sqrt(s1 ** 2 / n1 + s2 ** 2 / n2)
+    if se == 0:
+        # 零方差 = 零不确定性，结论确定，不是"判不了"
+        return (0.0 if m1 == m2 else math.copysign(math.inf, m1 - m2)), None
+    return (m1 - m2) / se, None
 
 
 def ledger_cost(tmp: Path, name: str = "token_ledger.jsonl") -> dict:
@@ -751,41 +810,143 @@ def compare(a_rows: list[dict], b_rows: list[dict],
         elif ci_d < 0 or eg_d < 0:
             better.append(p)
 
-    # ── 显著性：把 delta 与同档位组内方差比，避免把噪音读成档位信号 ──
+    # ── 显著性：用**同尺度的逐章配对差值**做 Welch t ──
+    #
+    # ⚠️ 此前这里比较的是「A/B 的 SUM 差」与「基线的逐章最大差」，两者尺度不同：
+    # SUM 差随章数线性放大（58 章 vs 基线 20 章），逐章最大差不会。实测后果：
+    # comprehension_issues 的 A/B SUM 差 −26 对上逐章噪音 3，看着像"超噪音 8.7 倍"
+    # 板上钉钉；换算成同尺度的逐章配对差值后，Welch t 只有 −2.15（勉强 p<0.05），
+    # 而 engagement_gaps 的 t 仅 +0.39（完全不显著）。**结论方向差点被这个口径
+    # 错误带偏**，所以两种口径都保留输出，但显著性判断只认配对差值。
+    #
+    # 没有 paired_deltas（即只有 _quality.json 那 1 章历史基线）时，退回到
+    # SUM-差 vs 逐章-最大差的粗判，并**显式标注这个比较不可靠**。
     significance = {"available": False}
     if noise and noise.get("available"):
         floor = noise.get("noise_floor") or {}
-        eg_floor = floor.get("engagement_gaps_max_gap")
-        ci_floor = floor.get("comprehension_issues_max_gap")
-        eg_delta = abs(eg_b["sum"] - eg_a["sum"])
-        ci_delta = abs(ci_b["sum"] - ci_a["sum"])
-        verdicts = {}
-        if eg_floor is not None:
-            verdicts["engagement_gaps"] = {
-                "delta_sum_abs": eg_delta, "noise_floor": eg_floor,
-                "exceeds_noise": eg_delta > eg_floor,
-            }
-        if ci_floor is not None:
-            verdicts["comprehension_issues"] = {
-                "delta_sum_abs": ci_delta, "noise_floor": ci_floor,
-                "exceeds_noise": ci_delta > ci_floor,
-            }
-        any_exceeds = any(v["exceeds_noise"] for v in verdicts.values())
-        significance = {
-            "available": bool(verdicts),
-            "per_metric": verdicts,
-            "any_metric_exceeds_noise": any_exceeds,
-            "interpretation": (
-                "至少一个判据的组间差超过同档位组内方差 → 可能是真实的档位效应，"
-                "但仍需看逐章分布是否集中。"
-                if any_exceeds else
-                "⚠️ 所有判据的组间差都在同档位组内方差范围内 → **不能判定降档降质，"
-                "也不能判定降档安全**。这是无信息结果，不要据此下结论。"
-            ),
-            "note": "噪音基线来自 _quality.json 的 Ch260 重复记录（同档位重跑，"
-                    "engagement_gaps 差 2）。样本仅 1 章，基线本身很粗——"
-                    "要更可靠的基线需同档位多跑几章（额外花钱）。",
+        paired = noise.get("paired_deltas") or {}
+        ab_deltas = {
+            "comprehension_issues": [(b[c].get("comprehension_issues") or 0)
+                                     - (a[c].get("comprehension_issues") or 0)
+                                     for c in common],
+            "engagement_gaps": [(b[c].get("engagement_gaps") or 0)
+                                - (a[c].get("engagement_gaps") or 0)
+                                for c in common],
         }
+        verdicts = {}
+        for metric in ("comprehension_issues", "engagement_gaps"):
+            base_deltas = paired.get(metric)
+            if base_deltas:
+                t, why = welch_t(ab_deltas[metric], base_deltas)
+                if t is None:
+                    verdicts[metric] = {
+                        "method": "welch_t", "t": None,
+                        "significant": None, "reason": why,
+                        "note": "⚠️ 判不了 —— 这不是'不显著'，是样本不足。",
+                    }
+                    continue
+                import statistics as _st
+                net = (_st.mean(ab_deltas[metric]) - _st.mean(base_deltas))
+                verdicts[metric] = {
+                    "method": "welch_t",
+                    "t": round(t, 3),
+                    "significant": abs(t) > 2.0,
+                    "borderline": 1.5 < abs(t) <= 2.0,
+                    "net_effect_per_chapter": round(net, 4),
+                    "net_effect_total": round(net * len(common), 1),
+                    "n_ab": len(ab_deltas[metric]),
+                    "n_baseline": len(base_deltas),
+                    "mean_delta_ab": round(_st.mean(ab_deltas[metric]), 4),
+                    "mean_delta_baseline": round(_st.mean(base_deltas), 4),
+                    "note": (
+                        "同尺度逐章配对差值的 Welch t。|t|>2 约当 p<0.05。"
+                        "净效应已扣除同档位重跑的系统性偏向。"),
+                }
+            else:
+                # 只有历史 1 章基线：尺度不匹配，只能给粗判
+                floor_key = ("comprehension_issues_max_gap" if metric ==
+                             "comprehension_issues" else
+                             "engagement_gaps_max_gap")
+                fl = floor.get(floor_key)
+                if fl is None:
+                    continue
+                agg_delta = abs((ci_b["sum"] - ci_a["sum"])
+                                if metric == "comprehension_issues"
+                                else (eg_b["sum"] - eg_a["sum"]))
+                verdicts[metric] = {
+                    "method": "sum_vs_per_chapter_max (UNRELIABLE)",
+                    "delta_sum_abs": agg_delta, "noise_floor": fl,
+                    "significant": None,
+                    "note": f"⚠️ 尺度不匹配：A/B 是 {len(common)} 章的 SUM 差，"
+                            f"噪音基线是 {noise.get('n_repeat_chapters')} 章的"
+                            f"逐章最大差。SUM 随章数线性放大，两者不可直接比。"
+                            f"要可采信结论请加 --repeat-baseline。",
+                }
+
+        reliable = [v for v in verdicts.values()
+                    if v.get("method") == "welch_t" and v.get("t") is not None]
+        any_sig = any(v.get("significant") for v in reliable)
+        any_borderline = any(v.get("borderline") for v in reliable)
+        if reliable:
+            if any_sig and any_borderline:
+                interp = ("⚠️ 判据之间结论不一致：一个显著、一个边缘。"
+                          "**不要**据此单独下'降档安全'或'降档降质'的结论。")
+            elif any_sig:
+                interp = ("至少一个判据的净效应在同尺度检验下显著（|t|>2）→ "
+                          "可能是真实的档位效应。仍需看方向是否符合预期、"
+                          "逐章分布是否集中，以及基线章数是否够（20 章偏少）。")
+            elif any_borderline:
+                interp = ("⚠️ 只有边缘显著（1.5<|t|≤2）→ **不足以判定**。"
+                          "加大 --repeat-baseline 章数再看。")
+            else:
+                interp = ("所有判据的净效应都在同档位重跑的噪音范围内 → "
+                          "**不能判定降档降质，也不能判定降档安全**。"
+                          "这是无信息结果，不要据此下结论。")
+        else:
+            interp = ("⚠️ 没有可用的同尺度基线（--repeat-baseline 未开或样本不足），"
+                      "**无法判断组间差是信号还是噪音**。")
+        significance = {
+            "available": bool(reliable),
+            "per_metric": verdicts,
+            "any_metric_significant": any_sig,
+            "any_metric_borderline": any_borderline,
+            "interpretation": interp,
+            "baseline_source": noise.get("source") or "history (_quality.json Ch260)",
+            "baseline_chapters": noise.get("n_repeat_chapters"),
+        }
+
+    # ── verdict 一致率：实测它**是**有效判据，但必须有基线对照 ──
+    #
+    # ⚠️ 此前的措辞是"无信息判据：历史 59 条 verdict 全 PASS，此值预期恒为
+    # 100%"。那只对**走 FIX 循环的历史数据**成立（FIX 一路修到 PASS，把判定全
+    # 抹平）。本脚本是裸 READBACK，实测 2026-09-26 那一跑：
+    #   A 组(qwen3.8-max)   41 NEEDS_FIX / 17 PASS
+    #   B 组(qwen3.8-flash) 38 NEEDS_FIX / 20 PASS
+    #   A/B 一致率 74.1%，而同档位重跑的基线一致率 80.0%
+    # → verdict **有方差**，74.1% 也不是恒定的 100%。但它单独看**不可解读**：
+    #   必须与"同档位重跑的一致率"对照。上面 74.1% vs 80.0% 说明档位切换带来的
+    #   verdict 变化与单纯重跑的抖动量级相当，即档位对 verdict 影响不明显。
+    # 没有基线时如实说"不可解读"，不要说"无信息"（那是错的），也不要说"显著"。
+    va_rate = (same_verdict / len(common)) if common else 0.0
+    baseline_va = (noise or {}).get("verdict_agreement")
+    if baseline_va is None:
+        va_note = ("⚠️ 单独看**不可解读**。裸 READBACK 下 verdict 确实有方差"
+                   "（历史 _quality.json 全 PASS 是因为走了 FIX 循环，不代表这里"
+                   "也会全 PASS），但要判断这个一致率是高是低，必须有'同档位重跑"
+                   "的一致率'做对照 → 请加 --repeat-baseline。")
+        va_verdict = "uninterpretable_without_baseline"
+    else:
+        gap = va_rate - baseline_va
+        if abs(gap) < 0.10:
+            va_verdict = "no_clear_tier_effect"
+            va_note = (f"档位一致率 {va_rate:.1%} 与同档位重跑的 {baseline_va:.1%} "
+                       f"相差 {gap:+.1%}（<10pt）→ 档位切换对 verdict 的影响与"
+                       f"单纯重跑的抖动量级相当，**看不出明显的档位效应**。")
+        else:
+            va_verdict = "differs_from_baseline"
+            va_note = (f"档位一致率 {va_rate:.1%} vs 同档位重跑 {baseline_va:.1%}"
+                       f"（相差 {gap:+.1%}，≥10pt）→ 档位切换带来的 verdict 变化"
+                       f"**明显大于**重跑抖动，需结合逐章分布进一步判读。")
 
     return {
         "n_common": len(common),
@@ -796,9 +957,15 @@ def compare(a_rows: list[dict], b_rows: list[dict],
         "engagement_gaps": {"A": eg_a, "B": eg_b,
                             "delta_sum": eg_b["sum"] - eg_a["sum"]},
         "verdict_agreement": {
-            "rate": (same_verdict / len(common)) if common else 0.0,
-            "note": "⚠️ 无信息判据：历史 59 条 verdict 全 PASS（零方差），"
-                    "此值预期恒为 100%，不能用来判断降档是否降质。",
+            "rate": va_rate,
+            "n_same": same_verdict,
+            "A_distribution": dict(collections.Counter(
+                a[c]["verdict"] for c in common)),
+            "B_distribution": dict(collections.Counter(
+                b[c]["verdict"] for c in common)),
+            "baseline_rate": baseline_va,
+            "assessment": va_verdict,
+            "note": va_note,
         },
         "impression_identical": same_impression,
         "chapters_worse_under_B": len(worse),
@@ -927,24 +1094,46 @@ def render_verdict_report(verdict: dict, cost_a: dict, cost_b: dict,
            "",
            f"impression 文本完全相同的章数：{verdict['impression_identical']}"
            f"/{verdict['n_common']}",
-           f"verdict 一致率 {va['rate']:.1%} —— {va['note']}",
+           f"【verdict 分布】A 组 {va['A_distribution']} | B 组 "
+           f"{va['B_distribution']}",
+           f"verdict 一致率 {va['rate']:.1%}"
+           + (f"（同档位重跑基线 {va['baseline_rate']:.1%}）"
+              if va.get("baseline_rate") is not None else "（无基线对照）")
+           + f" —— {va['note']}",
            "",
            f"降档后判定变差的章 {verdict['chapters_worse_under_B']} | "
            f"变好 {verdict['chapters_better_under_B']} | "
            f"持平 {verdict['chapters_same']}"]
 
     sig = verdict.get("significance") or {}
+    out += ["", "【显著性】同尺度逐章配对差值检验（Welch t，|t|>2 约当 p<0.05）："]
+    for metric, v in (sig.get("per_metric") or {}).items():
+        if v.get("method") == "welch_t":
+            if v.get("t") is None:
+                out.append(f"   {metric}: ⚠️ 判不了 —— {v.get('reason')}")
+                continue
+            if v.get("significant"):
+                flag = "显著"
+            elif v.get("borderline"):
+                flag = "⚠️ 边缘（不足以判定）"
+            else:
+                flag = "不显著（落在噪音内）"
+            out.append(f"   {metric}: t={v['t']:+.2f} → {flag}")
+            out.append(f"       净效应 {v['net_effect_per_chapter']:+.3f}/章"
+                       f"（×{v['n_ab']} 章 ≈ {v['net_effect_total']:+.1f}）"
+                       f" | A/B 逐章差均值 {v['mean_delta_ab']:+.3f}"
+                       f" − 噪音 {v['mean_delta_baseline']:+.3f}"
+                       f" | 基线 n={v['n_baseline']}")
+        else:
+            out.append(f"   {metric}: ⚠️ {v.get('delta_sum_abs')} vs 逐章噪音 "
+                       f"{v.get('noise_floor')} —— **此比较不可靠**")
+            out.append(f"       {v.get('note')}")
     if sig.get("available"):
-        out += ["", "【显著性】组间差 vs 同档位组内方差："]
-        for metric, v in (sig.get("per_metric") or {}).items():
-            flag = "超过噪音" if v["exceeds_noise"] else "在噪音内"
-            out.append(f"   {metric}: |delta|={v['delta_sum_abs']} vs 噪音基线 "
-                       f"{v['noise_floor']} → {flag}")
-        out += [f"   {sig['interpretation']}",
-                f"   基线来源：{noise_source}",
-                f"   {sig['note']}"]
+        out.append(f"   {sig['interpretation']}")
+        out.append(f"   基线来源：{noise_source}"
+                   f"（{sig.get('baseline_chapters')} 章）")
     else:
-        out += ["", "【显著性】⚠️ 取不到噪音基线，无法判断组间差是信号还是噪音。"]
+        out.append(f"   ⚠️ {sig.get('interpretation') or '没有可用的同尺度基线'}")
 
     out += ["",
             f"【实际花费】A 组 ¥{cost_a['cny']:.2f}（{cost_a['rows']} 行） | "

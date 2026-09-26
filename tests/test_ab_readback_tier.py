@@ -228,6 +228,48 @@ NOISE_EG2 = {"available": True, "n_repeat_chapters": 1, "chapters": [],
              "noise_floor": {"engagement_gaps_max_gap": 2,
                              "comprehension_issues_max_gap": 0}}
 
+# History-shaped baseline: only per-chapter maxima, no paired deltas. This is
+# what _quality.json can supply (a single repeated chapter), so any significance
+# claim built on it is scale-mismatched and must be reported UNRELIABLE.
+NOISE_HISTORY_ONLY = NOISE_EG2
+
+# Measured baseline (--repeat-baseline shape): carries per-chapter signed
+# deltas, so it can be compared against the A/B per-chapter deltas at the same
+# scale. Baseline noise here is deliberately non-zero but small: eg deltas
+# [0, 1, -1, 0, 1, 0, -1, 0, 0, 1] (mean +0.1), ci deltas all 0 (mean 0.0).
+NOISE_PAIRED = {
+    "available": True,
+    "source": "measured (--repeat-baseline)",
+    "n_repeat_chapters": 10,
+    "chapters": [],
+    "paired_deltas": {
+        "comprehension_issues": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "engagement_gaps": [0, 1, -1, 0, 1, 0, -1, 0, 0, 1],
+    },
+    "verdict_agreement": 0.8,
+    "n_verdict_same": 8,
+    "noise_floor": {"engagement_gaps_max_gap": 2,
+                    "comprehension_issues_max_gap": 0},
+}
+
+
+def _paired_noise(eg=None, ci=None, va=0.8, n=None):
+    """Build a measured baseline with chosen per-chapter deltas."""
+    eg = eg if eg is not None else [0, 1, -1, 0, 1, 0, -1, 0, 0, 1]
+    ci = ci if ci is not None else [0] * len(eg)
+    return {
+        "available": True,
+        "source": "measured (--repeat-baseline)",
+        "n_repeat_chapters": n or len(eg),
+        "chapters": [],
+        "paired_deltas": {"comprehension_issues": ci,
+                          "engagement_gaps": eg},
+        "verdict_agreement": va,
+        "n_verdict_same": int(va * (n or len(eg))),
+        "noise_floor": {"engagement_gaps_max_gap": 2,
+                        "comprehension_issues_max_gap": 0},
+    }
+
 
 class TestCompare:
     def test_counts_are_summed_not_verdicts(self, ab):
@@ -241,13 +283,57 @@ class TestCompare:
         assert got["engagement_gaps"]["B"]["sum"] == 3
         assert got["engagement_gaps"]["delta_sum"] == -1
 
-    def test_verdict_agreement_is_flagged_uninformative(self, ab):
-        """All-PASS inputs give 100% — the note must say that carries no signal."""
-        a = [_row(1, 0, 0), _row(2, 1, 1)]
-        b = [_row(1, 3, 3), _row(2, 0, 0)]
-        got = ab.compare(a, b, {}, NOISE_EG2)
-        assert got["verdict_agreement"]["rate"] == 1.0
-        assert "无信息" in got["verdict_agreement"]["note"]
+    def test_verdict_without_baseline_is_uninterpretable_not_uninformative(self, ab):
+        """⚠️ The old wording here ("无信息判据，预期恒为 100%") was WRONG and is
+        pinned as wrong by the 2026-09-26 run: bare READBACK gave
+        A 41 NEEDS_FIX / 17 PASS vs B 38 / 20 — verdict DOES have variance.
+        The all-PASS history came from the FIX loop, not from READBACK.
+        So without a baseline the honest statement is "cannot interpret", and
+        the distributions must be reported so the variance is visible.
+        """
+        a = [_row(1, 0, 0, verdict="PASS"), _row(2, 1, 1, verdict="NEEDS_FIX")]
+        b = [_row(1, 3, 3, verdict="NEEDS_FIX"), _row(2, 0, 0, verdict="NEEDS_FIX")]
+        got = ab.compare(a, b, {}, NOISE_EG2)   # no verdict_agreement baseline
+        va = got["verdict_agreement"]
+        # ch1 differs (PASS vs NEEDS_FIX), ch2 agrees → 1/2
+        assert va["rate"] == 0.5
+        assert va["n_same"] == 1
+        assert va["baseline_rate"] is None
+        assert va["assessment"] == "uninterpretable_without_baseline"
+        assert "不可解读" in va["note"]
+        assert "无信息" not in va["note"]
+        # distributions are reported, proving verdict is not constant
+        assert va["A_distribution"] == {"PASS": 1, "NEEDS_FIX": 1}
+        assert va["B_distribution"] == {"NEEDS_FIX": 2}
+
+    def test_verdict_close_to_baseline_means_no_tier_effect(self, ab):
+        """75% vs a same-tier 80% baseline → 5pt gap → no clear tier effect.
+
+        Same shape as the measured run (74.1% vs 80.0%): the disagreement the
+        cheaper tier introduces is the size of the disagreement a re-run
+        introduces, which is why this metric needs the baseline at all.
+        """
+        noise = _paired_noise(va=0.8)
+        a = [_row(i, 0, 0, verdict="PASS") for i in range(1, 5)]
+        b = [_row(1, 0, 0, verdict="NEEDS_FIX"), _row(2, 0, 0, verdict="PASS"),
+             _row(3, 0, 0, verdict="PASS"), _row(4, 0, 0, verdict="PASS")]
+        got = ab.compare(a, b, {}, noise)
+        va = got["verdict_agreement"]
+        assert va["rate"] == 0.75
+        assert va["n_same"] == 3
+        assert va["baseline_rate"] == 0.8
+        assert va["assessment"] == "no_clear_tier_effect"
+        assert "看不出明显的档位效应" in va["note"]
+
+    def test_verdict_far_from_baseline_is_flagged(self, ab):
+        """A gap of ≥10pt from the same-tier baseline must be called out."""
+        noise = _paired_noise(va=0.95)
+        a = [_row(i, 0, 0, verdict="PASS") for i in range(1, 4)]
+        b = [_row(i, 0, 0, verdict="NEEDS_FIX") for i in range(1, 4)]
+        got = ab.compare(a, b, {}, noise)
+        va = got["verdict_agreement"]
+        assert va["assessment"] == "differs_from_baseline"
+        assert "明显大于" in va["note"]
 
     def test_only_common_chapters_are_compared(self, ab):
         a = [_row(1, 0, 0), _row(2, 0, 0)]
@@ -364,49 +450,122 @@ class TestCompare:
 
 
 class TestSignificance:
-    def test_delta_within_noise_is_called_uninformative(self, ab):
-        """eg delta 1 against a floor of 2 → must NOT be read as a tier effect."""
-        a = [_row(1, 0, 1)]
-        b = [_row(1, 0, 2)]
-        got = ab.compare(a, b, {}, NOISE_EG2)
-        sig = got["significance"]
-        assert sig["available"] is True
-        assert sig["per_metric"]["engagement_gaps"]["delta_sum_abs"] == 1
-        assert sig["per_metric"]["engagement_gaps"]["exceeds_noise"] is False
-        assert sig["any_metric_exceeds_noise"] is False
-        assert "不能判定" in sig["interpretation"]
+    """Significance must compare like with like: per-chapter paired deltas on
+    both sides, via Welch t.
 
-    def test_delta_above_noise_is_flagged_as_possible_signal(self, ab):
-        """eg delta 5 against a floor of 2 → exceeds noise."""
+    The old tests here pinned a scale-mismatched comparison (58-chapter SUM
+    delta vs per-chapter max gap). That is exactly the bug found in the real
+    2026-09-26 run: it reported "exceeds noise 8.7x" for comprehension_issues
+    when the same-scale paired Welch t was only -2.15. These tests now pin the
+    corrected behaviour.
+    """
+
+    def test_paired_baseline_uses_welch_t(self, ab):
         a = [_row(1, 0, 0), _row(2, 0, 0)]
         b = [_row(1, 0, 3), _row(2, 0, 2)]
-        got = ab.compare(a, b, {}, NOISE_EG2)
+        got = ab.compare(a, b, {}, NOISE_PAIRED)
         sig = got["significance"]
-        assert sig["per_metric"]["engagement_gaps"]["delta_sum_abs"] == 5
-        assert sig["per_metric"]["engagement_gaps"]["exceeds_noise"] is True
-        assert sig["any_metric_exceeds_noise"] is True
+        assert sig["available"] is True
+        eg = sig["per_metric"]["engagement_gaps"]
+        assert eg["method"] == "welch_t"
+        assert eg["t"] is not None
+        assert eg["n_ab"] == 2
+        assert eg["n_baseline"] == 10
 
-    def test_zero_delta_does_not_exceed_noise(self, ab):
-        a = [_row(1, 2, 1)]
-        b = [_row(1, 2, 1)]
-        got = ab.compare(a, b, {}, NOISE_EG2)
+    def test_large_consistent_delta_is_significant(self, ab):
+        """A/B eg delta is consistently ~+5 while baseline noise is ~±1 → |t|>2."""
+        a = [_row(i, 0, 0) for i in range(1, 7)]
+        b = [_row(i, 0, d) for i, d in zip(range(1, 7), [5, 4, 6, 5, 4, 6])]
+        got = ab.compare(a, b, {}, NOISE_PAIRED)
+        eg = got["significance"]["per_metric"]["engagement_gaps"]
+        assert eg["significant"] is True
+        assert abs(eg["t"]) > 2.0
+        # net effect ≈ mean(ab)=5.0 minus mean(baseline)=0.1
+        assert eg["net_effect_per_chapter"] == pytest.approx(4.9, abs=0.01)
+
+    def test_small_delta_within_noise_is_not_significant(self, ab):
+        """A/B eg delta ~+0.5, same magnitude as baseline jitter → |t|<1.5."""
+        a = [_row(i, 0, 0) for i in range(1, 7)]
+        b = [_row(i, 0, d) for i, d in zip(range(1, 7), [0, 1, 0, 1, 0, 1])]
+        got = ab.compare(a, b, {}, NOISE_PAIRED)
+        eg = got["significance"]["per_metric"]["engagement_gaps"]
+        assert eg["significant"] is False
+        assert abs(eg["t"]) < 1.5
+        assert "不能判定" in got["significance"]["interpretation"] or \
+               "噪音" in got["significance"]["interpretation"]
+
+    def test_zero_delta_is_not_significant(self, ab):
+        rows = [_row(i, 2, 1) for i in range(1, 5)]
+        got = ab.compare(rows, rows, {}, NOISE_PAIRED)
         sig = got["significance"]
-        assert sig["any_metric_exceeds_noise"] is False
-        assert sig["per_metric"]["comprehension_issues"]["delta_sum_abs"] == 0
+        assert sig["any_metric_significant"] is False
+        ci = sig["per_metric"]["comprehension_issues"]
+        assert ci["net_effect_per_chapter"] == 0.0
 
-    def test_no_noise_baseline_reports_unavailable(self, ab):
-        """Without a baseline, say so rather than implying significance."""
+    def test_history_only_baseline_is_flagged_unreliable(self, ab):
+        """A baseline with only per-chapter maxima (no paired deltas) cannot
+        support a same-scale test — it must be marked UNRELIABLE, not silently
+        turned into a significance claim."""
+        a = [_row(1, 0, 0), _row(2, 0, 0)]
+        b = [_row(1, 0, 3), _row(2, 0, 2)]
+        got = ab.compare(a, b, {}, NOISE_HISTORY_ONLY)
+        sig = got["significance"]
+        # no paired deltas → nothing reliable → available False
+        assert sig["available"] is False
+        eg = sig["per_metric"]["engagement_gaps"]
+        assert "UNRELIABLE" in eg["method"]
+        assert eg["significant"] is None
+        assert "尺度不匹配" in eg["note"]
+
+    def test_no_baseline_reports_unavailable(self, ab):
         got = ab.compare([_row(1, 0, 0)], [_row(1, 0, 5)], {}, None)
         assert got["significance"]["available"] is False
 
-    def test_negative_delta_uses_absolute_value(self, ab):
-        """Direction must not hide a large gap: B better by 5 still exceeds 2."""
-        a = [_row(1, 0, 5), _row(2, 0, 0)]
-        b = [_row(1, 0, 0), _row(2, 0, 0)]
-        got = ab.compare(a, b, {}, NOISE_EG2)
-        sig = got["significance"]["per_metric"]["engagement_gaps"]
-        assert sig["delta_sum_abs"] == 5
-        assert sig["exceeds_noise"] is True
+    def test_insufficient_samples_says_cannot_judge(self, ab):
+        """A baseline of one chapter cannot estimate variance → must say '判不了',
+        not report t=0 as if it were a real 'not significant'."""
+        thin = _paired_noise(eg=[1], ci=[0], n=1)
+        a = [_row(1, 0, 0), _row(2, 0, 0)]
+        b = [_row(1, 0, 3), _row(2, 0, 2)]
+        got = ab.compare(a, b, {}, thin)
+        eg = got["significance"]["per_metric"]["engagement_gaps"]
+        assert eg["t"] is None
+        assert eg["significant"] is None
+        assert "判不了" in eg["note"]
+
+    def test_welch_t_helper_matches_manual(self, ab):
+        """Pin the statistic itself with hand-computable inputs."""
+        # ab deltas mean 5.0 sd ~0.894 (n=6); baseline mean 0.1 sd ~0.738 (n=10)
+        ab_d = [5.0, 4.0, 6.0, 5.0, 4.0, 6.0]
+        bl_d = [0.0, 1.0, -1.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 1.0]
+        t, why = ab.welch_t(ab_d, bl_d)
+        assert why is None
+        assert t == pytest.approx(11.0, abs=0.5)
+
+    def test_welch_t_zero_variance_is_a_certain_zero(self, ab):
+        """se == 0 means ZERO uncertainty, not "cannot judge".
+
+        Identical deltas on both sides is the strongest possible evidence of no
+        effect; reporting it as None would throw that away (and the old code
+        did exactly that, which test_zero_delta_is_not_significant caught).
+        """
+        t, why = ab.welch_t([5, 5, 5], [5, 5, 5])
+        assert t == 0.0
+        assert why is None
+
+    def test_welch_t_zero_variance_with_a_gap_is_infinite(self, ab):
+        """No variance but a real gap → certain effect, signed infinity."""
+        import math
+        t, why = ab.welch_t([9, 9, 9], [1, 1, 1])
+        assert math.isinf(t) and t > 0
+        assert why is None
+        t2, _ = ab.welch_t([1, 1, 1], [9, 9, 9])
+        assert math.isinf(t2) and t2 < 0
+
+    def test_welch_t_too_few_samples_returns_none(self, ab):
+        t, why = ab.welch_t([1], [1, 2, 3])
+        assert t is None
+        assert "样本不足" in why
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -853,7 +1012,14 @@ class TestRenderVerdictReport:
             "engagement_gaps": {"A": {"sum": 30, "mean": 0.52},
                                 "B": {"sum": 31, "mean": 0.53},
                                 "delta_sum": 1},
-            "verdict_agreement": {"rate": 1.0, "note": "⚠️ 无信息判据"},
+            "verdict_agreement": {
+                "rate": 0.741, "n_same": 43,
+                "A_distribution": {"NEEDS_FIX": 41, "PASS": 17},
+                "B_distribution": {"NEEDS_FIX": 38, "PASS": 20},
+                "baseline_rate": 0.8,
+                "assessment": "no_clear_tier_effect",
+                "note": "档位一致率 74.1% 与同档位重跑的 80.0% 相差 -5.9%",
+            },
             "impression_identical": 0,
             "chapters_worse_under_B": 5,
             "chapters_better_under_B": 2,
@@ -890,15 +1056,44 @@ class TestRenderVerdictReport:
         assert "差 +4" in out
         assert "差 +1" in out
 
-    def test_verdict_agreement_is_flagged_uninformative_in_output(self, ab):
+    def test_verdict_distribution_and_baseline_are_both_shown(self, ab):
+        """The report must show the A/B distributions AND the same-tier baseline.
+
+        A bare agreement rate is uninterpretable on its own: 74.1% only means
+        something next to the 80.0% that same-tier re-runs produce. The old
+        output showed just the rate and called it "无信息判据" — both wrong
+        (bare READBACK verdicts do vary) and unhelpful.
+        """
         ca, cb = self._costs()
         out = ab.render_verdict_report(self._verdict(), ca, cb,
                                        {"rows": 116, "cny": 6.88,
                                         "by_model": {}},
                                        _est(), _bt(), {"rows": 0, "cny": 0.0},
                                        "history", 0)
-        assert "100.0%" in out
-        assert "无信息判据" in out
+        assert "74.1%" in out                      # the A/B rate
+        assert "80.0%" in out                      # the same-tier baseline
+        assert "'NEEDS_FIX': 41" in out            # A distribution visible
+        assert "'NEEDS_FIX': 38" in out            # B distribution visible
+        assert "无信息判据" not in out              # retracted wording
+
+    def test_verdict_without_baseline_says_no_baseline(self, ab):
+        """Missing baseline must be visible in the report, not silently dropped."""
+        v = self._verdict(verdict_agreement={
+            "rate": 0.741, "n_same": 43,
+            "A_distribution": {"NEEDS_FIX": 41, "PASS": 17},
+            "B_distribution": {"NEEDS_FIX": 38, "PASS": 20},
+            "baseline_rate": None,
+            "assessment": "uninterpretable_without_baseline",
+            "note": "单独看不可解读",
+        })
+        ca, cb = self._costs()
+        out = ab.render_verdict_report(v, ca, cb,
+                                       {"rows": 116, "cny": 6.88,
+                                        "by_model": {}},
+                                       _est(), _bt(), {"rows": 0, "cny": 0.0},
+                                       "history", 0)
+        assert "无基线对照" in out
+        assert "不可解读" in out
 
     def test_actual_cost_split_by_group(self, ab):
         """A and B must be separately attributable, or the 13.8x claim is
@@ -956,14 +1151,21 @@ class TestRenderVerdictReport:
         assert "¥3.72" in out
 
     def test_significance_block_rendered_when_available(self, ab):
+        """Not-significant path: the t value and the noise-relative reading must
+        both appear, so a reader can see it was actually tested, not assumed."""
         v = self._verdict(significance={
             "available": True,
             "per_metric": {"engagement_gaps": {
-                "delta_sum_abs": 1, "noise_floor": 2,
-                "exceeds_noise": False}},
-            "any_metric_exceeds_noise": False,
-            "interpretation": "⚠️ 所有判据的组间差都在同档位组内方差范围内",
-            "note": "样本仅 1 章",
+                "method": "welch_t", "t": 0.39, "significant": False,
+                "borderline": False, "net_effect_per_chapter": 0.107,
+                "net_effect_total": 6.2, "n_ab": 58, "n_baseline": 20,
+                "mean_delta_ab": 0.207, "mean_delta_baseline": 0.1,
+                "note": "同尺度逐章配对差值的 Welch t。"}},
+            "any_metric_significant": False,
+            "any_metric_borderline": False,
+            "interpretation": "所有判据的净效应都在同档位重跑的噪音范围内",
+            "baseline_source": "measured (--repeat-baseline)",
+            "baseline_chapters": 20,
         })
         ca, cb = self._costs()
         out = ab.render_verdict_report(v, ca, cb,
@@ -972,18 +1174,25 @@ class TestRenderVerdictReport:
                                        _est(), _bt(), {"rows": 0, "cny": 0.0},
                                        "measured (--repeat-baseline)", 0)
         assert "【显著性】" in out
-        assert "在噪音内" in out
+        assert "t=+0.39" in out
+        assert "不显著（落在噪音内）" in out
+        assert "净效应 +0.107/章" in out
         assert "measured (--repeat-baseline)" in out
 
     def test_significance_flags_a_real_signal(self, ab):
         v = self._verdict(significance={
             "available": True,
-            "per_metric": {"engagement_gaps": {
-                "delta_sum_abs": 9, "noise_floor": 2,
-                "exceeds_noise": True}},
-            "any_metric_exceeds_noise": True,
-            "interpretation": "至少一个判据的组间差超过同档位组内方差",
-            "note": "n",
+            "per_metric": {"comprehension_issues": {
+                "method": "welch_t", "t": -2.15, "significant": True,
+                "borderline": False, "net_effect_per_chapter": -0.848,
+                "net_effect_total": -49.2, "n_ab": 58, "n_baseline": 20,
+                "mean_delta_ab": -0.448, "mean_delta_baseline": 0.4,
+                "note": "同尺度逐章配对差值的 Welch t。"}},
+            "any_metric_significant": True,
+            "any_metric_borderline": False,
+            "interpretation": "至少一个判据的净效应在同尺度检验下显著（|t|>2）",
+            "baseline_source": "measured (--repeat-baseline)",
+            "baseline_chapters": 20,
         })
         ca, cb = self._costs()
         out = ab.render_verdict_report(v, ca, cb,
@@ -991,16 +1200,41 @@ class TestRenderVerdictReport:
                                         "by_model": {}},
                                        _est(), _bt(), {"rows": 0, "cny": 0.0},
                                        "history", 0)
-        assert "超过噪音" in out
+        assert "t=-2.15" in out
+        assert "显著" in out
+        # direction must be visible: B found FEWER comprehension issues
+        assert "净效应 -0.848/章" in out
+
+    def test_significance_unreliable_method_is_labelled(self, ab):
+        """A scale-mismatched comparison must be visibly marked unreliable."""
+        v = self._verdict(significance={
+            "available": False,
+            "per_metric": {"engagement_gaps": {
+                "method": "sum_vs_per_chapter_max (UNRELIABLE)",
+                "delta_sum_abs": 12, "noise_floor": 2, "significant": None,
+                "note": "⚠️ 尺度不匹配：A/B 是 58 章的 SUM 差"}},
+            "interpretation": "⚠️ 没有可用的同尺度基线",
+        })
+        ca, cb = self._costs()
+        out = ab.render_verdict_report(v, ca, cb,
+                                       {"rows": 116, "cny": 6.88,
+                                        "by_model": {}},
+                                       _est(), _bt(), {"rows": 0, "cny": 0.0},
+                                       "history", 0)
+        assert "此比较不可靠" in out
+        assert "尺度不匹配" in out
 
     def test_missing_significance_says_so(self, ab):
+        """No same-scale baseline → the report must say it can't judge, not
+        silently omit the significance block (an omission reads as 'fine')."""
         ca, cb = self._costs()
         out = ab.render_verdict_report(self._verdict(), ca, cb,
                                        {"rows": 116, "cny": 6.88,
                                         "by_model": {}},
                                        _est(), _bt(), {"rows": 0, "cny": 0.0},
                                        "history", 0)
-        assert "取不到噪音基线" in out
+        assert "【显著性】" in out
+        assert "没有可用的同尺度基线" in out
 
     def test_baseline_cost_shown_separately(self, ab):
         """Baseline spend must not be folded into the A/B reconciliation."""

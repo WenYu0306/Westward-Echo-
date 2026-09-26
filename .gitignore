@@ -84,3 +84,12 @@ V0.17_ENHANCEMENT_PLAN.md
 # ~13.6 MB — only the checksum manifest is tracked.
 archive/deliverables/**/*.md
 !archive/deliverables/**/MANIFEST.sha256
+
+# A/B experiment archive: real API runs, fully tracked (no ignore rule).
+# Unlike deliverables above, these are NOT regenerable: the pipeline has no
+# seed anywhere and every node runs at temperature > 0 (readback.py:53 = 0.1),
+# so re-running costs money again and produces different numbers. The whole
+# directory is ~460 KB, so tracking it is cheap and losing it is not.
+# archive/ab_readback_tier_20260926/ holds the ¥9.37 run: per-chapter READBACK
+# verdicts for both tiers, the same-tier baseline run, the token ledgers that
+# back the spend reconciliation, and the checksum manifest.

@@ -1,0 +1,1852 @@
+{
+  "mode": "execute",
+  "ab_estimate": {
+    "n_chapters": 58,
+    "A": {
+      "model": "qwen3.8-max",
+      "price": [
+        12.0,
+        36.0
+      ],
+      "in": 156783.90495298416,
+      "out": 126356.15755302292,
+      "cny": 6.4302285313446355
+    },
+    "B": {
+      "model": "qwen3.8-flash",
+      "price": [
+        0.8,
+        2.7
+      ],
+      "in": 156783.90495298416,
+      "out": 126356.15755302292,
+      "cny": 0.4665887493555493
+    },
+    "total_cny": 6.896817280700184,
+    "saving_ratio": 13.78136215291527,
+    "crosscheck": {
+      "in_over_en_median": 0.391,
+      "in_est": 142124.2164425732,
+      "out_est_low": 74588.0,
+      "out_est_high": 167098.0,
+      "en_chars_total": 363649,
+      "n_points": 6,
+      "dropped_points": 1,
+      "A_cny_range": [
+        4.390658597310878,
+        7.721018597310878
+      ],
+      "B_cny_range": [
+        0.3150869731540586,
+        0.5648639731540586
+      ]
+    }
+  },
+  "b_tier_estimate": {
+    "chapters": [
+      {
+        "en": 269,
+        "cn": 267,
+        "src_chars": 1560,
+        "cny_no_fix": 0.4985
+      },
+      {
+        "en": 430,
+        "cn": 428,
+        "src_chars": 1559,
+        "cny_no_fix": 0.4985
+      },
+      {
+        "en": 548,
+        "cn": 546,
+        "src_chars": 1590,
+        "cny_no_fix": 0.5
+      },
+      {
+        "en": 811,
+        "cn": 809,
+        "src_chars": 1558,
+        "cny_no_fix": 0.4984
+      },
+      {
+        "en": 820,
+        "cn": 818,
+        "src_chars": 1918,
+        "cny_no_fix": 0.5166
+      },
+      {
+        "en": 1472,
+        "cn": 1470,
+        "src_chars": 1498,
+        "cny_no_fix": 0.4954
+      }
+    ],
+    "src_chars_total": 9683,
+    "cny_no_fix": 3.0074578058401147,
+    "fix_rate": 0.5,
+    "cny_with_fix": 3.7166608058401147,
+    "fix_statistic": "mean",
+    "fix_in": 4992.375,
+    "fix_out": 7016.5,
+    "n_fix_points": 4,
+    "fix_cny_each": 0.236401
+  },
+  "verdict": {
+    "n_common": 58,
+    "n_failed_A": 0,
+    "n_failed_B": 0,
+    "comprehension_issues": {
+      "A": {
+        "sum": 235,
+        "mean": 4.051724137931035
+      },
+      "B": {
+        "sum": 209,
+        "mean": 3.603448275862069
+      },
+      "delta_sum": -26
+    },
+    "engagement_gaps": {
+      "A": {
+        "sum": 73,
+        "mean": 1.2586206896551724
+      },
+      "B": {
+        "sum": 85,
+        "mean": 1.4655172413793103
+      },
+      "delta_sum": 12
+    },
+    "verdict_agreement": {
+      "rate": 0.7413793103448276,
+      "note": "⚠️ 无信息判据：历史 59 条 verdict 全 PASS（零方差），此值预期恒为 100%，不能用来判断降档是否降质。"
+    },
+    "impression_identical": 0,
+    "chapters_worse_under_B": 30,
+    "chapters_better_under_B": 22,
+    "chapters_same": 6,
+    "significance": {
+      "available": true,
+      "per_metric": {
+        "engagement_gaps": {
+          "delta_sum_abs": 12,
+          "noise_floor": 2,
+          "exceeds_noise": true
+        },
+        "comprehension_issues": {
+          "delta_sum_abs": 26,
+          "noise_floor": 3,
+          "exceeds_noise": true
+        }
+      },
+      "any_metric_exceeds_noise": true,
+      "interpretation": "至少一个判据的组间差超过同档位组内方差 → 可能是真实的档位效应，但仍需看逐章分布是否集中。",
+      "note": "噪音基线来自 _quality.json 的 Ch260 重复记录（同档位重跑，engagement_gaps 差 2）。样本仅 1 章，基线本身很粗——要更可靠的基线需同档位多跑几章（额外花钱）。"
+    },
+    "per_chapter": [
+      {
+        "ch": 10,
+        "ci_A": 3,
+        "ci_B": 4,
+        "ci_delta": 1,
+        "eg_A": 0,
+        "eg_B": 1,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This chapter is genuinely lovely. The scene between Deaf Granny and Elder Pine is the kind of quiet, tender folk-magic moment that makes me want to keep reading. The pacing is unhurried without being boring, and the ending hook lands well. My only real friction was a couple of rendering glitches whe",
+        "impression_B": "This is genuinely good folk-horror with heart. The East Mountain sequence with Deaf Granny talking to the ancient pine is beautiful and earned. I was pulled in by the atmosphere and the characters' relationships. However, two critical moments in the scene — where the tree communicates through Chines"
+      },
+      {
+        "ch": 25,
+        "ci_A": 4,
+        "ci_B": 2,
+        "ci_delta": -2,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "This chapter is genuinely fun. It's a monster-of-the-week payoff scene where a bigger, cooler ghost shows up and eats the smaller ghost, then sticks around to be a grandmotherly figure. The tone balances horror and warmth in a way that feels earned. I'd keep reading.",
+        "impression_B": "This is a genuinely good chapter. The ghost attack on Uncle Li is tense and visceral, the sedan devouring the coffin is a great payoff, and Granny Hemp-Mourning is a fantastic character — terrifying, warm, funny, all at once. I was hooked from the medals flashing to the sedan dodging the bow. I'd ab"
+      },
+      {
+        "ch": 60,
+        "ci_A": 1,
+        "ci_B": 3,
+        "ci_delta": 2,
+        "eg_A": 0,
+        "eg_B": 2,
+        "eg_delta": 2,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "This is a tight, well-paced chapter that juggles horror and comedy effectively. The sky description opens strong, Chen Daji's asshole joke genuinely made me laugh out loud, and the mural sequence at the end is the best kind of creeping dread. I'd keep reading.",
+        "impression_B": "Strong atmospheric horror writing in the back half, undermined by a joke sequence in the front that overstays its welcome. The mural description genuinely unsettled me — I want to keep reading to find out what's in that tomb."
+      },
+      {
+        "ch": 75,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 1,
+        "impression_A": "The first half is genuinely fun — Granny Hemp-Mourning's dialogue is the best thing I've read in this book so far, and the grave-robber deduction scene has satisfying snap. But the chapter ends with a lore dump about Hu Third Patriarch that deflates all the energy the banter built up. I went from gr",
+        "impression_B": "Most of this chapter is genuinely fun — the dialogue snaps, the characters are distinct, and the grave-robber mystery connects satisfyingly to earlier plot threads. But the final paragraph is a massive lore dump that completely murders the scene's momentum right when tension was building. I wanted t"
+      },
+      {
+        "ch": 100,
+        "ci_A": 4,
+        "ci_B": 5,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This chapter hits hard. The loofah scene is genuinely funny, the face-doll ritual is creepy and emotionally resonant, and the Ghost General's entrance is atmospheric as hell. The momentum carries you through, but a cluster of unnamed/unexplained characters in the middle section made me pause and won",
+        "impression_B": "The chapter has a killer three-act structure — comedy, ritual, horror — and the Ghost General's arrival genuinely gave me chills. But the middle section where all the supernatural allies show up is a wall of names I can't track, and it deflates the tension right before the climax should be building."
+      },
+      {
+        "ch": 110,
+        "ci_A": 2,
+        "ci_B": 0,
+        "ci_delta": -2,
+        "eg_A": 0,
+        "eg_B": 0,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 0,
+        "impression_A": "This chapter is a blast. The tonal whiplash from bickering comedy to sudden violence to desperate magical struggle works really well, and Chen Daji's fart joke genuinely made me laugh out loud. The pacing is tight and the ending line hits like a good chapter break.",
+        "impression_B": "Parse failed — could not evaluate chapter."
+      },
+      {
+        "ch": 160,
+        "ci_A": 4,
+        "ci_B": 3,
+        "ci_delta": -1,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "This is a warm, cozy chapter that functions as an emotional breather between bigger events. The story about the old patriarch walking into the underworld to stand beside his disciple genuinely moved me, and the three-claps betrothal scene is atmospheric and well-paced. But I'm clearly walking into t",
+        "impression_B": "A warm, emotionally satisfying chapter that nails the 'elder bonding over a young person's head while she squirms' energy. The Underworld anecdote is genuinely powerful, and the three-claps scene is the kind of ritual detail that makes folk-religion fiction feel lived-in rather than exoticized. I'd "
+      },
+      {
+        "ch": 200,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 0,
+        "impression_A": "This chapter actually surprised me. I went in expecting generic supernatural action and got a genuinely moving scene about a broken monk being talked down from the edge through kindness and philosophy. The ending with the wok is laugh-out-loud funny. But the opening line threw me and a few moments p",
+        "impression_B": "This is a genuinely good chapter. It builds from comedy to emotional breakthrough to comedy again, and the central scene — using Buddhist doctrine as a weapon against a shame-bound ghost — is clever and moving. The narrator's voice is distinctive and funny without being annoying. I'd keep reading."
+      },
+      {
+        "ch": 210,
+        "ci_A": 2,
+        "ci_B": 3,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 3,
+        "hist_eg": 0,
+        "impression_A": "This is a fun, high-octane monster fight with a genuinely memorable madman. The Ghost Buddha's unhinged Buddhist-cannibal energy is entertaining, and the eat-then-get-eaten-from-inside reversal is a satisfying beat. It reads like a boss fight in a really good action movie — relentless but never bori",
+        "impression_B": "This is a wild, pulpy, high-energy battle scene that absolutely delivers on the folk-horror promise. The mad monk-buddha fusion throwing himself at a ghost mother, the belly-splitting body horror, the spine weapon topped with a bull's skull — it's vivid and fun. I was entertained the whole way throu"
+      },
+      {
+        "ch": 260,
+        "ci_A": 3,
+        "ci_B": 6,
+        "ci_delta": 3,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "This is a high-energy battle scene with genuinely fun character voices and some killer imagery. The Wuxin moment alone made me smile. But there are a few unexplained details that yanked me out of the action, and the relentless pacing left me slightly breathless in a bad way — like being shaken rathe",
+        "impression_B": "A chaotic, fun battle scene with genuinely funny character moments — Wuxin the tiny monk snarling 'I'm very fierce!' made me laugh out loud, and Zhao Fei sitting on a ghost to death is both ridiculous and weirdly heroic. But the middle section grinds to a halt for a lore-heavy summoning sequence tha"
+      },
+      {
+        "ch": 300,
+        "ci_A": 3,
+        "ci_B": 4,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 1,
+        "hist_eg": 0,
+        "impression_A": "This is a fun chapter. The Daji comedy bit at the top is genuinely entertaining — the guy asking what 'hitched' means after already getting smacked is good physical comedy. The gift-giving ceremony has real weight and atmosphere. It reads like a scene where the story is rewarding the protagonist, an",
+        "impression_B": "This chapter actually works really well. The comedy at the top is genuinely funny—Daji getting tail-whacked for not knowing a basic term is great physical humor—and the gift presentation at the end has real emotional weight. I'd keep reading."
+      },
+      {
+        "ch": 310,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "The Uncle Li farewell scene is genuinely moving — the hunting rifle detail and the pheasants left at Deaf Granny's door hit hard. But the chapter suffers from tonal whiplash and a jarring epilogue that deflates the emotional climax. I went from laughing at a pole dance to crying at a ghost's goodbye",
+        "impression_B": "This chapter genuinely moved me. The Uncle Li departure sequence is the kind of quiet, specific grief that makes spirit-medium fiction sing — the hunting rifle detail, the pheasants, the wordless apology at Deaf Granny's door. I felt like I was reading a good short story, not a serialized web novel."
+      },
+      {
+        "ch": 360,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This is a tight, visceral action chapter that mostly works. The corpse-creation backstory is genuinely horrifying, the fight choreography is clear and escalating, and the blood-binding trick is the kind of clever detail that makes me trust an author. But a couple of untranslated/unexplained moments ",
+        "impression_B": "A vivid, gory fight scene with a killer villain entrance at the end. The action is strong and the world-building is fascinating, but the middle section bogs down with a long torture-recipe info-dump that kills the momentum of what should be a tense combat scene."
+      },
+      {
+        "ch": 410,
+        "ci_A": 3,
+        "ci_B": 5,
+        "ci_delta": 2,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This chapter is genuinely fun. The opening ghost-in-the-car sequence is tense and clever, the dumpling scene gives it warmth, and the snake comedy at the end made me grin. It reads like a horror-comedy with real texture. I'd keep going.",
+        "impression_B": "The Zhou Limin ghost-riding scene is genuinely excellent — tense, clever, and the idea of a police uniform jacket as a ghost-repelling weapon is the kind of folk-religion logic that makes this genre sing. The dumpling scene is warm and funny. The snake-con is charming but a little overstuffed. I'd k"
+      },
+      {
+        "ch": 460,
+        "ci_A": 6,
+        "ci_B": 4,
+        "ci_delta": -2,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "The comedy genuinely landed — Daji as the lovable idiot who accidentally drinks a power-up potion and turns into a steaming crab is fun, and Wang San's secret tenderness toward his family is surprisingly affecting. But I'm drowning in unexplained names, titles, and references that make me feel like ",
+        "impression_B": "This chapter made me laugh out loud twice and feel a genuine pang of sadness once. It's a quiet character moment disguised as a cooking scene, and it works. The tonal shift from cosmic grief to 'boiled crab' comedy is handled so smoothly I didn't even notice it happening until I was already grinning"
+      },
+      {
+        "ch": 500,
+        "ci_A": 6,
+        "ci_B": 5,
+        "ci_delta": -1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 0,
+        "impression_A": "The first half is genuinely gripping — the Wulang/Li'er scene has real tension and the villain's internal monologue is skin-crawling in the best way. But the second half dumps four unfamiliar characters, multiple unexplained fantasy concepts, and a tonal shift into comedy that gave me whiplash. I we",
+        "impression_B": "The opening assault scene is genuinely chilling and well-crafted — I hated Huang Wulang in a way that felt earned, not cartoonish. The tonal pivot to the women's gossip scene works as a palate cleanser, and Chang Baye the snake is the MVP of the chapter. But there's enough unexplained jargon and dan"
+      },
+      {
+        "ch": 510,
+        "ci_A": 5,
+        "ci_B": 7,
+        "ci_delta": 2,
+        "eg_A": 2,
+        "eg_B": 3,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "The emotional core of this chapter is genuinely gripping — Granny's scene made me feel something, and the negotiation has real tension. But the final battle devolves into a blur of names and attacks that I couldn't track, and there's a naming confusion with the Chang brothers that made me re-read a ",
+        "impression_B": "The first half is genuinely excellent — the grandmother scene made me feel something real, and the blade exchange had me holding my breath. The second half, where all the reveals and the battle hit at once, lost me completely. I had to re-read the Chang brothers section three times and still wasn't "
+      },
+      {
+        "ch": 560,
+        "ci_A": 4,
+        "ci_B": 5,
+        "ci_delta": 1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This is a high-octane battle scene with genuinely fun moments—Chen Daji's entrance made me laugh out loud—but it's also a character introduction firehose. I counted twelve named entities in this chapter, each with a parenthetical bio attached like a name tag at a conference. The action is exciting, ",
+        "impression_B": "A fun, fast-paced battle chapter with a few genuinely great moments (the death-lullaby, Grey Sixth's poison pill, Daji's testicle arrow), but it's bogged down by jargon pile-ups and a repetitive em-dash introduction style that makes the prose feel like a character sheet rather than a story. I'd keep"
+      },
+      {
+        "ch": 610,
+        "ci_A": 6,
+        "ci_B": 4,
+        "ci_delta": -2,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 0,
+        "impression_A": "The emotional core of this chapter is genuinely moving — Wang San writing a sacred text on a kid's homework book with a chewed-up pencil stub is the kind of image that sticks with you. The comedy at the end with the crow landing on the bald kid's head is charming. But there are enough unexplained pr",
+        "impression_B": "This is a genuinely moving chapter that balances quiet grief with warm comedy. The pencil-on-homework-book scene made me feel something, and the bald monk terrified of the bird sliding off his head made me laugh out loud. I'd keep reading."
+      },
+      {
+        "ch": 660,
+        "ci_A": 3,
+        "ci_B": 0,
+        "ci_delta": -3,
+        "eg_A": 0,
+        "eg_B": 0,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "This is genuinely funny. Chang Baye is a pathetic, debt-ridden snake spirit who gets manipulated into a fight with promises of instant noodles, and the physical comedy of him getting swatted into a tree like a wet noodle is great. The chapter has real comedic timing and I'd keep reading for this sna",
+        "impression_B": "Parse failed — could not evaluate chapter."
+      },
+      {
+        "ch": 710,
+        "ci_A": 3,
+        "ci_B": 4,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "This chapter moves fast and Daji's voice is genuinely fun — the kind of irreverent protagonist I'd follow for a while. The world-building about the Land of the Dead is delivered cleanly and the 'Lost Night' concept hooked me. But there are a couple of name/reference hiccups that made me stumble and ",
+        "impression_B": "Solid chapter with some genuinely great character moments (Daji's irreverence is a joy) and strong imagery at the end, but a middle-section exposition dump in numbered-list format killed my momentum, and a confusing character name made me re-read a passage. I'd keep reading but I'm slightly wary of "
+      },
+      {
+        "ch": 750,
+        "ci_A": 5,
+        "ci_B": 6,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 3,
+        "hist_eg": 2,
+        "impression_A": "This is genuinely funny and the horror beat with the Qiong God's head-spinning is excellent. The comedy of a terrifying entity giving out tacky names while everyone trembles works really well. But I'm swimming in unexplained terminology that makes me feel like I walked into a party where everyone sh",
+        "impression_B": "This is genuinely fun to read — the comedy-horror blend of Chen Daji obliviously terrifying a five-thousand-year-old king with a bad name, then cutting to the Qiong God's head-spinning appeasement, is entertaining. But I'm doing a LOT of guessing about what things are, and the naming conventions are"
+      },
+      {
+        "ch": 760,
+        "ci_A": 4,
+        "ci_B": 3,
+        "ci_delta": -1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "The characters are charming and the Unlearned Physique concept is genuinely cool — the door-gods connection made me sit up. But the chapter has a serious pacing problem: right when tension should be escalating, we get a multi-paragraph history lecture about Xiang Yu that completely deflates the scen",
+        "impression_B": "The ending genuinely moved me — Cocoon's small, brave voice breaking his thousand-year faith is a great character moment. But the middle of the chapter stalls a tense god-confrontation for a three-paragraph lore dump, and one term ('Wujiao Body') gets dropped with zero explanation and just... vanish"
+      },
+      {
+        "ch": 810,
+        "ci_A": 5,
+        "ci_B": 0,
+        "ci_delta": -5,
+        "eg_A": 2,
+        "eg_B": 0,
+        "eg_delta": -2,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "The action opening is punchy and the turtle-armor comedy at the end genuinely made me laugh. But the chapter commits a cardinal sin: it drops a multi-paragraph historical flashback about the Dragon Turtle Armor's origin right in the middle of what feels like an active siege. The momentum dies comple",
+        "impression_B": "Parse failed — could not evaluate chapter."
+      },
+      {
+        "ch": 860,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 0,
+        "eg_B": 1,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This is a fun, fast-paced comedic beatdown scene with great escalation. The torture-device reveal and the 'did anyone graduate?' punchline genuinely made me laugh. But a couple of unexplained references tripped me up and broke the momentum.",
+        "impression_B": "This is a fun, well-paced scene with great comedic escalation. The transition from street-fight beating to horrifying torture devices to the punchline about Ma Mingyang's students is genuinely entertaining. I was smiling at the end and want to keep reading."
+      },
+      {
+        "ch": 910,
+        "ci_A": 3,
+        "ci_B": 4,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This is a genuinely funny comedy beat. The image of a tiny spirit child charging around in a golden brassiere yelling 'Raawr!' made me laugh out loud. The chapter is light, brisk, and the characters have distinct comic voices. But a few word choices yanked me out of the moment.",
+        "impression_B": "A short comedic interlude about a guy making terrible armor for a tiny spirit child. It's funny in a broad, cartoonish way, but I felt like I walked into the middle of a party where everyone else already knows each other. The ginseng child charging across the courtyard going 'Raawr!' made me smile, "
+      },
+      {
+        "ch": 960,
+        "ci_A": 2,
+        "ci_B": 3,
+        "ci_delta": 1,
+        "eg_A": 0,
+        "eg_B": 0,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "This chapter is genuinely funny and I laughed out loud more than once. The escalating humiliation of Xin Lianshan is perfectly paced — each new reveal lands like a comedy bit building to a punchline. The final beat (the itch would've healed on its own) is the chef's kiss of cruelty. I had a great ti",
+        "impression_B": "This is a genuinely funny chapter that escalates well and lands a perfect punchline. The image of a fearsome underworld official being reduced to a sobbing, beaten mess because of messages appearing on his back is great comedy, and the final twist (the cure was never needed) is the kind of payoff th"
+      },
+      {
+        "ch": 1000,
+        "ci_A": 4,
+        "ci_B": 5,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "This is genuinely fun. The tone is playful, the comedy lands, and the image of characters knee-deep in dragon poop laughing like kids at the beach is weirdly charming. But there's one glaring issue that yanked me out of the story completely, and a few smaller stumbles.",
+        "impression_B": "This is a fun, energetic chapter with some genuinely great imagery (the haunted stock ticker, the beetle armor) and a solid comedic voice. Chen Daji is a blast to read. But a few unexplained terms and a confusing nickname ('Big Sis Win') made me stumble, and the middle excavation section dragged com"
+      },
+      {
+        "ch": 1010,
+        "ci_A": 2,
+        "ci_B": 2,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "PASS",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "This is a tight, well-paced chapter that does a lot of work in a short space — establishes a corruption plot, introduces a villain, teases a supernatural threat, and ends on a genuinely funny beat. The Fang scene where his smile drops is the best writing in the chapter. I'd keep reading.",
+        "impression_B": "A solid chapter that sets up a villain and plants a supernatural mystery hook, but the middle sags under a long car conversation that mostly restates what we already know about these characters. The Fang scene is genuinely good — the 'smile falls' moment and the ritual master threat made me want to "
+      },
+      {
+        "ch": 1060,
+        "ci_A": 4,
+        "ci_B": 6,
+        "ci_delta": 2,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 1,
+        "hist_eg": 0,
+        "impression_A": "This reads like I walked into the last act of an epic movie and everyone's catching their breath after the big fight. The Faceless Ghost Buddha scene is genuinely haunting, and Chen Daji's crude humor at the end made me snort. But I'm clearly missing hundreds of chapters of context, and it shows — I",
+        "impression_B": "The Faceless Ghost Buddha scene is genuinely great — a demon being undone by a Buddhist parable is the kind of thing that makes folk-religion fiction special. But the chapter drowns in proper nouns and titles I can't keep straight, and the battle resolution feels like a summary rather than a scene. "
+      },
+      {
+        "ch": 1110,
+        "ci_A": 5,
+        "ci_B": 4,
+        "ci_delta": -1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 3,
+        "hist_eg": 0,
+        "impression_A": "This chapter is genuinely fun — the stink-bomb opening, the mind-reading bride bit, and the political standoff all land. But it keeps dropping names and events from previous arcs like I should already know them, and by the time Hua Jiu Nan starts listing grievances, I'm reading a lore dump disguised",
+        "impression_B": "I enjoyed this chapter — the funeral-meets-wedding confrontation is a great setup, Chen Daji's shameless comedy beat actually made me laugh out loud, and the kowtow demand is a sharp power play. But the opening paragraph is overstuffed and the final paragraph is a jarring info-dump that kills the sc"
+      },
+      {
+        "ch": 1160,
+        "ci_A": 3,
+        "ci_B": 4,
+        "ci_delta": 1,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 0,
+        "impression_A": "This is a fun, fast-paced fight scene with genuinely funny character moments. The comedy beats land well and the escalation feels satisfying. My main issue is that two team members get shouted at by name and I have zero idea who they are, which pulled me out of the action.",
+        "impression_B": "This is a fun, fast-paced fight chapter with genuinely funny dialogue and good escalation. The humor lands — the E. coli comparison, the rock-throwing teammate, the worms returning to their owner — all made me grin. But the nickname soup (Bottle Boy? Little Eight? Eighth Master? Big Brother? Little "
+      },
+      {
+        "ch": 1210,
+        "ci_A": 4,
+        "ci_B": 4,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 0,
+        "hist_eg": 1,
+        "impression_A": "This is a genuinely exciting scene. A man bluffs a more powerful opponent into protecting civilians, then has to run for his life from the consequences. The imagery is vivid, the stakes escalate cleanly, and both characters feel distinct. A few moments of confusion pulled me out, but the core experi",
+        "impression_B": "A vivid, tense confrontation scene that mostly works. The storm imagery is genuinely strong, the stakes are clear, and Hua Jiu Nan feels like a principled guy doing something hard. A few jargon dumps and one weird meta-reference made me stumble, but I wasn't lost."
+      },
+      {
+        "ch": 1250,
+        "ci_A": 3,
+        "ci_B": 2,
+        "ci_delta": -1,
+        "eg_A": 0,
+        "eg_B": 1,
+        "eg_delta": 1,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 3,
+        "hist_eg": 0,
+        "impression_A": "This chapter is genuinely fun. It reads like the opening moves of a chess match where the pieces have personalities. Chang Baye's self-hypnosis bit made me laugh out loud, and the Yongye/Granny Hemp-Mourning scene has unexpected emotional depth. The pacing is brisk without feeling rushed.",
+        "impression_B": "This is a fun, vivid chapter with strong character moments and genuinely exciting action. The Chang Baye section made me grin like an idiot, and the Granny Hemp-Mourning / Yongye duel had real tension. I'd keep reading without hesitation."
+      },
+      {
+        "ch": 1260,
+        "ci_A": 7,
+        "ci_B": 3,
+        "ci_delta": -4,
+        "eg_A": 3,
+        "eg_B": 3,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 3,
+        "hist_eg": 2,
+        "impression_A": "I feel like I walked into a party where everyone already knows each other and nobody bothered to introduce me. The blue jade bird scenes are genuinely charming and funny, but they're buried under an avalanche of proper nouns and references I can't parse. By the time someone's neck gets snapped, I'm ",
+        "impression_B": "A fun, chaotic chapter that swings wildly between adorable comedy and brutal violence. The bird-baby interaction made me smile; the neck-snap made me flinch. The tonal whiplash is the main problem — I never settled into one emotional register before being yanked into another."
+      },
+      {
+        "ch": 1310,
+        "ci_A": 7,
+        "ci_B": 4,
+        "ci_delta": -3,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 1,
+        "hist_eg": 0,
+        "impression_A": "This reads like I walked into the season 5 finale of a show I've never seen. The comedy beats land (Chen Daji's 'What the fuck!' at the end genuinely made me laugh), and the spectral army manifestation is visually stunning, but I spent most of the chapter trying to figure out who these people are to",
+        "impression_B": "This is a fun, well-paced chapter that nails the tonal shift from tension to comedy. The ghost army sequence is genuinely cinematic, and the ending punchline lands perfectly. The main friction is in the opening paragraphs where proper nouns pile up without enough grounding — I had to skim that secti"
+      },
+      {
+        "ch": 1360,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 0,
+        "hist_eg": 0,
+        "impression_A": "The chapter is brisk, emotionally resonant, and the treasure-room payoff lands great. But there's a stray editorial annotation at the end that completely shatters immersion, and one inconsistent use of pinyin that pulls me out of an otherwise clean translation.",
+        "impression_B": "This is a genuinely good chapter with a strong emotional core — the spirit tablet scene made me feel something, and the treasure room's shift from wonder to 'I'm not poor anymore' is charming and human. But the editorial note tacked onto the end is a jarring fourth-wall break, and a couple of refere"
+      },
+      {
+        "ch": 1410,
+        "ci_A": 4,
+        "ci_B": 4,
+        "ci_delta": 0,
+        "eg_A": 0,
+        "eg_B": 1,
+        "eg_delta": 1,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 4,
+        "hist_eg": 2,
+        "impression_A": "This chapter hit hard. The atmosphere is thick, the pacing is tight, and the reveal sequence escalates beautifully. It reads like a heist-gone-wrong scene in a mythic register — the kind of thing I'd screenshot and post to a friend saying 'you HAVE to read this.' The prose is elevated without being ",
+        "impression_B": "This is a genuinely tense, well-constructed ambush scene with a satisfying reveal and a killer cliffhanger ending. The atmosphere in the empty hall is palpable, and the cat-and-mouse between Qi Tu and Hu Qingshan reads like a thriller. I was gripped throughout."
+      },
+      {
+        "ch": 1460,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This chapter is a hype reveal and it mostly delivers. The comedy is genuinely funny, the escalation feels earned, and the writing has real energy. But one word choice yanked me completely out of the setting, and the lore-dump section, while well-written, tests patience.",
+        "impression_B": "This chapter genuinely impressed me. The dread is real, the comedy lands, and the Bai Qi lore dump is chilling enough to make me sit back for a second. I was engaged start to finish and wanted to keep reading immediately."
+      },
+      {
+        "ch": 1500,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 4,
+        "hist_eg": 2,
+        "impression_A": "This chapter made me laugh out loud and then genuinely unsettled me within the same scene. The tonal shift from the sock gag to the Faceless Ghost Buddha's entrance is handled with real skill. It reads like if a horror movie had a comedian writing the B-plot.",
+        "impression_B": "This chapter made me laugh, then made me genuinely unsettled, and the transition between those two feelings was smooth enough that I didn't feel whiplash. The sock gag is gross-out comedy that works because the writing commits to the physicality of it. The Faceless Ghost Buddha section is the best h"
+      },
+      {
+        "ch": 1510,
+        "ci_A": 4,
+        "ci_B": 4,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 3,
+        "hist_eg": 1,
+        "impression_A": "This chapter has a great shape: it opens with genuinely funny character comedy, pivots into a tense divination scene, and lands on a cosmic-horror love story that actually made me feel something. Lengqiu's speech about the flower and leaf is the kind of passage I'd screenshot and send to a friend. T",
+        "impression_B": "This chapter is a lot of fun. The opening comedy with Chen Daji hoarding the Tea is genuinely funny and character-driven, and the shift into the mythic Flower/Leaf crisis is handled with real emotional weight. The ending line about the red flower blooming with a leaf for the first time in ten thousa"
+      },
+      {
+        "ch": 1560,
+        "ci_A": 3,
+        "ci_B": 3,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 1,
+        "eg_delta": 0,
+        "verdict_A": "PASS",
+        "verdict_B": "PASS",
+        "hist_ci": 4,
+        "hist_eg": 1,
+        "impression_A": "This is genuinely fun. The comedy in the first half landed hard — I actually laughed at the CD reveal and the 'Snake and the City' joke. The soul-punching scene is a great payoff. The storm sequence at the end is atmospheric but I'm not sure I care about those three entities yet since I have zero co",
+        "impression_B": "This is a fun, fast chapter with genuinely funny character comedy and a satisfying action beat, capped by an ominous storm scene that makes me want to keep reading. The prose has voice and energy — it reads like someone having fun telling you a story rather than performing literature at you."
+      },
+      {
+        "ch": 1610,
+        "ci_A": 4,
+        "ci_B": 0,
+        "ci_delta": -4,
+        "eg_A": 2,
+        "eg_B": 0,
+        "eg_delta": -2,
+        "verdict_A": "PASS",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 4,
+        "hist_eg": 2,
+        "impression_A": "This hit me like a truck. The Iron Code call-and-response gave me actual chills, and the ending — dead soldiers choosing to die again so someone else can live — is the kind of moment that makes you put the book down and stare at the wall. It's a battle chapter that earns its emotion.",
+        "impression_B": "Parse failed — could not evaluate chapter."
+      },
+      {
+        "ch": 1660,
+        "ci_A": 7,
+        "ci_B": 5,
+        "ci_delta": -2,
+        "eg_A": 3,
+        "eg_B": 3,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "This reads like the minutes of a board meeting in a fantasy setting. The opening paragraph has some atmosphere, but the rest is a cascade of names, titles, and administrative appointments that left me completely lost. I felt like I walked into the last twenty minutes of a movie where everyone alread",
+        "impression_B": "The opening atmosphere is genuinely good — two men waiting by oil lamp, silence thick as night. But the chapter collapses under the weight of its own worldbuilding. By the time I hit the four Yama Kings section, I was skimming like I was reading a corporate org chart. The world is clearly fascinatin"
+      },
+      {
+        "ch": 1710,
+        "ci_A": 5,
+        "ci_B": 6,
+        "ci_delta": 1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This reads like I dropped into episode 47 of an anime I've never seen. The energy is fun, the 'cavalry arrives' beat is satisfying, and the humor lands, but I'm constantly tripping over unexplained references and relationships. I feel like everyone in the room is laughing at an inside joke I wasn't ",
+        "impression_B": "The cavalry-arrives scene has genuine energy and the comedic beats land well — Chen Daji's relief, Panhu's cowardly exit attempt, the 'misunderstanding' line. But the prose keeps tripping me with awkward phrasing and unexplained proper nouns, and the last paragraph's joke doesn't quite connect becau"
+      },
+      {
+        "ch": 1750,
+        "ci_A": 6,
+        "ci_B": 4,
+        "ci_delta": -2,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "PASS",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "The emotional core of Chen Fu breaking down is genuinely affecting, and the ending joke about holding a funeral for the Headless Bride made me smile. But the chapter is so dense with unexplained character references and world-building shorthand that I felt like I walked into the middle of a conversa",
+        "impression_B": "This chapter works. The emotional core — a tough man breaking down over a woman he couldn't save — hits hard, and the Headless Bride hook at the end genuinely made me want to keep going. The prose is mostly clean and the pacing moves well from grief to comedy to ominous new threat."
+      },
+      {
+        "ch": 1760,
+        "ci_A": 4,
+        "ci_B": 5,
+        "ci_delta": 1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 4,
+        "hist_eg": 2,
+        "impression_A": "This is a short, charming transition chapter with a genuinely funny centerpiece (the serpent getting mechanical arms and immediately thinking about chopsticks). The found-family vibes are warm. But it reads like a connective tissue chapter rather than something that hooks you, and the tonal whiplash",
+        "impression_B": "The middle of this chapter — the gift scene where the serpent gets mechanical arms and his first thought is 'can I eat at the table now?' — is genuinely lovely and made me smile. But the ending yanks me out of that warmth with a single-sentence apocalypse that feels like a trailer voiceover instead "
+      },
+      {
+        "ch": 1810,
+        "ci_A": 4,
+        "ci_B": 3,
+        "ci_delta": -1,
+        "eg_A": 0,
+        "eg_B": 2,
+        "eg_delta": 2,
+        "verdict_A": "PASS",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "This is a fun, fast-paced power-fantasy beat. The tone is entertaining — Chen Daji's commentary while watching an apocalyptic battle like it's a sunset is genuinely funny. The chapter doesn't overstay its welcome. My main friction is the cluster of faction names and titles I have no context for, but",
+        "impression_B": "Fun chapter with a great comedic voice in Chen Daji and a genuinely cool zombie army sequence, but the actual battle gets summarized instead of shown, and the repeated 'Heh heh heh' for three different characters made me wince. I'd keep reading, but the middle section felt like I was reading a recap"
+      },
+      {
+        "ch": 1860,
+        "ci_A": 4,
+        "ci_B": 4,
+        "ci_delta": 0,
+        "eg_A": 1,
+        "eg_B": 2,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "The emotional core of this chapter is genuinely strong — Chen Fu showing up terrified but determined, with dynamite in his backpack, is the kind of moment that makes you care about a story. But a few unexplained references and one very confusing phrase tripped me up enough to break immersion.",
+        "impression_B": "The emotional core of this chapter is genuinely strong — the Huwa parents scene and Chen Fu's arrival hit hard. But I kept tripping over unexplained references (Old Diplomas? Grand Warden? Who is Huwa relative to the Headless Bride?) that pulled me out of an otherwise well-paced chapter."
+      },
+      {
+        "ch": 1910,
+        "ci_A": 4,
+        "ci_B": 0,
+        "ci_delta": -4,
+        "eg_A": 1,
+        "eg_B": 0,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 1,
+        "hist_eg": 1,
+        "impression_A": "The tone is fun and the banter between the serpent and the kid has real comedic energy. But there are several moments where I had to stop and go 'wait, what?' — especially one very strange image near the end that I genuinely could not parse without re-reading.",
+        "impression_B": "Parse failed — could not evaluate chapter."
+      },
+      {
+        "ch": 1960,
+        "ci_A": 7,
+        "ci_B": 7,
+        "ci_delta": 0,
+        "eg_A": 2,
+        "eg_B": 3,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 3,
+        "hist_eg": 3,
+        "impression_A": "The dead temple scene is genuinely creepy and well-crafted — the frozen ants, the grass-blade impalements, the wrongness of it all. But the chapter drowns in name-drops and lore I can't parse, and by the time we get to the bell scene, I'm reading words without absorbing meaning. It feels like I walk",
+        "impression_B": "I felt like someone dropped me into episode 47 of a show I've never watched. The horror scene with the frozen ants and grass-pierced rats is genuinely creepy and well-written, but it's buried under a landslide of unexplained names, titles, and backstory references that made me feel stupid the entire"
+      },
+      {
+        "ch": 2000,
+        "ci_A": 2,
+        "ci_B": 4,
+        "ci_delta": 2,
+        "eg_A": 0,
+        "eg_B": 2,
+        "eg_delta": 2,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "This chapter hit me emotionally in a way I wasn't expecting. The image of a brash, stubborn guy limping through an endless grey wasteland trying to keep a tiny companion awake with a nonsense song is genuinely moving. The main friction is one confusing reference and some name-overload, but the emoti",
+        "impression_B": "The emotional core of this chapter is genuinely strong — a desperate dead man trying to feed his tiny companion, failing, hurting himself, feeling invisible. The voice is funny and tender at the same time. But the constant name-switching for both characters made me re-read passages multiple times ju"
+      },
+      {
+        "ch": 2010,
+        "ci_A": 4,
+        "ci_B": 4,
+        "ci_delta": 0,
+        "eg_A": 2,
+        "eg_B": 3,
+        "eg_delta": 1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "There's a fun, charismatic protagonist here and a genuinely cool visual setpiece with the bone beasts, but the chapter opens with two paragraphs of pure lore-dump that made me feel like I was reading a wiki entry instead of a story. I pushed through because the Chen Daji voice is charming, but I alm",
+        "impression_B": "The middle section (sedan chair banter) and the Bone Arena vision are genuinely entertaining — vivid, funny, well-paced. But the opening two paragraphs are a dense lore dump that made me skim, and the transition into the shaman scene required a re-read to sort out the math on who's alive and who's a"
+      },
+      {
+        "ch": 2060,
+        "ci_A": 6,
+        "ci_B": 4,
+        "ci_delta": -2,
+        "eg_A": 2,
+        "eg_B": 1,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 2,
+        "impression_A": "The kite scene is genuinely funny and charming, and the emotional beat with the parents is sweet. But the chapter is drowning in unexplained titles and near-identical names that made me feel like I walked into the middle of a conversation I wasn't invited to. I spent more time trying to figure out w",
+        "impression_B": "The emotional core of this chapter — two ancient dragons tearfully recounting a parent's sacrifices to their elderly in-laws — genuinely landed for me. The Chen Daji kite scene is funny and distinctive. But the middle section where titles and names stack on top of each other made me stop and re-read"
+      },
+      {
+        "ch": 2110,
+        "ci_A": 4,
+        "ci_B": 4,
+        "ci_delta": 0,
+        "eg_A": 0,
+        "eg_B": 1,
+        "eg_delta": 1,
+        "verdict_A": "PASS",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 3,
+        "hist_eg": 1,
+        "impression_A": "This is genuinely funny and has real heart underneath the comedy. The dynamic between the Elder Ghost and the Big Han reads like two old buddies in a buddy comedy — one scheming, one resigned to being schemed upon. The final punchline landed perfectly. I smiled through most of it.",
+        "impression_B": "This chapter made me laugh out loud twice, which is more than I can say for most web fiction. The Big Han is a hilarious character — a shameless cosmic con artist who happens to be a progenitor of humanity. The anticlimactic ending ('And then... nothing') is perfect comedic timing. But I got confuse"
+      },
+      {
+        "ch": 2160,
+        "ci_A": 6,
+        "ci_B": 0,
+        "ci_delta": -6,
+        "eg_A": 1,
+        "eg_B": 0,
+        "eg_delta": -1,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 5,
+        "hist_eg": 2,
+        "impression_A": "The comedy genuinely landed — the 'grandfather' bit is funny and the character voices are distinct. But the chapter is absolutely saturated with proper nouns and lore references that assume I've read hundreds of prior chapters. I can follow the joke, but I'm floating in a void of context for everyth",
+        "impression_B": "Parse failed — could not evaluate chapter."
+      },
+      {
+        "ch": 2210,
+        "ci_A": 6,
+        "ci_B": 5,
+        "ci_delta": -1,
+        "eg_A": 2,
+        "eg_B": 2,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 2,
+        "hist_eg": 1,
+        "impression_A": "The tonal range here is genuinely impressive — from cozy village comedy to desperate supernatural action, and both halves work. The phone call scene made me laugh out loud. But the action sequence threw me into a meat grinder of named characters and prior-event references that left me feeling like I",
+        "impression_B": "The chapter has a great structure — domestic warmth, then a blood-soaked paper crane shatters the peace, then a desperate battle. The emotional beats land. But there's a dense info-dump paragraph about 'the Gate of Another Realm' that completely derails the momentum, and some characters in the battl"
+      },
+      {
+        "ch": 2260,
+        "ci_A": 7,
+        "ci_B": 5,
+        "ci_delta": -2,
+        "eg_A": 3,
+        "eg_B": 3,
+        "eg_delta": 0,
+        "verdict_A": "NEEDS_FIX",
+        "verdict_B": "NEEDS_FIX",
+        "hist_ci": 3,
+        "hist_eg": 2,
+        "impression_A": "The opening physical comedy with Chen Daji bouncing off the ground is genuinely funny and hooked me for about three paragraphs. Then the chapter becomes a lore dump and a roll call of characters I've never met, and I completely lost the thread. By the end I was just scanning for proper nouns and hop",
+        "impression_B": "The opening comedy scene is genuinely fun and the villain introduction has real menace, but the middle section drowns in unexplained terminology and the narrator keeps stopping to explain the significance of things instead of letting them land. I felt like I was reading a lore document for about hal"
+      }
+    ]
+  },
+  "actual_cost": {
+    "rows": 116,
+    "cny": 7.069828800000002,
+    "by_model": {
+      "qwen3.8-max": {
+        "rows": 58,
+        "in": 166866,
+        "out": 126431,
+        "cny": 6.553908000000002
+      },
+      "qwen3.8-flash": {
+        "rows": 58,
+        "in": 166866,
+        "out": 141640,
+        "cny": 0.5159208000000001
+      }
+    }
+  },
+  "cost_A": {
+    "rows": 58,
+    "cny": 6.553908000000002,
+    "by_model": {
+      "qwen3.8-max": {
+        "rows": 58,
+        "in": 166866,
+        "out": 126431,
+        "cny": 6.553908000000002
+      }
+    }
+  },
+  "cost_B": {
+    "rows": 58,
+    "cny": 0.5159208000000001,
+    "by_model": {
+      "qwen3.8-flash": {
+        "rows": 58,
+        "in": 166866,
+        "out": 141640,
+        "cny": 0.5159208000000001
+      }
+    }
+  },
+  "baseline_cost": {
+    "rows": 20,
+    "cny": 2.29962,
+    "by_model": {
+      "qwen3.8-max": {
+        "rows": 20,
+        "in": 57886,
+        "out": 44583,
+        "cny": 2.29962
+      }
+    }
+  },
+  "noise_baseline": {
+    "available": true,
+    "source": "measured (--repeat-baseline)",
+    "n_repeat_chapters": 20,
+    "chapters": [
+      {
+        "ch": 10,
+        "n_runs": 2,
+        "engagement_gaps": [
+          0,
+          2
+        ],
+        "comprehension_issues": [
+          3,
+          5
+        ]
+      },
+      {
+        "ch": 25,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          0
+        ],
+        "comprehension_issues": [
+          4,
+          3
+        ]
+      },
+      {
+        "ch": 60,
+        "n_runs": 2,
+        "engagement_gaps": [
+          0,
+          0
+        ],
+        "comprehension_issues": [
+          1,
+          3
+        ]
+      },
+      {
+        "ch": 75,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          2
+        ],
+        "comprehension_issues": [
+          3,
+          4
+        ]
+      },
+      {
+        "ch": 100,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          0
+        ],
+        "comprehension_issues": [
+          4,
+          3
+        ]
+      },
+      {
+        "ch": 110,
+        "n_runs": 2,
+        "engagement_gaps": [
+          0,
+          1
+        ],
+        "comprehension_issues": [
+          2,
+          3
+        ]
+      },
+      {
+        "ch": 160,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          2
+        ],
+        "comprehension_issues": [
+          4,
+          3
+        ]
+      },
+      {
+        "ch": 200,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          0
+        ],
+        "comprehension_issues": [
+          3,
+          3
+        ]
+      },
+      {
+        "ch": 210,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          0
+        ],
+        "comprehension_issues": [
+          2,
+          3
+        ]
+      },
+      {
+        "ch": 260,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          3
+        ],
+        "comprehension_issues": [
+          3,
+          6
+        ]
+      },
+      {
+        "ch": 300,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          1
+        ],
+        "comprehension_issues": [
+          3,
+          3
+        ]
+      },
+      {
+        "ch": 310,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          0
+        ],
+        "comprehension_issues": [
+          3,
+          2
+        ]
+      },
+      {
+        "ch": 360,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          2
+        ],
+        "comprehension_issues": [
+          3,
+          4
+        ]
+      },
+      {
+        "ch": 410,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          1
+        ],
+        "comprehension_issues": [
+          3,
+          5
+        ]
+      },
+      {
+        "ch": 460,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          2
+        ],
+        "comprehension_issues": [
+          6,
+          7
+        ]
+      },
+      {
+        "ch": 500,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          3
+        ],
+        "comprehension_issues": [
+          6,
+          5
+        ]
+      },
+      {
+        "ch": 510,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          2
+        ],
+        "comprehension_issues": [
+          5,
+          4
+        ]
+      },
+      {
+        "ch": 560,
+        "n_runs": 2,
+        "engagement_gaps": [
+          2,
+          2
+        ],
+        "comprehension_issues": [
+          4,
+          4
+        ]
+      },
+      {
+        "ch": 610,
+        "n_runs": 2,
+        "engagement_gaps": [
+          1,
+          1
+        ],
+        "comprehension_issues": [
+          6,
+          4
+        ]
+      },
+      {
+        "ch": 660,
+        "n_runs": 2,
+        "engagement_gaps": [
+          0,
+          1
+        ],
+        "comprehension_issues": [
+          3,
+          5
+        ]
+      }
+    ],
+    "noise_floor": {
+      "engagement_gaps_max_gap": 2,
+      "comprehension_issues_max_gap": 3,
+      "basis": "20 章同档位（qwen3.8-max）裸 READBACK 跑两遍的最大差值，口径与 A/B 组一致。"
+    }
+  },
+  "noise_source": "measured (--repeat-baseline)",
+  "prev_context": "mechanical",
+  "b_tier_executed": false,
+  "leaks": {
+    "10": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "25": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "60": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "75": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "100": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "110": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "160": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "200": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "210": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "260": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "300": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "310": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "360": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "410": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "460": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "500": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "510": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "560": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "610": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "660": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "710": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "750": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "760": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "810": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "860": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "910": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "960": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1000": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1010": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1060": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1110": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1160": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1210": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1250": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1260": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1310": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1360": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1410": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1460": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1500": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1510": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1560": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1610": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1660": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1710": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1750": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1760": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1810": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1860": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1910": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "1960": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2000": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2010": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2060": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2110": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2160": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2210": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ],
+    "2260": [
+      "- [ch1904] 阴兵过境 → Underworld soldiers passing through // The WRITER should let Chen Daji's disappointment carr",
+      "- [ch1904] 因果 → karma / the web of cause and effect // The WRITER should keep the narrator's practical, worldl",
+      "- [ch1904] 高端局 → the big leagues // The WRITER should deliver this with the narrator's knowing tone — 'after a",
+      "- [ch1904] 父老乡亲 → the village folk / the neighbors // The WRITER should let Chen Fu's concern be genuinely pro",
+      "- [ch1939] 镇寺金刚 → Guardian Vajra of the Temple // This is a prestigious title — the temple's chief guardian de",
+      "- [ch1939] 持国天王 → the Guardian Kings // The monks are promising the corpse a status equal to a god — an absurd",
+      "- [ch1939] 肉身佛 → mummified Buddhas // These are revered relics — monks who starved themselves to death in medi"
+    ]
+  }
+}
