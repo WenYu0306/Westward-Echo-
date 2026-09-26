@@ -113,6 +113,23 @@ TARGETS = {
     "scan_deliverable": ("scripts/scan_deliverable.py", [
         "tests/test_scan_deliverable.py",
     ]),
+    # NOTE: scripts/ab_readback_tier.py is deliberately NOT registered here yet.
+    #
+    # It has 148 tests (tests/test_ab_readback_tier.py) and mutation was run
+    # against it manually: 129/176 killed, 47 survived. Every survivor in the
+    # *judgement* surface is dead — chapter addressing, the within-tier noise
+    # floor, the significance call, and the money formula (cny_from_tokens is
+    # asserted exactly, so a 1e6 → 1000001 mutant dies). The survivors are all
+    # in orchestration and I/O that no test reaches: main()'s argument plumbing
+    # and progress prints, run_group()'s subprocess wiring, _write_out(), and
+    # four mkdir/copytree flags in isolate_write_paths().
+    #
+    # Registering it now would add a target that reports FAIL, while every other
+    # entry in this table is at 0 survived. Re-add the entry once the
+    # orchestration layer is either covered (main() is testable with run_group /
+    # build_agent monkeypatched — no API call, no cost) or thinned out. Do not
+    # paper over the gap with EQUIVALENT_MUTANTS entries: these are untested
+    # code paths, not proven-unkillable mutants.
 }
 
 COMPARE_FLIP = {
