@@ -76,3 +76,11 @@ scripts/com.westwardecho.tunnel.plist
 # Pilot data (finished scripts from 铸文 + compilation output — not code)
 pilots/
 V0.17_ENHANCEMENT_PLAN.md
+
+# Deliverable archive: timestamped copies of shipped output.
+# novels/output/ is already ignored (see `output/` above), which left the
+# delivered difu_en.md with NO version history and no rollback path. archive/
+# keeps copies so a bad edit to a deliverable is recoverable, but each file is
+# ~13.6 MB — only the checksum manifest is tracked.
+archive/deliverables/**/*.md
+!archive/deliverables/**/MANIFEST.sha256

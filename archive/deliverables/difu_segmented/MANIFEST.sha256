@@ -1,0 +1,18 @@
+# difu_segmented 交付物归档清单
+# 生成: 2026-09-26 12:48:26 CST
+#
+# 背景: novels/output/difu_segmented/difu_en.md 被 .gitignore:18 的 output/
+#       规则排除, git 无历史, 一旦损坏无法用版本控制恢复。
+#       round11 对该文件做了 §三-E A 档 4 章纯文本修复(净减 12 行),
+#       原先只有 /tmp 一重保护, 而 /tmp 会被系统清理。
+#
+781e9c12cb9a169453025a4d7dbd41c5f5c38ac87ce9a83b3969cbfb8612d614  archive/deliverables/difu_segmented/difu_en.before_A_fix.20260926.md
+842379b54933479a59b3f1f047260ae27d3be31882b6ab109b489a3119103425  archive/deliverables/difu_segmented/difu_en.current.20260926.md
+#
+# before_A_fix = A 档修复前的原始交付物(回滚点)
+#                等价于 /tmp/xidu_difu_snapshot_20260926_111103/difu_en.md
+# current      = A 档修复后的当前交付物(Ch366/656/1077/1286 已清零)
+#
+# 行数对比:
+#   before_A_fix: 204309 行 / 14232263 字节
+#   current:      204297 行 / 14232193 字节
