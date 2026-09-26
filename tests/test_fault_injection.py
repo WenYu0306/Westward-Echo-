@@ -133,23 +133,53 @@ class TestCircuitBreakerApiFailures:
 
         assert cb.state == CircuitBreaker.OPEN
 
-    def test_single_success_resets_failure_count(self):
-        """A success before threshold resets the failure counter."""
+    def test_success_does_not_clear_in_window_failures(self):
+        """§七-C 改写：成功不再抹掉窗口内的失败记录。
+
+        这条测试原先断言相反的行为（"2 失败 + 1 成功 + 2 失败 = 计数 2、
+        不跳闸"）——而那正是烧钱隐患的根源：一个每 5 次调用失败 4 次、中间
+        夹成功的半坏 API，连续计数被每次成功清零、**永不跳闸**，管线持续为它
+        付费。改成滚动窗口后，失败只由**窗口过期**自然移除，成功不再清零。
+
+        threshold=5：2 失败 + 1 成功 + 2 失败 = 窗口内 4 次失败，仍 < 5，
+        不跳闸；但计数是 4（成功没有清零），不是旧行为的 2。
+        """
         cb = _fresh_breaker(threshold=5)
 
-        # 2 failures then 1 success then 2 more failures → should NOT trip
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
+        assert cb._failure_count == 2
+
+        cb.call(lambda: "ok")  # 成功：不清零窗口内失败（关键语义变更）
+
         for _ in range(2):
             with pytest.raises(ValueError):
                 cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
 
-        cb.call(lambda: "ok")  # resets counter
+        assert cb.state == CircuitBreaker.CLOSED   # 4 < 5，尚未跳闸
+        assert cb._failure_count == 4              # 成功没清零：2 + 2，不是 2
+
+    def test_failures_with_success_between_still_trip_within_window(self):
+        """§七-C 新增：4 次失败夹 1 次成功、仍在窗口内 → 应跳闸。
+
+        这是钉住修复的用例。旧实现下，中间那次成功会把计数清零，5 次失败
+        永远到不了 threshold=5，熔断器对"零星失败"完全免疫。滚动窗口下，
+        成功不清零，窗口内累计 5 次失败 → 跳闸。
+        """
+        cb = _fresh_breaker(threshold=5)
 
         for _ in range(2):
             with pytest.raises(ValueError):
                 cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
+        cb.call(lambda: "ok")                       # 夹一次成功
+        for _ in range(3):
+            with pytest.raises(ValueError):
+                cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
 
-        assert cb.state == CircuitBreaker.CLOSED  # not tripped
-        assert cb._failure_count == 2  # reset after success, then 2 more
+        assert cb._failure_count == 5               # 2 + 3，成功没清零
+        assert cb.state == CircuitBreaker.OPEN      # 跳闸了
+        assert cb.is_open()
 
 
 class TestCircuitBreakerPerLanguage:
@@ -302,23 +332,46 @@ class TestCircuitBreakerCounters:
 
 
 class TestCircuitBreakerDefaults:
-    """Default thresholds and recovery-timeout transitions (hardcoded values)."""
+    """Default thresholds and recovery-timeout transitions (hardcoded values).
+
+    ``_failure_threshold`` / ``_recovery_timeout`` are read by ``record_failure``
+    and ``_should_attempt_recovery``, so asserting the constant is meaningful.
+    ``window_seconds`` / ``half_open_max`` used to be asserted the same way —
+    that was the fake-green §七-F3 flags: the fields were written and never read,
+    so the test pinned a shell. They now have real behaviour, pinned by
+    ``TestRollingWindow`` and ``TestProbeThrottling`` instead of by their value.
+    """
 
     def test_default_threshold_recovery_window(self):
         cb = CircuitBreaker(name="defaults")
         assert cb._failure_threshold == 5
         assert cb._recovery_timeout == 30.0
-        assert cb._window_seconds == 60.0
-        assert cb._half_open_max == 1
+        # Behavioural defaults — see the class docstring for why the raw field
+        # value is no longer the assertion of record.
+        assert cb.snapshot()["window_seconds"] == 60.0
+        assert cb.snapshot()["half_open_max"] == 1
 
     def test_get_breaker_uses_defaults(self):
         cb = get_breaker("defaults-test-xyz")
         assert cb._failure_threshold == 5
         assert cb._recovery_timeout == 30.0
-        assert cb._window_seconds == 60.0
-        assert cb._half_open_max == 1
+        assert cb.snapshot()["window_seconds"] == 60.0
+        assert cb.snapshot()["half_open_max"] == 1
         with _breakers_lock:
             _breakers.pop("defaults-test-xyz", None)
+
+    def test_get_breaker_can_configure_half_open_max(self):
+        """§七-D6: the factory used to swallow half_open_max."""
+        cb = get_breaker("half-open-max-test-xyz", half_open_max=3)
+        assert cb._half_open_max == 3
+        with _breakers_lock:
+            _breakers.pop("half-open-max-test-xyz", None)
+
+    def test_get_breaker_can_configure_window_seconds(self):
+        cb = get_breaker("window-test-xyz", window_seconds=5.0)
+        assert cb._window_seconds == 5.0
+        with _breakers_lock:
+            _breakers.pop("window-test-xyz", None)
 
     def test_get_all_breakers_returns_snapshots(self):
         get_breaker("gb-a")
@@ -344,6 +397,339 @@ class TestCircuitBreakerDefaults:
             cb.call(lambda: (_ for _ in ()).throw(ValueError("fail")))
         time.sleep(0.1)
         assert cb.snapshot()["state"] == "half_open"
+
+
+# ──────────────────────────────────────────────────────────────
+# 条款15：滚动窗口 + 试探限流（§七-F2/F3 要求的行为断言）
+# ──────────────────────────────────────────────────────────────
+
+class _FakeClock:
+    """Controllable ``time.monotonic`` for window arithmetic.
+
+    §七-E: don't sleep long to test a 60s window. The breaker reads the clock
+    through its own module attribute, so patching that makes expiry exact and
+    falsifiable instead of "wait and hope".
+    """
+
+    def __init__(self, start: float = 1_000.0):
+        self.now = start
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    import src.circuit_breaker as cb_mod
+    clock = _FakeClock()
+    monkeypatch.setattr(cb_mod, "time", clock)
+    return clock
+
+
+def _window_breaker(threshold=5, window=60.0, recovery=30.0, half_open_max=1):
+    """A breaker whose window/probe limits are explicit.
+
+    ``_fresh_breaker`` deliberately does not pass window_seconds/half_open_max
+    (§七-E), so window behaviour needs its own constructor.
+    """
+    return CircuitBreaker(
+        name="window-test",
+        failure_threshold=threshold,
+        recovery_timeout=recovery,
+        window_seconds=window,
+        half_open_max=half_open_max,
+    )
+
+
+def _boom():
+    raise ValueError("api fail")
+
+
+class TestRollingWindow:
+    """§七-D1: failures age out of the window; a success no longer erases them."""
+
+    def test_failures_age_out_of_the_window(self, fake_clock):
+        cb = _window_breaker(threshold=5, window=60.0)
+        for _ in range(4):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        assert cb._failure_count == 4
+        assert cb.state == CircuitBreaker.CLOSED
+
+        fake_clock.advance(61)              # all 4 now outside the 60s window
+
+        assert cb._failure_count == 0
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        assert cb._failure_count == 1       # 1, not 5 — history expired
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_failures_inside_the_window_trip_it(self, fake_clock):
+        cb = _window_breaker(threshold=5, window=60.0)
+        for _ in range(4):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        fake_clock.advance(30)              # still inside the window
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        assert cb._failure_count == 5
+        assert cb.state == CircuitBreaker.OPEN
+
+    def test_only_the_expired_failures_are_dropped(self, fake_clock):
+        cb = _window_breaker(threshold=5, window=60.0)
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        fake_clock.advance(40)
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        fake_clock.advance(25)              # first pair is 65s old, second 25s
+        assert cb._failure_count == 2
+
+    def test_failure_exactly_at_the_cutoff_is_retained(self, fake_clock):
+        """Pruning drops ``< cutoff``, so age == window is still in-window."""
+        cb = _window_breaker(threshold=5, window=60.0)
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        fake_clock.advance(60.0)
+        assert cb._failure_count == 1
+        fake_clock.advance(0.001)
+        assert cb._failure_count == 0
+
+    def test_success_does_not_clear_the_window(self, fake_clock):
+        cb = _window_breaker(threshold=5, window=60.0)
+        for _ in range(3):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        cb.call(lambda: "ok")               # ordinary traffic success
+        assert cb._failure_count == 3       # NOT erased
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        assert cb._failure_count == 5
+        assert cb.state == CircuitBreaker.OPEN
+
+    def test_successful_recovery_probe_clears_the_window(self, fake_clock):
+        """The one success that must clear it, else recovery is impossible."""
+        cb = _window_breaker(threshold=2, window=60.0, recovery=10.0)
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        assert cb.state == CircuitBreaker.OPEN
+
+        fake_clock.advance(10.0)            # recovery due → HALF_OPEN
+        assert cb.call(lambda: "back") == "back"
+
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb._failure_count == 0
+        # The failures that caused the trip must not re-trip immediately.
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        assert cb._failure_count == 1
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_snapshot_failure_count_is_windowed(self, fake_clock):
+        cb = _window_breaker(threshold=5, window=60.0)
+        for _ in range(4):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        assert cb.snapshot()["failure_count"] == 4
+        fake_clock.advance(61)
+        assert cb.snapshot()["failure_count"] == 0
+
+    def test_wide_window_keeps_spread_out_failures(self, fake_clock):
+        """A window wider than the gap means nothing expires — the old
+        consecutive counter and the window agree here; this pins that the
+        window is actually being read, not that it is decorative.
+
+        recovery_timeout must exceed the total clock advance (300s) or the
+        breaker legitimately reports HALF_OPEN instead of OPEN, which is a
+        different question from the one this test asks.
+        """
+        cb = _window_breaker(threshold=3, window=600.0, recovery=1000.0)
+        for _ in range(3):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+            fake_clock.advance(100)         # 100s apart, well inside 600s
+        assert cb._failure_count == 3
+        assert cb.state == CircuitBreaker.OPEN
+
+
+class TestProbeThrottling:
+    """§七-D2: HALF_OPEN admits at most ``half_open_max`` probes."""
+
+    def _probe_in_flight(self, cb, release):
+        """Start a thread whose probe blocks inside fn, then wait until it is there.
+
+        fn runs *outside* the lock (§七-E), so a blocked probe does not prevent
+        the next caller from being evaluated — which is the only way to observe
+        throttling at all. If fn ran under the lock, this test would deadlock.
+        """
+        started = threading.Event()
+
+        def slow_probe():
+            started.set()
+            release.wait(5)
+            return "probe ok"
+
+        worker = threading.Thread(target=cb.call, args=(slow_probe,), daemon=True)
+        worker.start()
+        assert started.wait(5), "probe never entered fn"
+        return worker
+
+    def test_second_probe_fast_fails_while_first_is_in_flight(self, fake_clock):
+        cb = _window_breaker(threshold=1, window=60.0, recovery=10.0,
+                             half_open_max=1)
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        assert cb.state == CircuitBreaker.OPEN
+
+        fake_clock.advance(10.0)
+        release = threading.Event()
+        worker = self._probe_in_flight(cb, release)
+
+        ran = []
+        with pytest.raises(CircuitBreakerOpenError):
+            cb.call(lambda: ran.append(1) or "should not run")
+        assert ran == []                     # refused before touching the API
+
+        release.set()
+        worker.join(5)
+        assert not worker.is_alive()
+        assert cb.state == CircuitBreaker.CLOSED
+
+    def test_three_probes_admitted_when_max_is_three(self, fake_clock):
+        cb = _window_breaker(threshold=1, window=60.0, recovery=10.0,
+                             half_open_max=3)
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        fake_clock.advance(10.0)
+
+        release = threading.Event()
+        workers = [self._probe_in_flight(cb, release) for _ in range(3)]
+        assert cb._half_open_attempts == 3
+
+        with pytest.raises(CircuitBreakerOpenError):
+            cb.call(lambda: "fourth")        # slots exhausted
+
+        release.set()
+        for w in workers:
+            w.join(5)
+            assert not w.is_alive()
+
+    def test_refused_probe_counts_a_call_and_a_failure(self, fake_clock):
+        cb = _window_breaker(threshold=1, window=60.0, recovery=10.0,
+                             half_open_max=1)
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        fake_clock.advance(10.0)
+        release = threading.Event()
+        worker = self._probe_in_flight(cb, release)
+
+        before = cb.snapshot()
+        with pytest.raises(CircuitBreakerOpenError):
+            cb.call(lambda: "nope")
+        after = cb.snapshot()
+        assert after["total_calls"] == before["total_calls"] + 1
+        assert after["total_failures"] == before["total_failures"] + 1
+
+        release.set()
+        worker.join(5)
+
+    def test_attempts_are_zeroed_each_time_half_open_is_entered(self, fake_clock):
+        """A failed probe leaves attempts set; re-entry must clear it, otherwise
+        every later probe would be refused forever and the breaker could never
+        recover."""
+        cb = _window_breaker(threshold=1, window=60.0, recovery=10.0,
+                             half_open_max=1)
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        fake_clock.advance(10.0)
+        with pytest.raises(ValueError):
+            cb.call(lambda: (_ for _ in ()).throw(ValueError("probe fail")))
+        assert cb.state == CircuitBreaker.OPEN
+        assert cb._half_open_attempts == 1
+
+        fake_clock.advance(10.0)
+        assert cb.call(lambda: "ok") == "ok"
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb._half_open_attempts == 0
+
+    def test_refusal_message_names_the_probe_budget(self, fake_clock):
+        cb = _window_breaker(threshold=1, window=60.0, recovery=10.0,
+                             half_open_max=2)
+        with pytest.raises(ValueError):
+            cb.call(_boom)
+        fake_clock.advance(10.0)
+        release = threading.Event()
+        workers = [self._probe_in_flight(cb, release) for _ in range(2)]
+
+        with pytest.raises(CircuitBreakerOpenError, match="HALF_OPEN") as exc:
+            cb.call(lambda: "third")
+        assert "2 probe slot(s)" in str(exc.value)
+
+        release.set()
+        for w in workers:
+            w.join(5)
+
+
+class TestSnapshotContract:
+    """§七-F6: the dashboard reads these keys; losing one breaks the page."""
+
+    def test_snapshot_keeps_every_key_the_dashboard_reads(self):
+        snap = _window_breaker().snapshot()
+        for key in ("name", "state", "failure_count", "total_successes",
+                    "total_failures", "total_calls", "open_transitions",
+                    "failure_threshold", "recovery_timeout",
+                    "window_seconds", "half_open_max"):
+            assert key in snap, f"snapshot lost {key!r}"
+
+    def test_new_keys_carry_the_configured_values(self):
+        cb = _window_breaker(window=12.5, half_open_max=4)
+        snap = cb.snapshot()
+        assert snap["window_seconds"] == 12.5
+        assert snap["half_open_max"] == 4
+
+
+class TestResetHelper:
+    """§七-D3: _failure_count is read-only, so teardown needs _reset()."""
+
+    def test_reset_clears_state_and_window(self, fake_clock):
+        cb = _window_breaker(threshold=2, window=60.0, recovery=10.0)
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        assert cb.state == CircuitBreaker.OPEN
+        assert cb._failure_count == 2
+
+        cb._reset()
+
+        assert cb.state == CircuitBreaker.CLOSED
+        assert cb._failure_count == 0
+        assert cb._half_open_attempts == 0
+        assert not cb.is_open()
+
+    def test_reset_lets_the_breaker_trip_again(self, fake_clock):
+        cb = _window_breaker(threshold=2, window=60.0)
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        cb._reset()
+        for _ in range(2):
+            with pytest.raises(ValueError):
+                cb.call(_boom)
+        assert cb.state == CircuitBreaker.OPEN
+        assert cb._open_transitions == 2
+
+    def test_failure_count_cannot_be_assigned(self):
+        """The old `breaker._failure_count = 0` must now fail loudly."""
+        cb = _window_breaker()
+        with pytest.raises(AttributeError):
+            cb._failure_count = 0
 
 
 # ──────────────────────────────────────────────────────────────
@@ -701,9 +1087,13 @@ class TestWriteNodeUnderFaults:
             with pytest.raises(CircuitBreakerOpenError):
                 write_node(state)
 
-        # Reset breaker so other tests using "en-US" aren't poisoned
-        breaker._state = CircuitBreaker.CLOSED
-        breaker._failure_count = 0
+        # Reset breaker so other tests using "en-US" aren't poisoned.
+        # _reset() replaces the old `breaker._state = CLOSED` /
+        # `breaker._failure_count = 0` poking: the count is a read-only property
+        # now (derived from the rolling window), and _reset() also clears
+        # _half_open_attempts / _opened_at, which the hand-rolled pair left
+        # behind — a stale _opened_at could make the next test see HALF_OPEN.
+        breaker._reset()
 
     def test_garbage_output_falls_back_to_raw_text(self, mock_translate_invoke,
                                                     sample_chapter):
