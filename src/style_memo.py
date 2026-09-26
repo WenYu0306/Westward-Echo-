@@ -3,8 +3,19 @@ from each translated chapter.
 
 Each book gets its own directory under data/translation_memory/<book_id>/.
 Six markdown files track different categories of accumulated translation
-experience. At ~50 lines per file, the full memo is ~2500-4000 tokens —
-readable by an LLM in a single context window.
+experience.
+
+⚠️ Do not reason about prompt size from file size. This docstring used to say
+"At ~50 lines per file, the full memo is ~2500-4000 tokens", which was wrong on
+a real book by three orders of magnitude: ``difu_xiao_xiansheng`` holds 31,818
+lines in bridges.md alone (54,006 lines across all drawers). Nothing prunes the
+files — see ``StyleMemoStore`` for the measurement and the reason pruning is a
+non-goal here.
+
+What actually bounds the prompt is **read-side truncation**: ``read_all`` keeps
+only the newest ~60 lines per drawer, and ``read_relevant`` (what the agent
+prompts use) keeps the newest 5 entries per drawer under ``max_chars``. So the
+injected memo stays small and constant regardless of how long the book is.
 
 Drawers:
   characters.md — dialogue registers, names, voice, character traits
@@ -13,6 +24,12 @@ Drawers:
   prose.md     — sentence/paragraph rhythm, show-vs-tell enforcement
   terms.md     — key terminology decisions with cultural reasoning
   MEMO.md      — index pointing to the 5 content files
+
+Consumers (measured, clause 9): READ and WRITE both render ``{style_memo}``
+into their user prompt (``prompts/read.py:227``, ``prompts/write.py:180``).
+FIX and READBACK deliberately do not — FIX's mandate is the cold reader's
+complaints only (``prompts/fix.py`` rule 1), and READBACK must stay a blind
+naive reader. Tests pin all four in ``test_prompt_personas.py``.
 """
 
 from pathlib import Path
@@ -24,7 +41,26 @@ class StyleMemoStore:
     """Manages the 6-drawer translation style memo for one book.
 
     Thread-safe for single-process use (one TranslationAgent per book).
-    Updates are append-only with periodic pruning of obsolete entries.
+
+    ⚠️ Updates are append-only and **nothing prunes the files on disk** — this
+    docstring used to claim "periodic pruning of obsolete entries", but the
+    module has no pruning code: the only writes are ``_ensure_files`` (creates
+    empty drawers) and ``record_lesson`` (appends). Measured consequence on a
+    real book: ``difu_xiao_xiansheng`` accumulated 31,818 lines / 3.66 MB in
+    bridges.md alone, plus 18,329 in terms.md and 3,851 in pacing.md — 54,006
+    lines total, against the ~50-lines-per-file this module's docstring assumed
+    (636x the largest drawer).
+
+    What keeps prompt cost bounded is *read-side truncation*, not disk pruning:
+    ``read_all`` caps each drawer at the newest ~60 lines and ``read_relevant``
+    takes the newest 5 entries per drawer under ``max_chars``. So the files grow
+    without limit while every prompt stays constant — harmless for tokens, but
+    the on-disk store is unbounded and dedup scans the whole file each append
+    (``record_lesson`` does a substring test over the entire drawer).
+
+    Pruning is a deliberate non-goal here: dropping accumulated entries would
+    change what real translations see, so it needs an owner's decision rather
+    than a drive-by edit. Recorded as a finding, not implemented.
     """
 
     def __init__(self, book_id: str):
@@ -60,12 +96,13 @@ class StyleMemoStore:
     def read_all(self) -> str:
         """Return the full memo text for injection into the agent prompt.
 
-        Reads MEMO.md + all linked files, concatenated.  Each file is
-        truncated to ~60 lines (oldest-first) to keep total tokens in check.
+        Reads MEMO.md + all linked files, concatenated. A drawer over 70 lines
+        is cut to its newest ~60 (the oldest are dropped) to keep total tokens
+        in check.
 
-        Prefer ``read_relevant()`` for the main agent prompts — it retrieves
-        only entries relevant to the current chapter, keeping prompt size
-        constant regardless of book length.
+        Prefer ``read_relevant()`` for the main agent prompts — it keeps only
+        the newest entries per drawer, so prompt size stays constant regardless
+        of book length.
         """
         parts = []
         for filename in ["MEMO.md"] + self._content_files():
@@ -76,31 +113,44 @@ class StyleMemoStore:
             lines = content.strip().split("\n")
             if len(lines) > 70:
                 header = lines[0] if lines[0].startswith("#") else ""
-                keep = lines[-60:] if header else lines[-60:]
+                # lines[-60:] never contains lines[0] here (the branch needs
+                # >70 lines, 70 > 60), so re-prepending the header cannot
+                # duplicate it. This used to read `lines[-60:] if header else
+                # lines[-60:]` — both branches identical, so the condition was
+                # unobservable dead code (and invisible to mutation testing,
+                # whose operators don't cover ternaries).
+                keep = lines[-60:]
                 content = (header + "\n" if header else "") + "\n".join(keep)
             parts.append(content)
         return "\n\n---\n\n".join(parts)
 
     def read_relevant(
         self,
-        chapter_content: str = "",
-        exact_matches=None,
         *,
         max_chars: int = 5000,
         per_drawer_recent: int = 5,
     ) -> str:
         """Return the most recent memo entries, capped at ``max_chars``.
 
-        Instead of dumping the entire accumulated memo into every prompt,
-        this takes only the newest entries from each drawer — the ones most
-        likely to be relevant to the current story arc.
+        Instead of dumping the entire accumulated memo into every prompt, this
+        takes only the newest entries from each drawer.
 
-        Recent entries naturally track the active cast, ongoing cultural
-        patterns, and current pacing rhythm. Old entries (from ch50 when
-        we're on ch1600) are rarely useful and cost prompt tokens.
+        "Relevant" here means **recency**, nothing else: there is no matching
+        against the current chapter. The bet is that the newest entries
+        naturally track the active cast, the ongoing cultural patterns and the
+        current pacing rhythm, while old entries (from ch50 when we're on
+        ch1600) are rarely useful and cost prompt tokens.
 
-        Keeps prompt size **constant** regardless of how many chapters
-        have been translated.
+        This signature used to accept ``chapter_content`` / ``exact_matches`` —
+        added by `bdccc85` (2026-08-04, "scalable Style Memo") and never read by
+        the body in any revision since. Real content-based retrieval would have
+        to search entries, not slice the tail; until that exists, claiming the
+        result is chapter-relevant is the same failure mode as a config value
+        nobody reads. Callers still pass the chapter's terms into the prompt
+        through ``exact_matches_text`` — see ``_make_state``.
+
+        Keeps prompt size **constant** regardless of how many chapters have
+        been translated.
         """
         parts: list[str] = []
         budget = max_chars

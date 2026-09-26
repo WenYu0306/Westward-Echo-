@@ -305,3 +305,95 @@ class TestLanguageSync:
         ctx = build_prompt_context("urban", lang)
         out = READ_SYSTEM.format(**ctx)
         assert not _LEAKED_PLACEHOLDER.search(out)
+
+
+# ── 条款9：备忘的**消费侧**必须真的到达提示词 ────────────────────────────
+# 交接文档对条款9 的初判是"倾向缺"，实测结论相反：READ/WRITE 都消费
+# style_memo（read.py:128→135、write.py:96→106，prompts/read.py:227 与
+# prompts/write.py:180 各有 {style_memo} 占位符），FIX 有意不消费（其提示词
+# 规则 1 是"读者反馈是你唯一的授权范围"）。
+#
+# 但**全仓没有任何测试断言备忘内容真的进了提示词**：所有夹具都填
+# "(no memo)" / ""，于是"占位符存在但内容没被渲染进去"这类缺陷全绿。
+# 这组用例堵住那个空洞——断言用真实字符串字面值，不用夹具常量推导。
+class TestStyleMemoReachesThePrompt:
+    """消费侧证据：state['style_memo'] 的文本必须出现在发给模型的消息里。"""
+
+    _MEMO = "MEMO-CANARY: 八爷 renders as Eighth Master Chang"
+
+    def test_write_user_prompt_carries_the_memo(self, monkeypatch):
+        cap = {}
+        monkeypatch.setattr("src.agent.nodes.write.ChatOpenAI",
+                            _capture_factory(cap, _WRITE_CONTENT))
+        write_node(_state(style_memo=self._MEMO))
+        assert self._MEMO in _user_text(cap)
+
+    def test_read_user_prompt_carries_the_memo(self, monkeypatch):
+        cap = {}
+        monkeypatch.setattr("src.agent.nodes.read.ChatOpenAI",
+                            _capture_factory(cap, "{}"))
+        read_node(_state(style_memo=self._MEMO), ExactGlossary(), SemanticGlossary())
+        assert self._MEMO in _user_text(cap)
+
+    def test_memo_reaches_the_prompt_under_its_own_heading(self, monkeypatch):
+        """不只是"字符串出现了"——要落在 TRANSLATION STYLE MEMO 段里。"""
+        cap = {}
+        monkeypatch.setattr("src.agent.nodes.write.ChatOpenAI",
+                            _capture_factory(cap, _WRITE_CONTENT))
+        write_node(_state(style_memo=self._MEMO))
+        user_text = _user_text(cap)
+        # 完整标题行带括号后缀（prompts/write.py:178），按整行切分才准。
+        heading = ("## TRANSLATION STYLE MEMO "
+                   "(accumulated experience from prior chapters)")
+        assert heading in user_text
+        after = user_text.split(heading, 1)[1]
+        assert after.lstrip().startswith(self._MEMO)
+        # 备忘必须出现在"READER'S ANALYSIS"段之前，即它自己的段落里，
+        # 而不是被后面某段顺带带进来。
+        assert after.index(self._MEMO) < after.index("## READER'S ANALYSIS")
+
+    def test_fix_prompt_deliberately_has_no_memo_placeholder(self, monkeypatch):
+        """FIX 不消费备忘是**设计决定**，不是遗漏——钉住它，防止有人"顺手加上"。
+
+        prompts/fix.py 规则 1：读者的反馈是唯一的授权范围。给 FIX 塞入全书
+        累积经验会诱导它改读者没抱怨的地方。
+        """
+        from src.agent.prompts.fix import FIX_USER, FIX_SYSTEM
+        assert "{style_memo}" not in FIX_USER
+        assert "{style_memo}" not in FIX_SYSTEM
+
+        cap = {}
+        monkeypatch.setattr("src.agent.nodes.fix.ChatOpenAI",
+                            _capture_factory(cap, _FIX_CONTENT))
+        fix_node(_state(style_memo=self._MEMO))
+        assert self._MEMO not in _user_text(cap)
+        assert self._MEMO not in _system_text(cap)
+
+    def test_missing_memo_key_falls_back_instead_of_crashing(self, monkeypatch):
+        """state 里没有 style_memo 键时走兜底文案，不抛 KeyError。"""
+        cap = {}
+        state = _state()
+        del state["style_memo"]
+        monkeypatch.setattr("src.agent.nodes.write.ChatOpenAI",
+                            _capture_factory(cap, _WRITE_CONTENT))
+        write_node(state)
+        user_text = _user_text(cap)
+        assert "No style memo yet" in user_text
+    def test_readback_prompt_deliberately_has_no_memo_placeholder(self, monkeypatch):
+        """READBACK 不看备忘也是**设计决定**：它必须是盲读的 naive reader。
+
+        条款10 的同一条理由——冷读者的价值在于"不知道任何背景"。给它塞入
+        全书累积的术语与文化桥梁经验，等于告诉它该怎么理解，冷读就失效了。
+        readback_node 只填 previous_context（角色名册+近章摘要）、
+        chapter_content、reader 三项。
+        """
+        from src.agent.prompts.readback import READBACK_USER, READBACK_SYSTEM
+        assert "{style_memo}" not in READBACK_USER
+        assert "{style_memo}" not in READBACK_SYSTEM
+
+        cap = {}
+        monkeypatch.setattr("src.agent.nodes.readback.ChatOpenAI",
+                            _capture_factory(cap, _READBACK_CONTENT))
+        readback_node(_state(translated_text="x" * 200, style_memo=self._MEMO))
+        assert self._MEMO not in _user_text(cap)
+        assert self._MEMO not in _system_text(cap)

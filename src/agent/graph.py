@@ -348,9 +348,12 @@ class TranslationAgent:
             "readback_feedback": {},
             "context_signals": "",
             "image_gaps": [],
-            "style_memo": self.style_memo.read_relevant(
-                content, exact_matches,
-            ) or (
+            # read_relevant() takes no chapter context: it returns the newest
+            # entries per drawer (recency, not relevance). The chapter's own
+            # terms reach the prompt via exact_matches_text (built above from
+            # `content`) and its text via chapter_content — passing either one
+            # here would imply a matching step that does not exist.
+            "style_memo": self.style_memo.read_relevant() or (
                 "(No translation memory yet. This is the first chapter. "
                 "Stay close to the source text — do not invent sensory details "
                 "or interior monologue that the original doesn't contain. "

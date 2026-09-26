@@ -85,8 +85,12 @@ class FakeMemo:
     def read_all(self):
         return self.all_text
 
-    def read_relevant(self, content, exact_matches=None):
-        self.read_relevant_calls.append((content, exact_matches))
+    def read_relevant(self, *, max_chars=5000, per_drawer_recent=5):
+        # Keyword-only, mirroring the real signature: a caller passing chapter
+        # context positionally would raise TypeError here instead of being
+        # silently ignored (the failure mode the real one had for 7 weeks).
+        self.read_relevant_calls.append(
+            {"max_chars": max_chars, "per_drawer_recent": per_drawer_recent})
         return self.relevant
 
     def update_from_read_analysis(self, *a, **k):
@@ -483,11 +487,33 @@ class TestMakeState:
         state = a._make_state(**make_state_kwargs())
         assert "No translation memory yet" in state["style_memo"]
 
-    def test_memo_receives_content_and_exact_matches(self):
+    def test_memo_receives_no_chapter_context(self):
+        """`read_relevant()` is recency-based and must NOT be handed the chapter.
+
+        This test used to assert the opposite — that _make_state passed
+        (content, exact_matches) through. That assertion pinned the *call site*
+        of two parameters the body never read (dead since bdccc85, 2026-08-04),
+        which is the exact fake-green the project keeps hunting: a test that
+        passes while proving nothing about behaviour. The chapter's terms still
+        reach the prompt, but through their own channels — asserted separately
+        below so the guarantee is real rather than implied.
+        """
         memo = FakeMemo(relevant="M")
-        a = bare_agent(exact=FakeExact(matches={"王三": "Wang San"}), memo=memo)
-        a._make_state(**make_state_kwargs(content="王三在这里。"))
-        assert memo.read_relevant_calls == [("王三在这里。", {"王三": "Wang San"})]
+        exact = FakeExact(matches={"王三": "Wang San"})
+        a = bare_agent(exact=exact, memo=memo)
+        state = a._make_state(**make_state_kwargs(content="王三在这里。"))
+
+        # Memo retrieval got no chapter context — defaults only.
+        assert memo.read_relevant_calls == [
+            {"max_chars": 5000, "per_drawer_recent": 5}]
+        # The terms the memo no longer sees are still delivered through their own
+        # channels. FakeExact returns a fixed stub string, so assert on what was
+        # *fed into* the glossary channel (it records its inputs) rather than on
+        # the stub's text.
+        assert exact.notes_calls == [{"matched": {"王三": "Wang San"}, "lang": "en-US"}]
+        assert state["exact_matches_text"] == "NOTES::EXACT TEXTS"
+        assert state["chapter_content"] == "王三在这里。"
+        assert state["style_memo"] == "M"
 
     def test_use_flash_writer_defaults_to_false(self):
         a = bare_agent()
