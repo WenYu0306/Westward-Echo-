@@ -1,11 +1,37 @@
 """Observability dashboard — real-time system metrics as a dark-theme HTML page.
 
 Served at ``GET /dashboard`` (no auth).  Auto-refreshes every 5 seconds.
+
+【中文·这个文件是干什么的】
+这是「运行看板」页面，用深色主题的网页实时展示翻译系统的运行状态。
+你在浏览器打开 http://localhost:8000/dashboard 就能看到。
+特意不设身份校验（no auth），方便随时开着监控，不用每次登录。
+
+【中文·页面结构导览】
+整个页面由一个 Python 字符串常量 DASHBOARD_PAGE 和一个数据函数组成：
+  · DASHBOARD_PAGE：完整的 HTML/CSS/JS 网页代码，存成 Python 字符串。
+    页面大致分四块：
+    ① 顶部状态栏 —— 显示系统健康状态（HEALTHY/DEGRADED/UNHEALTHY）
+    ② 指标卡片网格 —— 已翻译章节数、运行时长、吞吐量、API 调用数、
+       队列深度、内存占用、限流开关、版本配置
+    ③ 熔断器状态 —— 每种目标语言的熔断器当前状态（关闭/开启/半开）
+    ④ 错误率表格 —— 每种语言最近 100 次 API 调用的失败比例
+  · get_dashboard_data()：真正的 Python 函数，汇总所有实时指标数据。
+    页面每 5 秒自动调一次 /api/dashboard/metrics 来获取最新数据并刷新。
+
+【中文·前端和后端的分工】
+页面（DASHBOARD_PAGE）负责"显示"，get_dashboard_data() 负责"给数据"。
+两者通过 JSON 格式通信——页面发请求，函数返回 JSON，页面拿到后更新显示。
+这就是所谓的"前后端分离"：显示逻辑和数据逻辑各自独立。
 """
 
 
+# 【中文·下面这些 import 是 get_dashboard_data() 要用到的数据来源】
+# backpressure：反压机制，当任务队列太满时暂停接收新任务
 from .backpressure import backpressure
+# circuit_breaker：熔断器，当某个语言的 API 连续失败时自动断开，防止继续烧钱
 from .circuit_breaker import get_all_breakers
+# config：全局配置，这里取端口、限流参数、模型映射等展示在看板上
 from .config import (
     API_PORT,
     CHAPTER_COOLDOWN_SECONDS,
@@ -15,9 +41,14 @@ from .config import (
     RATE_LIMIT_RPM,
     VERSION,
 )
+# HealthChecker：开机自检器；check_memory：查当前内存占用
 from .health import HealthChecker, check_memory
+# TranslationStats：翻译统计计数器（已翻章节数、API 调用数、错误率等）
 from .stats import TranslationStats
 
+# 【中文】下面是完整的看板网页 HTML/CSS/JS 代码，存成 Python 字符串。
+# ⚠️ 字符串内部的内容会被浏览器当作网页渲染，不能加中文注释。
+# 页面每 5 秒自动向 /api/dashboard/metrics 发请求刷新数据。
 DASHBOARD_PAGE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -266,14 +297,35 @@ setInterval(poll, 5000);
 
 
 def get_dashboard_data() -> dict:
-    """Assemble all live metrics for the dashboard JSON endpoint."""
+    """Assemble all live metrics for the dashboard JSON endpoint.
+
+    【中文】汇总所有实时指标，返回给看板页面显示。
+    · 网址：GET /api/dashboard/metrics（由 main.py 注册）
+    · 参数：无
+    · 返回：一个大字典，包含六个板块的数据：
+      ① metrics_stats：翻译统计快照（已翻章节数、吞吐量、错误率等）
+      ② health：系统健康检查结果（healthy/degraded/unhealthy）
+      ③ backpressure：反压状态（队列是否满了、当前深度）
+      ④ breakers：各语言熔断器的状态
+      ⑤ memory：内存占用（已用/总量/百分比）
+      ⑥ config：当前运行配置（版本号、模型栈、限流参数等）
+    · 为什么存在：看板页面本身只是 HTML，不包含任何数据。
+      它靠每 5 秒调一次这个函数来获取最新数据并刷新显示。
+    · 注意：HealthChecker() 每次新建实例，因为健康检查需要读最新状态；
+      但默认不做真实的 LLM 探测（那要花钱），只检查数据库、缓存等基础设施。
+    """
+    # 【中文】执行一次系统健康检查，不触发付费的 LLM 探测。
     health = HealthChecker().check_all()
+    # 【中文】读取当前进程的内存使用情况。
     memory = check_memory()
 
     return {
+        # 【中文】TranslationStats.snapshot() 返回一份当前的翻译统计快照。
         "metrics_stats": TranslationStats.snapshot(),
         "health": health,
+        # 【中文】backpressure.snapshot() 返回队列深度和是否处于反压状态。
         "backpressure": backpressure.snapshot(),
+        # 【中文】get_all_breakers() 返回所有语言的熔断器状态字典。
         "breakers": get_all_breakers(),
         "memory": {
             "used_gb": memory.get("used_gb"),
@@ -288,7 +340,9 @@ def get_dashboard_data() -> dict:
             "port": API_PORT,
             # Real values, so the Config card no longer hard-codes a provider
             # this project abandoned in 2026-09 ("DeepSeek V4 / Celery").
+            # 【中文】版本号和模型栈从配置里取真实值，不再写死。
             "version": VERSION,
+            # 【中文】MODEL_MAP 是 {用途: 模型名} 的映射，这里取所有不重复的模型名拼成展示字符串。
             "model_stack": " + ".join(sorted(set(MODEL_MAP.values()))),
             "model_map": dict(MODEL_MAP),
         },

@@ -14,8 +14,67 @@ The identity, audience and genre wording is parameterised: ``{audience}``,
 ``build_prompt_context(genre, target_lang)`` in ``src/agent/prompts/personas.py``.
 The JSON output examples below use doubled braces so ``str.format()`` leaves
 them literal.
+
+【中文·这个文件是干什么的】
+本文件提供翻译流水线中 **READ 角色**（中文网文老书虫）的
+两段提示词模板。
+所谓"提示词"（prompt），就是给 AI 的一份"角色说明书 + 任务单"，
+告诉它"你是谁、要做什么、按什么格式交作业"。
+
+【中文·READ 角色在流水线里的位置】
+READ 是整条翻译流水线的**第一棒**：
+  START → **READ** → REVIEW_TERMS → WRITE → READBACK → FIX → END
+它读中文原文，产出一份结构化分析报告（JSON），交给下游的 WRITE 角色
+当作"创作简报"来用英文重讲这一章。READ 自己**不做任何翻译**。
+
+【中文·为什么需要这个角色】
+中文读者看到"鬼节"会自动脑补出香火、纸钱、屏息的村庄；
+英文读者只看到一个标签，画面建立不起来，场景就废了。
+READ 的职责就是找出这些"画面缺口"（image gap），
+给出"感官锚点"（sensory anchor），让 WRITE 能用 universal 的细节重建画面。
+
+【中文·核心设计理念】
+① READ 同时用两双眼睛读书：一双是中国老书虫的眼睛（捕捉所有典故、
+   套路、言外之意），另一双是目标语言读者的眼睛（感受哪里看不懂、
+   哪里无聊）。
+② READ 的判断是最终权威。文化规则表、自动扫描信号都只是"参考线索"，
+   如果 READ 读完这一章觉得规则不适用，就以 READ 为准。
+③ 输出不是散文，而是结构化 JSON，包含情感弧线、文化缺口、画面缺口、
+   术语决策等字段，方便下游程序化消费。
+
+【中文·本文件的两个常量】
+· READ_SYSTEM —— 系统提示词：定义 READ 的身份、分析维度、输出格式。
+  运行时通过 .format(**ctx) 填入语种/体裁参数。
+· READ_USER —— 用户提示词：每次调用时拼入章节内容、术语表、
+  风格备忘录等动态数据。运行时通过 .format(...) 填入占位符。
 """
 
+# ────────────────────────────────────────────────────────────
+# 【中文·READ_SYSTEM 是什么】
+# 这是 READ 角色的"身份说明书"。它在整个翻译任务开始时作为
+# system message 发给大模型，告诉 AI："你是一个双语文化情报员，
+# 同时用中国读者和目标语言读者的视角阅读这一章，然后按指定
+# 格式输出分析结果。"
+#
+# ⚠️ 下面的大段英文是喂给大模型的提示词原文，属于业务数据，
+#    一个字都不能改——改了会直接影响翻译质量和成本。
+#
+# 【中文·占位符说明】
+# 提示词里的 {locale}、{output_language}、{reader}、{genre_name} 等
+# 花括号占位符，在运行时由 personas.build_prompt_context() 根据
+# 目标语种和小说类型自动填入。例如目标语是英语时：
+#   {locale} → "America"
+#   {output_language} → "English"
+#   {reader} → "an American reader"
+#   {genre_name} → "supernatural horror" / "urban fantasy" 等
+# 具体映射见 src/agent/prompts/personas.py 的 _LANG_PROFILES 和
+# _GENRE_PROFILES。
+#
+# 【中文·JSON 示例中的双花括号】
+# 提示词里 {{ 和 }} 是 Python str.format() 的转义写法，
+# 渲染后变成单个 { }，这样大模型收到的就是合法的 JSON 示例，
+# 而不会被 format() 当成占位符报错。
+# ────────────────────────────────────────────────────────────
 READ_SYSTEM = """\
 You are a bilingual cultural intelligence. You grew up reading Chinese web \
 novels and you live in {locale} reading {output_language} genre fiction. You \
@@ -222,6 +281,40 @@ Every bridge_guidance must be a concrete instruction the WRITER can execute. \
 If you are vague, the translation will fail.
 """
 
+# ────────────────────────────────────────────────────────────
+# 【中文·READ_USER 是什么】
+# 这是 READ 角色的"本次任务单"。每次翻译一章时，节点代码
+# （src/agent/nodes/read.py 的 read_node 函数）会把这一章的具体数据
+# 填进下面的占位符，然后作为 user message 发给大模型。
+#
+# ⚠️ 下面的英文是提示词原文，不能改动。
+#
+# 【中文·各占位符的数据来源】
+# 以下说明每个 {xxx} 在运行时被填进什么内容、数据从哪来：
+# · {style_memo} —— 前几章积累的翻译经验备忘，来自 state["style_memo"]。
+#   第一章时为 "(No style memo yet — this is the first chapter.)"。
+# · {chapter_number} —— 当前章节号，来自 state["chapter_number"]。
+# · {chapter_title} —— 当前章节标题，来自 state["chapter_title"]。
+# · {genre} —— 小说类型标识符（如 "urban"、"folk_religion"），
+#   来自 state["genre"]。
+# · {target_language} —— 目标语种代码（如 "en-US"），
+#   来自 state["target_lang"]。
+# · {audience} —— 目标读者群体的形容词（如 "American"），
+#   来自 personas.build_prompt_context()。
+# · {previous_summary} —— 上一章的剧情摘要，来自
+#   state["previous_chapter_summary"]，用于保持前后文连贯。
+# · {exact_matches} —— 已确立的术语表（精确匹配部分），来自
+#   state["exact_matches_text"]，由 ExactGlossary 生成。
+# · {cultural_rules_table} —— 该类型的文化适配规则要点列表，
+#   由 cultural_rules.load_rules() + format_rules_as_bullets() 生成。
+# · {fidelity_rules} —— 文化保真策略规则（人名怎么译、称谓怎么处理等），
+#   由 cultural_rules.load_fidelity_rules() + format_fidelity_for_prompt()
+#   生成。
+# · {context_signals} —— 9 个自动检测器（方言、拟声词、度量衡、成语、
+#   敏感词等）汇总的信号文本，由 nodes/read.py 的
+#   _build_context_signals() 聚合。
+# · {chapter_content} —— 本章中文原文，来自 state["chapter_content"]。
+# ────────────────────────────────────────────────────────────
 READ_USER = """\
 ## TRANSLATION STYLE MEMO (accumulated experience from prior chapters)
 {style_memo}

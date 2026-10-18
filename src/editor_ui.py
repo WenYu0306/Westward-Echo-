@@ -1,5 +1,54 @@
-"""Editor UI — standalone HTML page for human-in-the-loop paragraph-level editing."""
+"""Editor UI — standalone HTML page for human-in-the-loop paragraph-level editing.
 
+【中文·这个文件是干什么的】
+这是「段落编辑器」的前端页面模板，存成一个 Python 字符串常量 EDITOR_PAGE。
+你在浏览器打开 /editor/{任务号} 时看到的就是这个页面。
+main.py 会把 URL 里的 {JOB_ID} 占位符替换成真实的任务号后返回给浏览器。
+
+【中文·页面结构导览】
+这是一个三栏布局的编辑界面：
+
+  ① 顶部栏（topbar）
+     · 品牌标识 + 当前章节标题
+     · 编辑进度统计（已编辑 X / Y 章）
+     · 保存状态指示器（未修改/保存中/已保存）
+     · EPUB 导出按钮 + 返回首页链接
+
+  ② 章节选择器（chapter-selector）
+     · 横向滚动的章节按钮条，点击切换章节
+     · 被编辑过的章节会显示一个小圆点标记
+
+  ③ 编辑主体（editor-body），三栏并排：
+     a) 左栏（col-cn）：中文原文，只读，带术语高亮
+     b) 中栏（col-en）：英文译文，可直接编辑（contenteditable），
+        修改过的段落左边有橙色竖线标记
+     c) 右栏（col-tools）：编辑工具面板
+        · 批量术语替换（输入旧词和新词，全书替换）
+        · 当前术语列表（从术语库加载）
+        · 快捷键参考（Ctrl+S 保存、Tab 下一段、Shift+Tab 上一段）
+
+  ④ 底部栏（bottombar）
+     · 快捷键提示 + 保存按钮
+
+【中文·核心交互流程】
+  · 切换章节 → 调 GET /api/editor/{job_id}/chapters/{num} 加载数据
+  · 编辑段落 → 本地标记为 modified，3 秒无操作后自动保存
+  · 手动保存 → Ctrl+S 或点按钮，调 PUT /api/editor/{job_id}/chapters/{num}
+  · 批量替换 → 调 POST /api/editor/{job_id}/batch-replace
+  · 中英滚动同步 → 左右两栏按比例联动滚动
+
+【中文·⚠️ 重要提醒】
+下面的字符串内容是完整的 HTML/CSS/JS 网页代码，会被浏览器直接渲染。
+字符串内部不能加任何中文注释。已有的中文是界面文案，属于业务数据。
+{JOB_ID} 是占位符，由 main.py 在返回前替换成真实任务号。
+
+【中文·对应的后端接口】
+所有数据读写都在 src/api/editor.py 里，本文件只负责显示和交互。
+"""
+
+# 【中文】下面是段落编辑器的完整 HTML/CSS/JS 代码，存成 Python 原始字符串。
+# ⚠️ 字符串内部不能加中文注释，已有的中文是界面文案。
+# {JOB_ID} 会在 main.py 里被替换成真实的任务号。
 EDITOR_PAGE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>

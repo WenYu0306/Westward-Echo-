@@ -8,8 +8,63 @@ Identity, audience and genre wording is parameterised via
 ``build_prompt_context(genre, target_lang)`` — see
 ``src/agent/prompts/personas.py``. The JSON output examples use doubled
 braces so ``str.format()`` leaves them literal.
+
+【中文·这个文件是干什么的】
+本文件提供翻译流水线中 **WRITE 角色**（英文类型小说作家）的两段提示词模板。
+WRITE 不是翻译机器，而是一个拿着 READ 分析报告当"创作简报"、
+用目标语言**重新讲述**这一章故事的作家。
+
+【中文·WRITE 角色在流水线里的位置】
+  START → READ → REVIEW_TERMS → **WRITE** → READBACK → FIX → END
+WRITE 接收上游 READ 的分析结果（文化缺口、画面缺口、术语决策等），
+产出一整章目标语言的正文 + 新发现的术语 + 改编笔记 + 章节摘要。
+
+【中文·为什么叫"作家"不叫"翻译"】
+因为逐句翻译出来的英文读起来像说明书，不像小说。WRITE 被赋予完整的
+创作权限：可以重组段落顺序、把 500 字设定压缩成一个手势、为外国读者
+补入最小必要的上下文、甚至发明原文没有的比喻——只要最终效果让目标读者
+"感受到中国读者同样的情绪"。
+
+【中文·核心约束】
+① 情感弧线必须对齐 READ 的分析。
+② 术语表里已确立的译名是铁律，不能自创替代。
+③ 输出里绝对不能出现任何中文字符（零中文规则）。
+④ 每个有名有姓的角色都必须通过行动展现至少一个特征，不许贴标签。
+
+【中文·本文件的两个常量】
+· WRITE_SYSTEM —— 系统提示词：定义 WRITE 的身份、创作权限、
+  感官翻译规则、输出格式。
+· WRITE_USER —— 用户提示词：每次调用时拼入 READ 分析、画面缺口、
+  术语表、风格备忘等动态数据。
 """
 
+# ──────────────────────────────────────────────────────────────────────
+# 【中文·WRITE_SYSTEM 是什么】
+# 这是 WRITE 角色的"身份说明书"。作为 system message 发给大模型，
+# 告诉 AI："你是一个双语类型小说作家，拿到 READ 的分析后，用目标语言
+# 重讲这一章，允许重构，但必须守住情感弧线和术语一致性。"
+#
+# ⚠️ 下面的大段英文是喂给大模型的提示词原文，属于业务数据，
+#    一个字都不能改——改了会直接影响翻译质量和成本。
+#
+# 【中文·占位符说明】
+# {genre_name}、{output_language}、{readers}、{reader}、{Reader}、
+# {genre_tradition}、{genre_craft}、{audience} 等花括号占位符，
+# 在运行时由 personas.build_prompt_context() 根据目标语种和小说类型
+# 自动填入。具体映射见 src/agent/prompts/personas.py。
+#
+# 【中文·SENSORY TRANSLATION RULE 的设计意图】
+# 这段规则是整条流水线的核心机制之一：中文读者脑子里有一个"共享文化
+# 图库"，作者写一个指针（如"鬼节夜，敲门声"），读者自动调出完整画面。
+# 外国读者没有这个图库，只看到指针，画面建立不起来。所以 WRITE 必须
+# 用 universal 的感官细节（颜色、质感、声音、温度）从零重建画面，
+# 而不是解释概念。
+#
+# 【中文·ZERO-CHINESE RULE 的设计意图】
+# 输出里哪怕残留一个"的""了"或拼音，对读者来说就是质量事故。
+# 这条规则写在提示词最末尾、用 CRITICAL 标记，是因为大模型对靠后的
+# 指令注意力更强（recency bias），把最重要的禁令放在这里效果最好。
+# ──────────────────────────────────────────────────────────────────────
 WRITE_SYSTEM = """\
 You write {genre_name} in {output_language}. Your work has appeared in \
 magazines and anthologies. You grew up reading both Chinese web novels and \
@@ -175,6 +230,42 @@ punctuation, or Unicode quotes/dashes. If a concept has no exact \
 Chinese characters in the output are the #1 quality failure — strip them all.
 """
 
+# ──────────────────────────────────────────────────────────────────────
+# 【中文·WRITE_USER 是什么】
+# 这是 WRITE 角色的"本次任务单"。节点代码（src/agent/nodes/write.py
+# 的 write_node 函数）会把 READ 分析、术语表、画面缺口等动态数据
+# 填进下面的占位符，然后作为 user message 发给大模型。
+#
+# ⚠️ 下面的英文是提示词原文，不能改动。
+#
+# 【中文·各占位符的数据来源】
+# · {style_memo} —— 前几章积累的翻译经验备忘，来自 state["style_memo"]。
+# · {reader_analysis} —— READ 角色输出的完整分析报告（JSON 格式化后
+#   的文本），由 nodes/write.py 的 _format_read_analysis() 生成。
+# · {image_gaps} —— READ 分析中提取的画面缺口列表（格式化文本），
+#   由 nodes/write.py 的 _format_image_gaps() 生成。
+# · {chapter_number} —— 当前章节号，来自 state["chapter_number"]。
+# · {chapter_title} —— 当前章节标题，来自 state["chapter_title"]。
+# · {genre} —— 小说类型标识符，来自 state["genre"]。
+# · {exact_matches} —— 已确立的术语表（精确匹配），来自
+#   state["exact_matches_text"]。
+# · {semantic_matches} —— 语义相关的术语条目（向量检索结果），来自
+#   state["semantic_matches_text"]，由 SemanticGlossary 生成。
+# · {previous_summary} —— 上一章剧情摘要，来自
+#   state["previous_chapter_summary"]。
+# · {confirmed_terms} —— 人工确认过的译名列表（不可更改），由
+#   job_store.get_confirmed_terms() 获取。
+# · {rejected_terms} —— 人工否决过的译名列表（不可使用），由
+#   job_store.get_rejected_terms() 获取。
+# · {regional_style} —— 目标语种的文体风格备注（如英式/美式英语差异），
+#   来自 prompts/translation.py 的 LANGUAGE_STYLE_NOTES 字典。
+# · {fidelity_rules} —— 文化保真策略规则（仅人名和称谓部分），
+#   由 cultural_rules.load_fidelity_rules() 筛选后格式化。
+# · {output_language} —— 目标语言名称（如 "English"），
+#   来自 personas.build_prompt_context()。
+# · {reader} / {readers} —— 目标读者的语法形式，同上。
+# · {chapter_content} —— 本章中文原文，来自 state["chapter_content"]。
+# ──────────────────────────────────────────────────────────────────────
 WRITE_USER = """\
 ## TRANSLATION STYLE MEMO (accumulated experience from prior chapters)
 {style_memo}

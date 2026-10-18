@@ -1,15 +1,43 @@
 """Usage analytics page — error tracking, editor behavior, and translation health.
 
 Served at ``GET /usage`` (no auth).  Auto-refreshes every 30 seconds.
+
+【中文·这个文件是干什么的】
+这是「用量分析」页面，用来追踪翻译过程中的报错情况和人工编辑行为。
+你在浏览器打开 http://localhost:8000/usage 就能看到。
+和看板一样不设身份校验，方便随时查看。
+
+【中文·页面结构导览】
+整个页面由一个 Python 字符串常量 USAGE_PAGE 和一个数据函数组成：
+  · USAGE_PAGE：完整的 HTML/CSS/JS 网页代码，存成 Python 字符串。
+    页面大致分五块：
+    ① 顶部导航栏 —— 链接到 Dashboard、Usage、Home 三个页面
+    ② 错误汇总卡片 —— 最近 7 天的总错误数、各类错误数量
+    ③ 错误类型柱状图 —— 用纯 CSS 画的横向条形图，展示前 5 种最多的错误
+    ④ 最近问题表格 —— 最近 20 条错误事件的时间、类型、详情、关联任务
+    ⑤ 编辑行为卡片 —— 已编辑章节数、术语确认/拒绝数、批量替换次数
+    ⑥ 翻译健康表格 —— 每个任务的章节数和警告率
+  · get_usage_data()：真正的 Python 函数，从错误追踪器读取所有统计数据。
+    页面每 30 秒自动调一次 /api/usage/events 来获取最新数据并刷新。
+
+【中文·这个页面解决什么问题】
+翻译几千章的过程中，某些类型的错误可能反复出现（比如 JSON 解析失败、
+熔断器触发、AI 输出为空）。这个页面帮你发现"哪类问题最多""哪个任务最不健康"，
+从而有针对性地排查和改进。
 """
 
+# 【中文·下面这些 import 是 get_usage_data() 要用到的数据来源】
+# error_tracker 模块负责记录和查询翻译过程中的各类事件和错误。
 from .error_tracker import (
-    get_all_jobs_health,
-    get_editor_stats,
-    get_event_summary,
-    get_recent_issues,
+    get_all_jobs_health,   # 每个任务的翻译健康度（章节数、警告率）
+    get_editor_stats,      # 人工编辑行为统计（编辑章节数、术语确认/拒绝数）
+    get_event_summary,     # 最近 N 天的错误类型汇总
+    get_recent_issues,     # 最近的错误事件列表
 )
 
+# 【中文】下面是完整的用量分析网页 HTML/CSS/JS 代码，存成 Python 字符串。
+# ⚠️ 字符串内部的内容会被浏览器当作网页渲染，不能加中文注释。
+# 页面每 30 秒自动向 /api/usage/events 发请求刷新数据。
 USAGE_PAGE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -315,10 +343,26 @@ setInterval(poll, 30000);
 
 
 def get_usage_data() -> dict:
-    """Assemble all live metrics for the usage page JSON endpoint."""
+    """Assemble all live metrics for the usage page JSON endpoint.
+
+    【中文】汇总所有用量分析数据，返回给页面显示。
+    · 网址：GET /api/usage/events（由 main.py 注册）
+    · 参数：无
+    · 返回：一个大字典，包含四个板块的数据：
+      ① summary：最近 7 天的错误类型汇总（每种类型出现了多少次）
+      ② recent：最近 20 条错误事件详情（时间、类型、关联任务和章节）
+      ③ editor：人工编辑行为统计（编辑了多少章、确认/拒绝了多少术语）
+      ④ jobs_health：每个翻译任务的健康度（总章节数、有警告的章节数、警告率）
+    · 为什么存在：和看板一样，页面本身只是 HTML，靠定时调这个函数获取数据。
+      刷新间隔是 30 秒（比看板的 5 秒慢，因为用量数据变化没那么频繁）。
+    """
     return {
+        # 【中文】get_event_summary(days=7) 统计最近 7 天各类错误的出现次数。
         "summary": get_event_summary(days=7),
+        # 【中文】get_recent_issues(20) 取最近 20 条错误事件。
         "recent": get_recent_issues(20),
+        # 【中文】get_editor_stats() 汇总人工编辑行为数据。
         "editor": get_editor_stats(),
+        # 【中文】get_all_jobs_health() 计算每个任务的翻译健康指标。
         "jobs_health": get_all_jobs_health(),
     }

@@ -37,6 +37,20 @@
   价格阈值常量——新增魔法常量只会多一个会漂移的判据。
 * **不改生产行为。** 本模块只被脚本调用；`src/api`、`src/celery_app` 的正常
   服务路径不经过它，线上翻译不会因为闸门而拒跑。
+
+【中文·这个文件是干什么的】
+这是给**开发脚本**用的安全门。当你跑测试脚本、诊断脚本时，它会检查
+当前配置里有没有用到高价模型（qwen3.8-max 等深度思考档）。如果有，
+就拦住你并要求明确确认——防止不小心用高价档跑大批量测试，
+几分钟烧掉几十块钱。
+
+【中文·它防止什么坏事发生】
+大模型的"深度思考"档（名字里带 max/prime）比"快速输出"档贵 10~35 倍。
+开发调试时通常不需要这么强的模型，但如果忘了切回便宜档，闸门会替你拦住。
+
+【中文·它在整个流程里的位置】
+只在 scripts/ 下的脚本启动时被调用。**线上翻译服务完全不经过这里**，
+所以不会影响正常的翻译任务。
 """
 from __future__ import annotations
 
@@ -47,17 +61,30 @@ from pathlib import Path
 # 经模块取值，不做 `from .config import NODE_MODELS`：`_env_overridden()` 每次
 # 返回**新**字典，导入时绑定会在 reload / monkeypatch 之后读到陈旧的那一份——
 # 那正是本模块要消灭的"声明与实际路由各走各的"。
+#
+# 【中文】注意这里 import 的是整个 config 模块而不是具体的变量。
+# 因为 NODE_MODELS 可能被环境变量动态覆盖，如果直接 import 变量名，
+# 拿到的是导入那一刻的快照，后续改了环境变量也看不到变化。
 from . import config
 
 # 高价档判定口径：与四份旧闸门保持一致（名字里有 max / prime 就是深度档）。
+# 【中文】怎么判断一个模型是不是"贵的"？看名字里有没有 max 或 prime。
+# 比如 qwen3.8-max、qwen3.8-max-prime 都是高价档；
+# qwen3.8-flash、glm-5.3-flash 就不是。
 _EXPENSIVE_MARKERS = ("max", "prime")
 
 # 允许跳过闸门的环境变量。四份旧闸门里有三份认它，统一后全部认。
+# 【中文】设 XIDU_ALLOW_EXPENSIVE=1 就能跳过闸门，和 --allow-expensive 等效。
 _ALLOW_ENV = "XIDU_ALLOW_EXPENSIVE"
 
 
 def is_expensive(model: str) -> bool:
-    """模型名是否属于高价档。空/未知名字不算高价（由价格表那侧去暴露）。"""
+    """模型名是否属于高价档。空/未知名字不算高价（由价格表那侧去暴露）。
+
+    【中文】判断一个模型名是不是高价档。
+    规则很简单：名字（忽略大小写）里包含 "max" 或 "prime" 就是。
+    空字符串或 None 返回 False——未知的模型让价格表那边报错，不在这里拦。
+    """
     name = (model or "").strip().lower()
     return any(marker in name for marker in _EXPENSIVE_MARKERS)
 
@@ -71,6 +98,11 @@ def expensive_nodes() -> list[tuple[str, str, float | None]]:
 
     读的是 `NODE_MODELS` —— 也就是 `node_llm_kwargs()` 真正拿去构造客户端的
     那张表，不是 `QWEN_MODEL` 这类只影响默认值的历史变量。
+
+    【中文】列出当前配置中所有用了高价模型的节点。
+    返回格式：[(节点名, 模型名, 输出单价), ...]。
+    读的是 config.NODE_MODELS（真正生效的路由表），不是旧的默认变量。
+    如果某个模型不在价格表里，单价给 None 而不是瞎编一个数。
     """
     out = []
     for node, model in sorted(config.NODE_MODELS.items()):
@@ -82,7 +114,14 @@ def expensive_nodes() -> list[tuple[str, str, float | None]]:
 
 
 def format_refusal(purpose: str, script_name: str, *, hint: str = "") -> str:
-    """渲染拒绝运行的提示。单一来源，四个脚本不再各写一份文案。"""
+    """渲染拒绝运行的提示。单一来源，四个脚本不再各写一份文案。
+
+    【中文】生成一段人类可读的拒绝提示，告诉用户：
+    ① 哪些节点在用高价模型、每个的输出单价是多少；
+    ② 怎么切换到便宜的 flash 档（给了完整命令示例）；
+    ③ 如果确实要用高价档，怎么用 --allow-expensive 或环境变量放行；
+    ④ 想看整本书的成本估算而不花钱，该跑哪个脚本。
+    """
     lines = expensive_nodes()
     listed = ", ".join(f"{node}={model}" for node, model, _ in lines)
     priced = "\n".join(
@@ -118,6 +157,10 @@ def _invoked_script_name() -> str:
     ``sys.argv`` 为空或首项为空串时（嵌入式调用、`python -c` 导入本模块）给
     占位名而不是抛 IndexError——闸门本身绝不能成为新的崩溃点。命名带下划线
     前缀，是为了不和 `format_refusal` 的 `script_name` 形参混淆。
+
+    【中文】取当前正在跑的脚本文件名，用在拒绝提示的命令示例里。
+    如果取不到（比如在交互式环境里 import 了这个模块），就给个占位名
+    "script.py"，绝不能因为取文件名这件事本身导致崩溃。
     """
     argv = sys.argv
     if argv and argv[0]:
@@ -138,6 +181,12 @@ def guard_tier(*, allow_expensive: bool = False, purpose: str = "本次任务不
     这里不给 `print` 传 `flush=True`：紧随其后的 `sys.exit(2)` 走正常解释器
     退出流程并刷新 stdout，那个参数在本路径上不可观测，只会留下一个任何
     测试都杀不掉的变异点。
+
+    【中文】这是脚本入口处的"安检门"。
+    · allow_expensive=True 或环境变量 XIDU_ALLOW_EXPENSIVE=1 → 直接放行。
+    · 当前没有高价档节点 → 也放行（没什么好拦的）。
+    · 否则 → 打印拒绝提示，然后 sys.exit(2) 终止进程。
+      退出码 2 是和旧闸门约定的，方便自动化脚本判断"是被闸门拦了"。
     """
     if allow_expensive or os.getenv(_ALLOW_ENV) == "1":
         return
@@ -148,7 +197,13 @@ def guard_tier(*, allow_expensive: bool = False, purpose: str = "本次任务不
 
 
 def describe_tiers() -> str:
-    """当前逐节点路由的一行摘要，供脚本在放行后自己打印（"先报金额"的一半）。"""
+    """当前逐节点路由的一行摘要，供脚本在放行后自己打印（"先报金额"的一半）。
+
+    【中文】生成一行简短的路由摘要，格式如：
+    "read=qwen3.8-max(¥36.0/M)⚠高价 | write=glm-5.3-flash(¥2.8/M) | ..."
+    脚本在通过闸门后打印这行，让用户知道当前每个节点用的是哪个模型、
+    多少钱。这就是铁律6"先报金额"的实现方式之一。
+    """
     parts = []
     for node, model in sorted(config.NODE_MODELS.items()):
         price = config.MODEL_PRICES_CNY_PER_M.get(model)

@@ -7,12 +7,46 @@ them literally (making nonsense) when it should convey the meaning.
 This module scans chapter text for common Chinese idioms and generates
 context hints so the LLM can use natural English equivalents instead of
 producing word-for-word gibberish.
+
+【中文·这个检测器检测什么】
+检测中文原文里的**成语和俗语**。成语是中文里固定的四字（或多字）短语，
+每个都有典故和引申义，比如"画蛇添足"不是说真的在画蛇加脚，
+而是说"多此一举、弄巧成拙"。
+
+【中文·为什么需要它】
+AI 经常把成语逐字直译，闹出笑话。举几个具体例子：
+  · "画蛇添足" → AI 可能译成 "draw a snake and add feet"
+    （英文读者完全看不懂），正确应该是 "gilding the lily"。
+  · "对牛弹琴" → AI 可能译成 "play piano to a cow"，
+    正确应该是 "casting pearls before swine"。
+  · "破釜沉舟" → AI 可能译成 "break pots and sink boats"，
+    正确应该是 "burning your boats / point of no return"。
+这个检测器找到成语后，给 AI 一份正确的英文对应说法，避免逐字翻译的灾难。
+
+【中文·它在流程里的位置】
+在 READ 阶段被 `_build_context_signals()` 调用（见 src/agent/nodes/read.py）。
+扫描原文，把发现的成语和对应英文提示拼成一段文本，作为 READ 的起步线索。
+
+【中文·输出格式】
+返回一段 Markdown 格式的提示文本，例如：
+    ## IDIOM CONTEXT
+    - **画蛇添足** → gilding the lily (NOT a literal translation)
+    - **破釜沉舟** → burning your boats (NOT a literal translation)
+如果没有发现任何成语，返回空字符串。
+
+【中文·关于 COMMON_IDIOMS 数据表】
+下面的 COMMON_IDIOMS 字典是一张几百条的成语对照表，属于业务数据。
+只在文件头和数据块开头说明用途，不给每条成语单独写注释。
+⚠️ 绝对不要修改这张表的内容。
 """
 
 from __future__ import annotations
 
 # ── Common idioms that appear frequently in web novels ─────────────────
 # Mapping: Chinese idiom → English meaning / equivalent
+# 【中文】成语对照表：左边是中文成语，右边是对应的英文含义或等价表达。
+# 按语义分类排列（行为类、情境类、性格类、关系类、计谋类）。
+# ⚠️ 这是业务数据，改动会直接影响翻译质量，不要修改内容。
 
 COMMON_IDIOMS: dict[str, str] = {
     # Actions / behavior
@@ -94,11 +128,21 @@ def detect_idioms(text: str) -> list[tuple[str, str]]:
 
     Idioms are returned in order of first appearance. Each idiom
     is only reported once (deduplicated).
+
+    【中文】扫描原文，找出所有出现在对照表里的成语。
+    · 参数 text：要扫描的中文原文（通常是一整章）。
+    · 返回：一个列表，每项是 (成语, 英文含义) 的元组。
+      按成语在原文中首次出现的顺序排列，每个成语只报告一次。
+    · 为什么按长度降序匹配：有些短成语是长成语的子串，
+      比如"一举"可能出现在"一举两得"里。先匹配长的，
+      避免把"一举两得"误拆成"一举"+"两得"两个碎片。
+    · 为什么最后按位置排序：匹配时是按长度排的，但给 AI 的提示
+      应该按阅读顺序排，这样 AI 处理时跟原文节奏一致。
     """
     found: list[tuple[str, str]] = []
     seen: set[str] = set()
 
-    # Scan left-to-right, recording first occurrence
+    # 按长度降序排列成语，长的优先匹配，避免子串误匹配
     for idiom in sorted(COMMON_IDIOMS, key=len, reverse=True):
         # Sort by length descending so longer idioms (e.g. multi-character)
         # are matched before shorter substrings
@@ -106,7 +150,7 @@ def detect_idioms(text: str) -> list[tuple[str, str]]:
             found.append((idiom, COMMON_IDIOMS[idiom]))
             seen.add(idiom)
 
-    # Sort by position in text to preserve reading order
+    # 按在原文中的首次出现位置排序，保持阅读顺序
     def _first_pos(entry: tuple[str, str]) -> int:
         return text.index(entry[0])
 
@@ -120,6 +164,15 @@ def build_idiom_context(text: str) -> str:
     Returns an empty string when no known idioms are found in *text*.
     Otherwise returns a hint block that can be prepended to the user
     prompt so the LLM translates idioms by meaning, not literally.
+
+    【中文】把检测到的成语整理成一段格式化的提示文本，准备塞进翻译提示词里。
+    · 参数 text：要扫描的中文原文。
+    · 返回：Markdown 格式的提示块；没发现成语则返回空字符串 ""。
+    · 为什么存在：成语是最容易逐字翻译出错的语言现象之一，
+      必须在提示词里明确告诉 AI "这些成语要用意译，不要直译"。
+    · 坑：提示文本里特意加了 "(NOT a literal word-for-word translation)"
+      这句话，因为 AI 有时候即使看到了正确译法，还是会忍不住直译。
+      反复强调才能压住它的直译倾向。
     """
     found = detect_idioms(text)
     if not found:
