@@ -29,17 +29,20 @@ git pull origin main
 if [ ! -f .env ]; then
     echo ""
     echo "=== .env setup ==="
-    read -p "Qwen API Key (sk-..., 主模型): " QWEN_KEY
-    read -p "DeepSeek API Key (sk-..., 可留空作 fallback): " DEEPSEEK_KEY
+    read -p "Qwen API Key (sk-..., 判断层): " QWEN_KEY
+    read -p "GLM API Key (sk-..., 文字层): " GLM_KEY
     read -p "API Key for admin access (leave empty for dev mode): " API_KEY
 
     cat > .env <<ENVEOF
-DEEPSEEK_API_KEY=${DEEPSEEK_KEY}
-DEEPSEEK_FLASH_MODEL=deepseek-v4-flash
-DEEPSEEK_PRO_MODEL=deepseek-v4-pro
 LLM_API_KEY=${QWEN_KEY}
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_MODEL=qwen-plus
+QWEN_MODEL=qwen3.8-max
+GLM_API_KEY=${GLM_KEY}
+GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+GLM_MODEL=glm-5.3-flash
+GLM_FULL_MODEL=glm-5.3
+GLM_WRITE_EFFORT=low
+GLM_FIX_EFFORT=high
 ANTHROPIC_API_KEY=
 REDIS_URL=redis://redis:6379/0
 API_KEY=${API_KEY}

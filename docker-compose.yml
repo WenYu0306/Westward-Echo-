@@ -24,9 +24,6 @@ services:
   api:
     build: .
     environment:
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DEEPSEEK_FLASH_MODEL=${DEEPSEEK_FLASH_MODEL:-deepseek-v4-flash}
-      - DEEPSEEK_PRO_MODEL=${DEEPSEEK_PRO_MODEL:-deepseek-v4-pro}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - REDIS_URL=redis://redis:6379/0
       - CHROMA_HOST=chroma
@@ -34,7 +31,11 @@ services:
       - API_KEY=${API_KEY:-}
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_BASE_URL=${LLM_BASE_URL:-}
-      - LLM_MODEL=${LLM_MODEL:-}
+      - QWEN_MODEL=${QWEN_MODEL:-qwen3.8-max}
+      - GLM_API_KEY=${GLM_API_KEY:-}
+      - GLM_BASE_URL=${GLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      - GLM_MODEL=${GLM_MODEL:-glm-5.3-flash}
+      - GLM_FULL_MODEL=${GLM_FULL_MODEL:-glm-5.3}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./data:/app/data
@@ -52,16 +53,17 @@ services:
     build: .
     command: celery -A src.celery_app worker --loglevel=info --concurrency=2
     environment:
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DEEPSEEK_FLASH_MODEL=${DEEPSEEK_FLASH_MODEL:-deepseek-v4-flash}
-      - DEEPSEEK_PRO_MODEL=${DEEPSEEK_PRO_MODEL:-deepseek-v4-pro}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - REDIS_URL=redis://redis:6379/0
       - CHROMA_HOST=chroma
       - CHROMA_PORT=8000
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_BASE_URL=${LLM_BASE_URL:-}
-      - LLM_MODEL=${LLM_MODEL:-}
+      - QWEN_MODEL=${QWEN_MODEL:-qwen3.8-max}
+      - GLM_API_KEY=${GLM_API_KEY:-}
+      - GLM_BASE_URL=${GLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      - GLM_MODEL=${GLM_MODEL:-glm-5.3-flash}
+      - GLM_FULL_MODEL=${GLM_FULL_MODEL:-glm-5.3}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./data:/app/data
