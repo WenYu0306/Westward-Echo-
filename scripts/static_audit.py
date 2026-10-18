@@ -48,6 +48,34 @@ D 类误报因此从 14 条收敛到 1 条真阳性。
 
 pre-commit 尚未接：钩子未 install（.git/hooks/pre-commit 不存在），且
 ruff/mypy 在 CI 里也只覆盖 src/ 与 tests/。CI 是当前的强制层。
+
+【中文·这个脚本干什么】
+静态审计（static audit）：不真的运行程序，只读源码找毛病，好比不试驾只拆开看零件。
+专门找"一跑就崩"的问题——比如引用了不存在的模块、用了没赋值的变量。
+这些问题在正常运行时可能藏在某个分支里不被触发，但一旦走到那条路就直接报错。
+
+【中文·怎么运行】
+```bash
+cd "/Users/wenyudemac/Documents/dev/Westward Echo（西渡）"
+# 先跑自检，确认扫描器本身工作正常
+python3.11 scripts/static_audit.py --self-test
+# 扫描 scripts/ 和项目根的 .py 文件
+python3.11 scripts/static_audit.py
+# 追加扫描 src/ 全量
+python3.11 scripts/static_audit.py --include-src
+```
+
+【中文·运行前要准备什么】
+· 不需要任何 API 密钥，不调用大模型。
+· 不需要启动服务或数据库。
+· 需要 python3.11（AST 解析用到 3.10+ 的 match 语法支持）。
+
+【中文·⚠️ 会不会花真钱】
+**零费用**。本脚本只做 AST 解析和文件读取，不调用任何外部 API。
+
+【中文·会产生/修改什么文件】
+· 不产生任何文件，不修改任何文件。纯只读分析。
+· 输出全部打印到终端。
 """
 from __future__ import annotations
 
@@ -86,7 +114,11 @@ _MUTATION_COVERED = {
 
 # ── 模块解析 ────────────────────────────────────────────────────────────
 def module_to_path(dotted: str) -> Path | None:
-    """把 `src.a.b` 解析成 .py 文件路径；包目录返回其 __init__.py。"""
+    """把 `src.a.b` 解析成 .py 文件路径；包目录返回其 __init__.py。
+
+    【中文·作用】把 Python 的点分模块名（如 src.agent.graph）转成文件系统路径。
+    先试 .py 文件，再试包的 __init__.py。找不到返回 None。
+    """
     rel = dotted.replace(".", "/")
     cand_file = ROOT / f"{rel}.py"
     if cand_file.is_file():

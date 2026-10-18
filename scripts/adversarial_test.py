@@ -20,6 +20,38 @@ Usage:
 Requirements:
     Tests 1 & 2 call the GLM flash tier and cost real money, so they require
     --allow-api explicitly.  Tests 3 & 4 are local and always run.
+
+【中文·这个脚本干什么】
+对抗性测试（adversarial testing）：故意喂最刁钻、最不讲理的输入，看程序会不会崩
+或者产出垃圾。好比请一个专业"找茬员"来试你的产品，不是正常使用，而是专门挑毛病。
+本脚本包含 4 个独立测试，其中 2 个花钱（调大模型）、2 个不花钱（纯本地检查）。
+
+【中文·怎么运行】
+```bash
+cd "/Users/wenyudemac/Documents/dev/Westward Echo（西渡）"
+# 只跑免费测试（Test 3 + Test 4）
+python3.11 scripts/adversarial_test.py
+# 也跑付费测试（Test 1 + Test 2），需两个开关
+python3.11 scripts/adversarial_test.py --allow-api --allow-expensive
+```
+⚠️ 注意：必须用 python3.11，本机 python3 是 3.9 跑不了。
+
+【中文·运行前要准备什么】
+· 付费测试需要 LLM_API_KEY 和 GLM_API_KEY。
+· 免费测试不需要任何密钥。
+· Test 1 需要 tests/fixtures/jianke_ch1_es_ES.md 西班牙语测试文本。
+
+【中文·⚠️ 会不会花真钱】
+· 默认运行（不加 --allow-api）：**零费用**，只跑 Test 3 和 Test 4。
+· 加 --allow-api：Test 1 调 2 次 READBACK 节点、Test 2 调约 10 次完整管线。
+  具体金额取决于 token 消耗，无法从代码精确推算。成本闸门会强制使用 flash
+  档（约 1/10 价格），除非额外加 --allow-expensive 放行高价档。
+
+【中文·会产生/修改什么文件】
+· tests/fixtures/adversarial_eval_crosscheck.json —— Test 1 的评估结果。
+· tests/fixtures/adversarial_stress_chapters.txt —— Test 2 生成的测试章节。
+· tests/fixtures/adversarial_stress_result.json —— Test 2 的压力测试结果。
+· Test 3 可能读取 data/jobs.db（如果直接调用 editor 函数且有已完成任务）。
 """
 
 from __future__ import annotations
@@ -55,6 +87,13 @@ load_dotenv(PROJECT_ROOT / ".env")
 # overrides (XIDU_NODE_MODEL_<NODE>) are seen too — this local copy used to
 # read QWEN_MODEL/GLM_MODEL and missed them.
 def _guard_tier(allow_expensive: bool) -> None:
+    """成本闸门：阻止在 flash 以外的贵价档位上跑付费测试。
+
+    【中文·作用】检查当前所有节点的模型档位，如果有高价档（如 qwen3.8-max）
+    且用户没有显式放行，就拒绝运行并退出码 2。这是防止"裸跑烧钱"的安全阀。
+    为什么对抗测试用 flash 就够：它只需要回答"两个评估器打分差多少"和
+    "输出在哪个长度开始塌"，不需要深度思考能力，flash 档足够且便宜约 10 倍。
+    """
     from src.cost_gate import guard_tier
     guard_tier(
         allow_expensive=allow_expensive,
@@ -70,6 +109,14 @@ def _guard_tier(allow_expensive: bool) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    """主入口：解析命令行参数，按顺序跑 4 个测试，汇总报告。
+
+    【中文·流程】
+    ① 解析参数（--allow-api / --allow-expensive / --serve 等）。
+    ② 如果开了 --allow-api，先过成本闸门检查档位。
+    ③ 依次跑 Test 1-4，每个测试返回一个结果字典。
+    ④ 打印汇总报告，有失败则退出码 1。
+    """
     parser = argparse.ArgumentParser(
         description="Adversarial testing harness for Westward Echo"
     )
@@ -114,6 +161,9 @@ def main() -> None:
     # Modules that pass/fail
     results: list[dict] = []
 
+    # 【中文】付费测试必须显式开启。历史上曾因为"检测到密钥就自动跑"导致裸跑
+    # 烧钱——.env 里残留着旧密钥，不加任何参数就会触发付费测试。现在改成默认关闭，
+    # 必须 --allow-api 才跑。
     # ------------------------------------------------------------------
     # Billable tests are opt-in. Previously this read DEEPSEEK_API_KEY and ran
     # Tests 1 & 2 whenever a key happened to be present, which spent real money
@@ -197,7 +247,15 @@ def main() -> None:
 # =========================================================================
 
 def _test_cross_evaluator(fixtures_dir: Path) -> dict:
-    """Two Spanish-native evaluator personas should agree within 1.5 points."""
+    """Two Spanish-native evaluator personas should agree within 1.5 points.
+
+    【中文·Test 1：跨评估器一致性】
+    让两个不同人设的西班牙语评估器（Maria 和 Carlos）分别给同一篇译文打分，
+    看他们的分数差是否 ≤ 1.5。如果差太大，说明评估标准不稳定——同一个东西
+    两个人打分差很远，那冷读判定就不可信了。
+    · 阈值 1.5：来历未在代码中说明，似乎是经验值。
+    · ⚠️ 会花钱：调 2 次 READBACK 节点的大模型 API。
+    """
     from src.evaluator_prompts import EVALUATOR_SYSTEM
 
     name = "Cross-evaluator consistency (Maria vs Carlos)"
@@ -286,6 +344,10 @@ def _test_cross_evaluator(fixtures_dir: Path) -> dict:
 def _run_evaluator(system_prompt: str, user_prompt: str, name: str) -> Optional[dict]:
     """Score a translation with an evaluator persona, return parsed JSON.
 
+    【中文·作用】用指定人设的评估器给一篇译文打分，返回解析后的 JSON 字典。
+    打分是判断类任务，所以走 READBACK 节点（与生产管线一致）。
+    历史上曾用 DeepSeek 的 quality_score 节点，该节点在三模型拆分时已删除。
+
     Scoring is a judgement task, so it runs on the READBACK tier — the same
     split the pipeline uses (MODEL_MAP["readback"]), on the Qwen provider.
     It used to call MODEL_MAP["quality_score"] on the DeepSeek stack; that key
@@ -330,6 +392,12 @@ def _run_evaluator(system_prompt: str, user_prompt: str, name: str) -> Optional[
 
 def _test_chapter_stress(project_path: Path, fixtures_dir: Path) -> dict:
     """Translate 10 progressively longer chapters to find the empty-output threshold.
+
+    【中文·Test 2：渐进式章节长度压力测试】
+    生成 10 个从 500 到 5000 字递增的中文章节，逐个送进翻译管线，看在哪个长度
+    开始产出空译文。目的是找到管线的"崩溃阈值"——超过这个长度就翻不出来了。
+    · ⚠️ 会花钱：生成章节调 WRITE 节点 + 翻译调完整管线，共约 20 次 API 调用。
+    · 如果已有预生成的测试章节文件，会直接复用，不再重新生成。
 
     The LLM calls happen inside _generate_stress_chapters (chapter synthesis)
     and agent.translate_chapter (the pipeline under test); this function itself
@@ -456,6 +524,10 @@ def _test_chapter_stress(project_path: Path, fixtures_dir: Path) -> dict:
 def _generate_stress_chapters(lengths: range) -> list[str]:
     """Generate 10 short Chinese chapters of varying lengths, via the WRITE tier.
 
+    【中文·作用】用 WRITE 节点（GLM flash）生成指定长度的中文章节文本。
+    这是纯文字输出任务，用最便宜的 flash 档就够。生成的文本会缓存到文件里，
+    下次跑直接复用，不再重复花钱。
+
     Synthesising chapter prose is a text-output task, so it uses MODEL_MAP["write"]
     (GLM flash) on the GLM provider — the same tier split the pipeline uses, and
     the cheapest one that does the job, per the trial-phase flash-only policy.
@@ -518,7 +590,12 @@ def _trim_to(text: str, size: int) -> str:
 # =========================================================================
 
 def _test_editor_api(project_path: Path, require_server: bool, server_url: str) -> dict:
-    """Call editor CRUD endpoints (or functions directly) and verify integrity."""
+    """Call editor CRUD endpoints (or functions directly) and verify integrity.
+
+    【中文·Test 3：编辑器接口完整性】
+    验证段落编辑器的增删改查接口不会崩。默认直接调函数（不需要启动服务），
+    加 --serve 则走 HTTP 请求。不花钱，纯本地检查。
+    """
     name = "Editor API integrity"
 
     if require_server:
@@ -680,6 +757,14 @@ def _test_editor_api_direct(project_path: Path) -> dict:
 
 def _test_sensitive_terms() -> dict:
     """Feed the sensitive_terms module edge-case texts and verify detection.
+
+    【中文·Test 4：敏感词边界扫描】
+    给敏感词检测模块喂各种边界情况的文本（空串、超长文本、含/不含敏感词等），
+    验证它不会漏检、不会误报、不会崩溃。不花钱，纯本地检查。
+    · 6 个测试用例覆盖了：正常检出、无误报、复合字符串多词检出、空串安全、
+      万字长文边界词检出。
+    · 历史上曾因删除阿拉伯语支持时没同步本脚本，导致 import 失败、整个
+      测试工具连免费模式都跑不起来。已修复。
 
     Only build_sensitive_term_context is imported. This used to also import
     scan_arabic_blasphemy and SENSITIVE_TERMS: the former was removed from
