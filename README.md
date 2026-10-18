@@ -1,33 +1,40 @@
 # Westward Echo / 西渡
 
-**A reader-centric multi-agent translation engine for Chinese web novels.**
+**AI 文化编译引擎 — a reader-centric cultural compilation pipeline for Chinese web novels.**
 
-`263 tests` · `3,076 chapters validated` · `3 independent audits` · `MIT`
+`1840 tests` · `3,076 chapters validated` · `4 target languages` · `MIT`
 
 ---
 
 ## What This Is
 
-Westward Echo doesn't translate. Four LLM agents — a reader, a writer, a cold reader, and an editor — each approach the text from a different reader's perspective. The pipeline was validated by translating two complete Chinese web novels end-to-end: *Infinite Horror* by zhttty (775 chapters) and *The Netherworld Calls Me Little Mister* by Jie Yu (2,301 chapters) — 5.35 million Chinese characters → 3.58 million English words, 83 cold-read quality checks all PASS, 0 crashes.
+Westward Echo does not translate word-for-word. It **compiles** — four reader agents (a cultural analyst, a writer, a cold reader, and an editor) each approach a chapter from a different reader's perspective, identify the cultural gaps an English reader cannot fill on their own, and rebuild the sensory and emotional imagery so the text lands the way it lands for a native Chinese reader.
 
-Three rounds of independent audit (native English reader, bilingual accuracy auditor, professional editor) confirmed the translation is structurally coherent across the full span, with prose quality holding steady from chapter 2 to chapter 770. The serial reader's final verdict: "I would read the sequel."
+The pipeline was validated by compiling two complete Chinese web novels end-to-end: *Infinite Horror* by zhttty (775 chapters) and *The Netherworld Calls Me Little Mister* by Jie Yu (2,301 chapters) — 5.35 million Chinese characters → 3.58 million English words, all cold-read quality checks PASS, 0 crashes.
+
+Three rounds of independent audit (native English reader, bilingual accuracy auditor, professional editor) confirmed the output is structurally coherent across the full span, with prose quality holding steady from chapter 2 to chapter 770. The serial reader's final verdict: "I would read the sequel."
 
 ---
 
 ## Architecture
 
+Five nodes, four of them readers:
+
 ```
-START → READ → WRITE → READBACK → (NEEDS_FIX?) → FIX → READBACK (loop)
-                            ↓ (PASS)
-                           END
+START → READ → REVIEW_TERMS → WRITE → READBACK → (NEEDS_FIX?) → FIX → READBACK (loop)
+                                           ↓ (PASS)
+                                          END
 ```
 
-| Node | Role | What It Does | Model |
-|------|------|-------------|-------|
-| **READ** | Bilingual cultural intelligence | Reads the Chinese chapter, analyzes cultural gaps, detects **sensory image gaps** (what a Chinese reader's brain fills in for free that an English reader's brain cannot), proposes terminology decisions | DeepSeek V4 Pro |
-| **WRITE** | English genre fiction writer | Retells the chapter in English — not a translator, a storyteller with permission to restructure, compress, and rebuild sensory images | DeepSeek V4 Flash |
-| **READBACK** | Cold reader from Reddit | Reads ONLY the English output, has no idea this is a translation, reports honest experience: "was I confused? bored? would I keep reading?" | DeepSeek V4 Flash |
-| **FIX** | Editor | Reads the cold reader's specific complaints, fixes only what's broken — targeted, surgical repairs | DeepSeek V4 Flash |
+| Node | Role | What It Does |
+|------|------|-------------|
+| **READ** | Bilingual cultural intelligence | Reads the Chinese chapter, analyzes cultural gaps, detects **sensory image gaps** (what a Chinese reader's brain fills in for free that an English reader's brain cannot), proposes terminology decisions |
+| **REVIEW_TERMS** | Terminology consistency guard | Re-checks the chapter's terminology against the established glossary before writing begins |
+| **WRITE** | Genre fiction writer | Retells the chapter in the target language — not a translator, a storyteller with permission to restructure, compress, and rebuild sensory images |
+| **READBACK** | Cold reader | Reads ONLY the target-language output, has no idea this is a compilation, reports honest experience: "was I confused? bored? would I keep reading?" |
+| **FIX** | Editor | Reads the cold reader's specific complaints, fixes only what's broken — targeted, surgical repairs |
+
+`FIX → READBACK` loops at most 2 times per chapter. Most chapters run in **fast mode** (WRITE → END, no cold read); the full READ→WRITE→READBACK→FIX cycle runs every `QUALITY_CHECK_INTERVAL` chapters (default 20) to keep cost bounded on multi-thousand-chapter books.
 
 ### Why Reader-Centric
 
@@ -39,55 +46,103 @@ The READ agent identifies every such **sensory image gap** — the full sensory 
 
 ---
 
+## Model Routing
+
+Since 2026-09 the project runs on **two providers, split by task shape** (DeepSeek is fully retired):
+
+| Layer | Provider | Model | Nodes |
+|-------|----------|-------|-------|
+| **Judgment** (read/evaluate) | Qwen (通义千问) | `qwen3.8-max` | READ, READBACK, REVIEW_TERMS, WRITE_FALLBACK |
+| **Text output** | GLM (智谱) | `glm-5.3-flash` | WRITE |
+| **Text reasoning** | GLM (智谱) | `glm-5.3` | FIX |
+
+The provider is derived from the model name (`qwen*` → Qwen endpoint, `glm*` → GLM endpoint), so cross-provider re-tiering works without changing node code. Every node can be individually re-tiered via environment variables (`XIDU_NODE_MODEL_READBACK=qwen3.8-flash`) without editing code. `WRITE_FALLBACK` swaps to Qwen if GLM's content filter rejects a real web-novel chapter (error 1301).
+
+Why the split: GLM's content filter intermittently blocks real web-novel content at the READ layer, so all judgment/reading moved to Qwen; GLM handles the cheaper, higher-volume text-generation and repair nodes. An optional Anthropic Claude key is used only for adversarial arbitration, not the main pipeline.
+
+---
+
 ## Quality Infrastructure
 
 ### Style Memo (Accumulated Translation Experience)
 
-Six drawers of structured knowledge per book: character voices, pacing rules, cultural bridge patterns, prose rhythm, terminology decisions. Every chapter feeds into the memo — the READ agent's cultural analysis and terminology decisions write to it directly, cold reader feedback supplements it at sample points. By chapter 200, the WRITE agent has seen everything learned in chapters 1-199.
+Six drawers of structured knowledge per book: character voices, pacing rules, cultural bridge patterns, prose rhythm, terminology decisions. Every chapter feeds into the memo — the READ agent's cultural analysis and terminology decisions write to it directly, cold-reader feedback and FIX repairs supplement it at sample points. By chapter 200, the WRITE agent has seen everything learned in chapters 1–199. Volume is bounded (max 5 FIX lessons per chapter) so the memo does not inflate the per-chapter prompt cost unboundedly.
 
 ### Cold Reader Blind Evaluation
 
-At sample points (every ~50 chapters), the READBACK agent cold-reads the English chapter without seeing the Chinese source. Verdict: PASS (clear and engaging) or NEEDS_FIX (significant friction). A serial cold reader evaluated 8 checkpoints across the full 775-chapter span and reported prose quality holding steady at 7/10 from start to finish, comprehension never dropping below 10/10 after chapter 25.
+At sample points, the READBACK agent cold-reads the target-language chapter without seeing the Chinese source. Verdict: PASS (clear and engaging) or NEEDS_FIX (significant friction). The cold reader receives a one-page briefing (recent plot, character roster, established terms) but never the source text, so it judges the output the way a real reader would.
 
-### Output Guards
+### Glossary — Double-Layer Terminology Lock
 
-Every chapter passes through: Chinese character residue detection and auto-stripping, LLM meta-commentary removal. Terms are locked by a double-layer glossary: SQLite dict for O(1) exact matching plus Chroma vector store for semantic proximity.
+Terms are locked by two stores: a SQLite exact-match dict for O(1) lookups, plus a Chroma vector store for semantic proximity (so "鬼差" can still hit the established "阴差" rendering). Terms accumulate per book across the whole run, keeping renderings consistent from chapter 5 to chapter 500.
 
-> The Arabic blasphemy scan was removed together with ar-SA support (`5bba508`); it is no longer part of the pipeline.
+### Output Guards & Cultural Fidelity
 
-### Safety
+Every chapter passes through guards that strip Chinese-character residue and LLM meta-commentary. A cultural-fidelity check confirms WRITE did not flatten meaningful names into raw pinyin. Context-signal detectors localize dialect, idioms (chengyu), onomatopoeia, and measurement units, and inject the per-language cultural rules.
 
-- **Circuit breaker**: per-language isolation — if en-US API fails, es-ES continues unaffected
-- **Backpressure guard**: rejects new tasks when queue depth exceeds 100 chapters (HTTP 503)
-- **Checkpoint recovery**: crash at any chapter, resume from last SQLite snapshot with full glossary intact
-- **Pre-commit hooks**: ruff (lint + format), mypy (type checking)
+### Safety & Cost Controls
 
-### 9 Context Signal Detectors
-
-Dialect mapping (5 Chinese → English dialect equivalents), LitRPG system UI markers, measurement localization, onomatopoeia, chengyu idiom detection, cultural rule injection, human-confirmed/rejected term lists.
+- **Circuit breaker** — rolling-window + probe-based throttling, isolated per language: an en-US API failure does not stop an es-ES run
+- **Backpressure guard** — rejects new tasks when the queue exceeds 100 chapters (HTTP 503)
+- **Checkpoint recovery** — crash at any chapter, resume from the last SQLite snapshot with the full glossary intact
+- **Cost gate** — budget ceiling per job with a single source of truth for the price table (CNY / million tokens)
+- **Token ledger** — per-book attribution of every call's cost against the real provider price list
+- **Startup health check** — the server refuses to start if a critical dependency (DB, API keys) is missing rather than failing mid-run
 
 ---
 
-## Validation: Two Full-Length Ground Truth Translations
+## Service
+
+A single FastAPI app (`python3.11 -m src.main`, port 8000) serves both the Web UI and a JSON API.
+
+**Web UI** — five pages:
+
+| Route | Page |
+|-------|------|
+| `/` | Landing page (upload + compile) |
+| `/review` | Terminology review — confirm/reject machine-proposed renderings |
+| `/editor/{job_id}` | Human-in-the-loop paragraph editor |
+| `/dashboard` | Live progress / cost / error observability |
+| `/usage` | Usage and error analytics |
+
+**API** — the main routes under `/api`:
+
+- `POST /api/translate` — submit a single book for compilation
+- `POST /api/translate/multi` — batch submit
+- `POST /api/translate/resume/{job_id}` — resume from a checkpoint
+- `GET /api/translate/{job_id}` · `/api/translation/{job_id}` · `/api/glossary/{job_id}` · `/api/epub/{job_id}` — status, output, glossary, EPUB export
+- `GET /api/jobs` · `/api/jobs/{job_id}` · `/api/jobs/{job_id}/cost` · `DELETE /api/jobs/{job_id}`
+- `GET /api/projects` · `/api/projects/{project_id}`
+- `GET/POST/DELETE /api/presets*` — translation presets
+- `/api/review/*` — terminology confirm/reject/feedback
+- `/api/editor/*` — chapter read/write/batch-replace
+- `/api/cms/*` — import source novels, publish deliverables
+
+**Middleware**: API-key auth (empty key = dev mode, no auth), token-bucket rate limiting (default 30 req/min), and CORS.
+
+Async jobs run through **Celery + Redis** (`translate_novel_task`, `resume_translate_task`) with late-acknowledgement and worker-loss requeue. All SQLite stores (checkpoint, jobs, glossary, editor, events) use WAL mode for concurrent multi-worker access, and Chroma runs as a standalone HTTP server so multiple workers share one vector store.
+
+---
+
+## Validation: Two Full-Length Ground Truth Compilations
 
 ### Book 1 — *Infinite Horror* (无限恐怖) by zhttty
 
-2.57 million Chinese characters, 775 chapters, translated end-to-end.
+2.57 million Chinese characters, 775 chapters, compiled end-to-end.
 
 ```
-Duration:     ~34 hours
-Output:       1.13 million English words
-Cold reads:   16/16 PASS (old prompt) → 8/8 PASS (serial reader, new prompt + context)
-Prose:        7/10 (steady, chapters 2-770)
-Comprehension: 10/10 (from chapter 25 onward)
-Cost:         ~$4 (DeepSeek V4 Flash + Pro mixed)
-Crashes:      0
+Duration:       ~34 hours
+Output:         1.13 million English words
+Cold reads:     all PASS (serial reader, full-span context)
+Prose:          7/10 (steady, chapters 2–770)
+Comprehension:  10/10 (from chapter 25 onward)
+Crashes:        0
 Circuit breaker trips: 0
 ```
 
 ### Book 2 — *The Netherworld Calls Me Little Mister* (地府叫我小先生) by Jie Yu
 
-2.78 million Chinese characters, 2,301 chapters, folk_religion genre, translated end-to-end (completed 2026-08-03).
+2.78 million Chinese characters, 2,301 chapters, folk_religion genre, compiled end-to-end (completed 2026-08-03).
 
 ```
 Output:       2.45 million English words
@@ -107,25 +162,36 @@ Crashes:      0
 ### Serial Cold Reader (Final, Chapter 774)
 
 One reader, 8 checkpoints, accumulating knowledge like a real reader:
+
 > "This is a deeply enjoyable progression fantasy that does not read like a translation — it reads like a mid-tier Royal Road serial. The characters are real, their deaths matter, and I would read the sequel."
 
 ---
 
 ## Quick Start
 
+Requires **Python 3.11** (the `python3.11` interpreter, not a bare `python3`).
+
 ```bash
-cp .env.example .env          # add your DEEPSEEK_API_KEY
+cp .env.example .env          # add LLM_API_KEY (Qwen) and GLM_API_KEY (GLM)
 pip install -r requirements.txt
-python3 -m src.main            # http://localhost:8000
+python3.11 -m src.main        # http://localhost:8000
 ```
 
-**Translate a complete novel (terminal, no sandbox):**
+Both provider keys are load-bearing — the pipeline needs Qwen for the judgment nodes and GLM for the text nodes, and the startup check refuses to start if either is missing.
+
+**Compile a complete novel (terminal, no Redis):**
 
 ```bash
-python3 scripts/run_one_segment.py
+python3.11 scripts/run_one_segment.py
 ```
 
-15-chapter segments with automatic checkpoint recovery. Ctrl+C safe. Resumes from last checkpoint on restart. Quality sampled at milestone chapters, results saved to `_quality.json`.
+15-chapter segments with automatic checkpoint recovery. Ctrl+C safe. Resumes from the last checkpoint on restart. Quality sampled at milestone chapters, results saved to `_quality.json`.
+
+Run the test suite (always ¥0 — no live API calls):
+
+```bash
+python3.11 -m pytest -q        # 1840 passed, 4 deselected
+```
 
 ---
 
@@ -133,33 +199,36 @@ python3 scripts/run_one_segment.py
 
 | Decision | Why |
 |----------|-----|
-| **4-node reader pipeline** (not 6-node worker pipeline) | Each node is a reader, not a tool-calling executor. Cultural analysis and translation are handled by agents with distinct reader identities. |
-| **READ always Pro, WRITE/READBACK/FIX always Flash** | DeepSeek V4 Pro hangs on large inputs (>4000 chars) with JSON output. Flash is reliable and costs 3× less. READ is the only node that needs Pro-level cultural reasoning. |
-| **No MCP tool calling** | Pre-computed glossary injection eliminates reliability issues (wrong tool calls, duplicate calls, missed calls). |
-| **max_retries=0 on all LLM calls** | OpenAI SDK defaults to 2 retries, consuming 3× the request_timeout before surfacing errors. Direct control prevents silent hangs. |
-| **Style memo from READ analysis every chapter** | Not just from cold reader feedback at sample chapters. Every chapter's READ analysis writes to the memo. |
+| **Compile, don't translate** | Word-for-word translation leaves the cultural payload behind. A reader-centric retelling rebuilds the sensory/emotional image the source reader got for free. |
+| **Reader agents, not tool-calling executors** | Cultural analysis, writing, and evaluation are done by agents with distinct reader identities, not by a generic pipeline that calls tools. |
+| **Two providers by task shape** | Qwen for judgment/reading (GLM's content filter blocks real web novels at the read layer), GLM for text generation and repair. |
+| **Provider derived from model name** | `qwen*` → Qwen, `glm*` → GLM. Re-tiering a node across providers works without touching node code; unknown names raise instead of silently routing to the wrong endpoint. |
+| **Per-node model override via env** | `XIDU_NODE_MODEL_<NODE>` re-tiers any node without a code change, so cost tuning is a config change, not a deploy. |
+| **No MCP tool calling** | Pre-computed glossary injection eliminates tool-call reliability issues (wrong/duplicate/missed calls). |
+| **max_retries=0 on all LLM calls** | The SDK default retries consume 3× the timeout before surfacing errors. Direct control prevents silent hangs. |
+| **Style memo from READ analysis every chapter** | Not just from cold-reader feedback at sample chapters — every chapter's analysis writes to the memo, so nothing learned is lost. |
 
 ---
 
 ## Dependencies
 
 ```
-langgraph ≥0.2.0    langchain ≥0.3.0    langchain-openai ≥0.2.0
-chromadb ≥0.5.0     fastapi ≥0.115.0    uvicorn[standard] ≥0.32.0
-pydantic ≥2.0       python-dotenv ≥1.0   celery[redis] ≥5.4.0
-redis ≥5.2.0        httpx ≥0.28.0
+langgraph ≥0.2.0      langchain ≥0.3.0      langchain-openai ≥0.2.0
+chromadb ≥0.5.0       fastapi ≥0.115.0      uvicorn[standard] ≥0.32.0
+pydantic ≥2.0         python-dotenv ≥1.0    tenacity ≥9.0
+celery[redis] ≥5.4.0  redis ≥5.2.0          httpx ≥0.28.0
+python-multipart ≥0.0.20
 ```
 
 ---
 
-## What's Not Here
+## What's Not Here Yet
 
-- Native-speaker review of the `es-ES` / `de` / `fr` cultural adaptation rules. Term-level data now exists for all four languages (`common` + `romance_ceo` / `xianxia` / `folk_religion` / `scifi`), but **148 of the 176 `de`/`fr` entries are first-established renderings tagged `⚠️ FIRST-ESTABLISHED — pending native review`** — no native speaker has vetted them. They are adaptations of the vetted `en-US` guidance, not translations found in the wild; German in particular has no existing web-novel terminology convention to draw on. Translation quality itself remains unverified for every language.
-- `de` / `fr` / `es-ES` cultural *fidelity* rules (the category-level guidance in `cultural_rules.json`'s `fidelity` block, e.g. how to render character names or wordplay as a class). That block is `en-US`-only, so non-English READ nodes show "(No cultural fidelity rules for this language.)". Pinned as a known gap by `tests/test_cultural_rules_multilang.py`.
-- `de` / `fr` / `es-ES` entries for a single book's own proper nouns. `books.limitless_horror` (150 terms machine-extracted from 无限恐怖, including crossover IP names like 生化危机 / 异形) exists for `en-US` only. Those IP names largely stay in English in Spanish-speaking markets and split into Peninsular vs. Latin American usage, so they were deliberately not adapted.
-- Language validation at the API boundary: any `target_lang` string is accepted and unknown ones silently fall back to en-US in `personas._lang_profile`. The authoritative list is `config.SUPPORTED_LANGUAGES` (kept in sync by `tests/test_language_registry.py`), but it is not used to reject bad input — only to pick output filenames and build prompt context. A former `_KNOWN_LANGS` whitelist in `routes.py` was dead code (nothing read it) and has been removed rather than wired up.
-- Long-distance style memo A/B validation (infrastructure built, never compared memo-on vs. memo-off translation quality across chapters 1-200)
-- Foreshadowing tracker (the pipeline can delete passages marked as "pure cultural fluff" — it has never been observed doing so, but no formal mechanism prevents it)
+- **Native-speaker review of the `es-ES` / `de` / `fr` languages.** Term-level data exists for all four languages, but many `de`/`fr` entries are first-established renderings tagged `⚠️ FIRST-ESTABLISHED — pending native review`, and the `de`/`fr`/`es-ES` cultural *fidelity* rules (the category-level guidance in `cultural_rules.json`) are `en-US`-only. Translation quality for every non-English language remains unverified.
+- **Client-level multi-tenancy.** Authentication is a single shared API key; per-book data is isolated by `book_id` (glossary, style memo, token ledger), but there is no per-customer key/billing boundary yet. The shape of client isolation is still an open product decision.
+- **Strictly-blind cold read.** The cold-read briefing's terminology section still carries Chinese source renderings (a known residual leak on the production path), so the "blind" read is not yet fully blind in practice.
+- **Long-distance style memo A/B validation.** The infrastructure exists to compare memo-on vs. memo-off quality across chapters 1–200, but the comparison has never been run end-to-end.
+- **Foreshadowing protection.** The pipeline can delete passages marked "pure cultural fluff"; no formal mechanism prevents dropping a seeded foreshadowing line.
 
 ---
 
