@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import DATA_DIR
-from .migrations import add_column_if_missing, migrate
+from .migrations import add_column_if_missing, drop_column_if_exists, migrate
 
 # 【中文】数据库文件路径：data/jobs.db
 DB_PATH = str(DATA_DIR / "jobs.db")
@@ -85,8 +85,6 @@ CREATE TABLE IF NOT EXISTS jobs (
                         CHECK(status IN ('queued','translating','complete','failed')),
     output_path         TEXT,
     glossary_count      INTEGER,
-    tokens_input        INTEGER NOT NULL DEFAULT 0,
-    tokens_output       INTEGER NOT NULL DEFAULT 0,
     error_message       TEXT,
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at        TEXT
@@ -112,17 +110,19 @@ CREATE TABLE IF NOT EXISTS glossary_presets (
 """
 
 # ── Migrations ────────────────────────────────────────────────
-# 【中文】按顺序的命名迁移。迁移 1 建当前完整 schema（对已存在的库是 no-op）；
-# 迁移 2~4 给「比这些列更早创建的旧库」补列。add_column_if_missing 是幂等的，
-# 已存在的列不会重复加。这取代了原来散在 __init__ 里的手写 _migrate_add_column。
+# 【中文】按顺序的命名迁移。迁移 1 建当前 schema（对已存在的库是 no-op）；
+# 迁移 2 给「比 content_type 更早创建的旧库」补列；迁移 3 清掉历史死列
+# tokens_input/tokens_output（update_token_usage 早已删除、无人写入，永远为 0）。
+def _drop_tokens_columns(conn):
+    drop_column_if_exists(conn, "jobs", "tokens_input")
+    drop_column_if_exists(conn, "jobs", "tokens_output")
+
+
 _MIGRATIONS = [
     ("create_jobs_tables", lambda conn: conn.executescript(_SCHEMA)),
-    ("jobs_add_tokens_input", lambda conn: add_column_if_missing(
-        conn, "jobs", "tokens_input", "INTEGER NOT NULL DEFAULT 0")),
-    ("jobs_add_tokens_output", lambda conn: add_column_if_missing(
-        conn, "jobs", "tokens_output", "INTEGER NOT NULL DEFAULT 0")),
     ("jobs_add_content_type", lambda conn: add_column_if_missing(
         conn, "jobs", "content_type", "TEXT NOT NULL DEFAULT 'novel'")),
+    ("drop_jobs_tokens_columns", _drop_tokens_columns),
 ]
 
 

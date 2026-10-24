@@ -59,8 +59,8 @@ class TestJobCreate:
         job = store.get_job(jid)
         assert job["content_type"] == "novel"
         assert job["completed_chapters"] == 0
-        assert job["tokens_input"] == 0
-        assert job["tokens_output"] == 0
+        assert "tokens_input" not in job
+        assert "tokens_output" not in job
 
 
 class TestJobUpdate:
@@ -128,30 +128,30 @@ class TestJobQuery:
 
 # ── Token tracking ────────────────────────────────────────────────
 
-class TestTokenColumnsAreInert:
-    """The jobs table's token columns must stay zero.
+class TestTokenColumnsAreDropped:
+    """The jobs table's dead token columns are gone.
 
     update_token_usage() and get_job_cost() were deleted: the writer had zero
     callers, so both columns were permanently 0, and the reader priced those
-    zeros at DeepSeek's abandoned USD rates. These tests exist so nobody
-    reintroduces a cost figure sourced from columns nothing populates — real
-    per-job cost comes from token_ledger.summary(), exercised by
-    tests/test_token_ledger.py and the /jobs/{id}/cost endpoint test.
+    zeros at DeepSeek's abandoned USD rates. The columns were then dropped via
+    the migration framework. These tests pin that they stay gone — real per-job
+    cost comes from token_ledger.summary(), exercised by tests/test_token_ledger.py
+    and the /jobs/{id}/cost endpoint test.
     """
 
-    def test_new_job_token_columns_start_at_zero(self, store):
+    def test_new_job_has_no_token_columns(self, store):
         jid = store.create_job("test.txt", "en-US", 10)
         job = store.get_job(jid)
-        assert job["tokens_input"] == 0
-        assert job["tokens_output"] == 0
+        assert "tokens_input" not in job
+        assert "tokens_output" not in job
 
-    def test_complete_job_does_not_populate_token_columns(self, store):
+    def test_complete_job_still_has_no_token_columns(self, store):
         jid = store.create_job("test.txt", "en-US", 1)
         store.complete_job(jid, "/tmp/out.md", 5)
         job = store.get_job(jid)
         assert job["status"] == "complete"
-        assert job["tokens_input"] == 0
-        assert job["tokens_output"] == 0
+        assert "tokens_input" not in job
+        assert "tokens_output" not in job
 
     def test_no_token_writer_method_remains(self, store):
         """Deleting the writer is only durable if it stays deleted."""

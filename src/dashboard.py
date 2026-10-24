@@ -36,7 +36,7 @@ from .config import (
     API_PORT,
     CHAPTER_COOLDOWN_SECONDS,
     HOST,
-    MODEL_MAP,
+    NODE_MODELS,
     RATE_LIMIT_ENABLED,
     RATE_LIMIT_RPM,
     VERSION,
@@ -342,8 +342,8 @@ def get_dashboard_data() -> dict:
             # this project abandoned in 2026-09 ("DeepSeek V4 / Celery").
             # 【中文】版本号和模型栈从配置里取真实值，不再写死。
             "version": VERSION,
-            # 【中文】MODEL_MAP 是 {用途: 模型名} 的映射，这里取所有不重复的模型名拼成展示字符串。
-            "model_stack": " + ".join(sorted(set(MODEL_MAP.values()))),
-            "model_map": dict(MODEL_MAP),
+            # 【中文】NODE_MODELS 是 {用途: 模型名} 的映射，这里取所有不重复的模型名拼成展示字符串。
+            "model_stack": " + ".join(sorted(set(NODE_MODELS.values()))),
+            "model_map": dict(NODE_MODELS),
         },
     }

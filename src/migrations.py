@@ -55,6 +55,17 @@ def add_column_if_missing(
         raise
 
 
+def drop_column_if_exists(conn: sqlite3.Connection, table: str, column: str) -> None:
+    """Drop a column if it exists (idempotent; needs SQLite ≥ 3.35).
+
+    【中文】安全地删一列：先查 PRAGMA table_info，列不存在则什么都不做。
+    用于把「历史上加了但已无用的死列」从旧库里清掉；新库建表时直接不建该列。
+    """
+    existing = [row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column in existing:
+        conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+
+
 def migrate(db_path: Union[str, Path], migrations: Sequence[NamedMigration]) -> None:
     """Apply pending named migrations in order, each in its own transaction.
 

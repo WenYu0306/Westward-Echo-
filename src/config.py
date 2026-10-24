@@ -333,10 +333,6 @@ def _env_overridden(table: dict, prefix: str) -> dict:
 NODE_MODELS = _env_overridden(DEFAULT_NODE_MODELS, "MODEL")
 NODE_EFFORTS = _env_overridden(DEFAULT_NODE_EFFORTS, "EFFORT")
 
-# Public alias kept for dashboard / health / adversarial_test / token_ledger test.
-# 【中文】MODEL_MAP 是 NODE_MODELS 的别名，供旧代码兼容使用。
-MODEL_MAP = dict(NODE_MODELS)
-
 
 def node_provider(model: str) -> str:
     """Which provider serves ``model`` — derived from the name, not the node.

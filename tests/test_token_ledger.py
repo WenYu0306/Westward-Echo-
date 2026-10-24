@@ -95,8 +95,8 @@ class TestCost:
         assert T.cost_cny("qwen3.8-max", 1_000_000, 0) == pytest.approx(12.0, abs=1e-12)
 
     def test_every_routed_model_has_a_price(self):
-        from src.config import MODEL_MAP
-        for node, model in MODEL_MAP.items():
+        from src.config import NODE_MODELS
+        for node, model in NODE_MODELS.items():
             assert model in MODEL_PRICES_CNY_PER_M, f"{node} -> {model} unpriced"
 
     def test_unknown_model_is_none_not_zero(self):
