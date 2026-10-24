@@ -40,12 +40,51 @@ provide this guarantee.
 """
 
 import json
-import os
 import sqlite3
 import typing
-from pathlib import Path
 
 from ..config import CHECKPOINT_DB_PATH, target_language_label
+from ..migrations import migrate
+
+
+def _rename_legacy_exact_glossary(conn) -> None:
+    """Rename the pre-``book_id`` table out of the way (one-time data migration).
+
+    【中文】如果存在没有 book_id 列的旧 exact_glossary 表（book_id 隔离
+    之前的旧数据），把它重命名为 exact_glossary_legacy，腾出名字给新表。
+    只跑一次（记入 schema_migrations），新表随后用复合主键重建。
+    """
+    existing = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='exact_glossary'"
+    ).fetchone()
+    if existing:
+        cols = [c[1] for c in conn.execute("PRAGMA table_info(exact_glossary)").fetchall()]
+        if "book_id" not in cols:
+            conn.execute("ALTER TABLE exact_glossary RENAME TO exact_glossary_legacy")
+
+
+_CREATE_EXACT_GLOSSARY = """
+CREATE TABLE IF NOT EXISTS exact_glossary (
+    book_id TEXT NOT NULL DEFAULT 'default',
+    term_cn TEXT NOT NULL,
+    term_en TEXT NOT NULL,
+    category TEXT DEFAULT 'culture',
+    context TEXT DEFAULT '',
+    chapter_first_seen INTEGER DEFAULT 0,
+    note TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending_review',
+    target_lang TEXT DEFAULT 'en-US',
+    PRIMARY KEY (book_id, term_cn, target_lang)
+)
+"""
+
+# 【中文】命名迁移清单。迁移 1 把旧表改名（幂等：没有旧表则什么都不做），
+# 迁移 2 建新表。两者都记入 checkpoints.db 的 schema_migrations 表，
+# 与 celery_app 的 translation_checkpoint 迁移互不冲突（各自独立命名）。
+_MIGRATIONS = [
+    ("exact_glossary_rename_legacy", _rename_legacy_exact_glossary),
+    ("create_exact_glossary", lambda conn: conn.executescript(_CREATE_EXACT_GLOSSARY)),
+]
 
 
 class ExactGlossary:
@@ -161,53 +200,9 @@ class ExactGlossary:
         · 如果检测到旧版表结构（没有 book_id 列），自动重命名为 legacy
         · 新表用 (book_id, term_cn, target_lang) 三元组做主键
         """
-        os.makedirs(Path(self._db_path).parent, exist_ok=True)
-        with sqlite3.connect(self._db_path, timeout=30) as conn:
-            # WAL allows concurrent readers/writers across worker processes.
-            # Setting it is NOT idempotent: multiple processes initialising
-            # the same fresh DB at once can race on this pragma and raise
-            # "database is locked". Retry-safe: if it's already WAL, or the
-            # DB is momentarily locked, fall through — WAL is persistent
-            # once set, so a later connection inherits it.
-            #
-            # 【中文】设置 WAL 日志模式。
-            # ⚠️ 这个操作不是幂等的：多个进程同时初始化同一个新数据库时，
-            # 可能在 PRAGMA 上竞争导致 "database is locked"。
-            # 但 WAL 一旦设好就是持久的，后续连接自动继承，
-            # 所以捕获异常忽略即可。
-            try:
-                conn.execute("PRAGMA journal_mode=WAL")
-            except sqlite3.OperationalError:
-                pass  # already WAL (persistent) or transient lock — retry later
-            # ── Migration: the pre-book_id table used term_cn as PRIMARY KEY.
-            #    Rename it out of the way (it holds undifferentiated test data
-            #    from before books were isolated). New schema uses a composite
-            #    key (book_id, term_cn, target_lang).
-            #
-            # 【中文】旧表迁移：如果存在没有 book_id 列的旧表，
-            # 把它重命名为 exact_glossary_legacy，然后建新表。
-            existing = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='exact_glossary'"
-            ).fetchone()
-            if existing:
-                cols = [c[1] for c in conn.execute("PRAGMA table_info(exact_glossary)").fetchall()]
-                if "book_id" not in cols:
-                    conn.execute("ALTER TABLE exact_glossary RENAME TO exact_glossary_legacy")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS exact_glossary (
-                    book_id TEXT NOT NULL DEFAULT 'default',
-                    term_cn TEXT NOT NULL,
-                    term_en TEXT NOT NULL,
-                    category TEXT DEFAULT 'culture',
-                    context TEXT DEFAULT '',
-                    chapter_first_seen INTEGER DEFAULT 0,
-                    note TEXT DEFAULT '',
-                    status TEXT DEFAULT 'pending_review',
-                    target_lang TEXT DEFAULT 'en-US',
-                    PRIMARY KEY (book_id, term_cn, target_lang)
-                )
-            """)
-            conn.commit()
+        # 【中文】初始化数据库：建表 + 设置 WAL 模式 + 旧表迁移，全部交给
+        # 迁移框架（migrate() 内部处理 WAL、目录创建、并发安全、迁移记录）。
+        migrate(self._db_path, _MIGRATIONS)
 
     def load_from_db(self, target_lang: typing.Optional[str] = None):
         """Restore one language's terms from SQLite into memory.

@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import DATA_DIR
+from .migrations import add_column_if_missing, migrate
 
 # 【中文】数据库文件路径：data/jobs.db
 DB_PATH = str(DATA_DIR / "jobs.db")
@@ -110,6 +111,20 @@ CREATE TABLE IF NOT EXISTS glossary_presets (
 );
 """
 
+# ── Migrations ────────────────────────────────────────────────
+# 【中文】按顺序的命名迁移。迁移 1 建当前完整 schema（对已存在的库是 no-op）；
+# 迁移 2~4 给「比这些列更早创建的旧库」补列。add_column_if_missing 是幂等的，
+# 已存在的列不会重复加。这取代了原来散在 __init__ 里的手写 _migrate_add_column。
+_MIGRATIONS = [
+    ("create_jobs_tables", lambda conn: conn.executescript(_SCHEMA)),
+    ("jobs_add_tokens_input", lambda conn: add_column_if_missing(
+        conn, "jobs", "tokens_input", "INTEGER NOT NULL DEFAULT 0")),
+    ("jobs_add_tokens_output", lambda conn: add_column_if_missing(
+        conn, "jobs", "tokens_output", "INTEGER NOT NULL DEFAULT 0")),
+    ("jobs_add_content_type", lambda conn: add_column_if_missing(
+        conn, "jobs", "content_type", "TEXT NOT NULL DEFAULT 'novel'")),
+]
+
 
 class JobStore:
     """Persistent store for translation jobs.
@@ -127,33 +142,10 @@ class JobStore:
     def __init__(self):
         """Ensure the schema exists on first use.
 
-        【中文】初始化时确保表结构存在。
-        如果表已存在则跳过；如果是旧版数据库缺少新列，
-        通过 _migrate_add_column 安全地补上。
+        【中文】初始化时确保表结构存在。通过迁移框架按序跑命名迁移：
+        新建库从零建表，旧库自动补缺失的列，已跑过的迁移跳过。
         """
-        conn = _get_conn()
-        conn.executescript(_SCHEMA)
-        # ── Migrations for existing databases ──
-        # 【中文】兼容旧数据库：如果缺少后来新增的列就补上。
-        # ALTER TABLE ADD COLUMN 对已有列是安全的（会报错但不影响数据），
-        # 所以先检查列是否存在再决定是否执行。
-        self._migrate_add_column(conn, "jobs", "tokens_input", "INTEGER NOT NULL DEFAULT 0")
-        self._migrate_add_column(conn, "jobs", "tokens_output", "INTEGER NOT NULL DEFAULT 0")
-        self._migrate_add_column(conn, "jobs", "content_type", "TEXT NOT NULL DEFAULT 'novel'")
-        conn.commit()
-
-    @staticmethod
-    def _migrate_add_column(conn, table: str, column: str, col_type: str):
-        """Add a column if it doesn't already exist (safe no-op on existing).
-
-        【中文】安全地给表加一列。
-        · 先查 PRAGMA table_info 看列是否已存在
-        · 不存在才执行 ALTER TABLE ADD COLUMN
-        · 已存在则什么都不做（幂等操作）
-        """
-        existing = [col[1] for col in conn.execute(f"PRAGMA table_info({table})").fetchall()]
-        if column not in existing:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        migrate(DB_PATH, _MIGRATIONS)
 
     # ── helpers ──────────────────────────────────────────────
 

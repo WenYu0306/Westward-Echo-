@@ -45,6 +45,7 @@ from .config import (
     OUTPUT_DIR,
     REDIS_URL,
 )
+from .migrations import migrate
 from .prefetch import ChapterPrefetcher
 from .stats import TranslationStats
 
@@ -449,6 +450,23 @@ class TranslationProgress:
             pass
 
 
+# 【中文】checkpoints.db 里的 translation_checkpoint 表由本模块（celery_app）
+# 所有。它和 exact_store 的 exact_glossary 表共用一个 checkpoints.db 文件，
+# 迁移框架用命名迁移让两个 owner 互不冲突。
+_CREATE_CHECKPOINT = """
+CREATE TABLE IF NOT EXISTS translation_checkpoint (
+    job_id TEXT, chapter_number INTEGER, translated_text TEXT,
+    glossary_snapshot TEXT, previous_summary TEXT,
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (job_id, chapter_number)
+)
+"""
+
+_CHECKPOINT_MIGRATIONS = [
+    ("create_translation_checkpoint", lambda conn: conn.executescript(_CREATE_CHECKPOINT)),
+]
+
+
 def _save_checkpoint(job_id: str, chapter_number: int, translated_text: str,
                      glossary_snapshot: str, previous_summary: str):
     """【中文】保存一章的翻译存档（checkpoint）。
@@ -467,24 +485,10 @@ def _save_checkpoint(job_id: str, chapter_number: int, translated_text: str,
     （WAL 一旦设过就是持久的，重复设置只是保险措施）。
     """
     db_path = CHECKPOINT_DB_PATH
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    # 【中文】建表交给迁移框架（内部处理 WAL、目录创建、并发安全、迁移记录），
+    # 这里只做写入。migrate 是幂等的：已跑过的迁移直接跳过。
+    migrate(db_path, _CHECKPOINT_MIGRATIONS)
     with sqlite3.connect(db_path, timeout=30) as conn:
-        # WAL allows multiple worker processes to read/write concurrently
-        # without SQLite "database is locked" errors. Setting WAL races when
-        # multiple workers init the same fresh DB at once — ignore a transient
-        # lock (WAL is persistent once set).
-        try:
-            conn.execute("PRAGMA journal_mode=WAL")
-        except sqlite3.OperationalError:
-            pass
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS translation_checkpoint (
-                job_id TEXT, chapter_number INTEGER, translated_text TEXT,
-                glossary_snapshot TEXT, previous_summary TEXT,
-                completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (job_id, chapter_number)
-            )
-        """)
         conn.execute(
             "INSERT OR REPLACE INTO translation_checkpoint "
             "(job_id, chapter_number, translated_text, glossary_snapshot, previous_summary) "

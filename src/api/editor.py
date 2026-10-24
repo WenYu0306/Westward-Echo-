@@ -53,6 +53,7 @@ from ..chapter_splitter import split_chapters
 # 【中文】从统一配置导入路径和语言清单，避免和本文件里的副本不一致。
 from ..config import DATA_DIR, OUTPUT_DIR, SUPPORTED_LANGUAGES, VERSION
 from ..job_store import job_store
+from ..migrations import migrate
 
 # 【中文】创建独立的 FastAPI 应用，专门处理 /api/editor/* 的请求。
 app = FastAPI(title="Westward Echo Editor API", version=VERSION)
@@ -92,6 +93,22 @@ def _get_conn() -> sqlite3.Connection:
     return conn  # type: ignore[no-any-return]
 
 
+# 【中文】静态 schema：所有任务共用的 edit_meta 表，通过迁移框架建。
+# 动态的 edits_{job_id} 表仍在 _ensure_table 里按需建，不属于迁移
+# （表名含任务号，数量不定，无法放进静态迁移清单）。
+_EDIT_META_SCHEMA = """
+CREATE TABLE IF NOT EXISTS edit_meta (
+    job_id TEXT PRIMARY KEY,
+    last_edited_at TEXT
+);
+"""
+
+_MIGRATIONS = [
+    ("create_edit_meta", lambda conn: conn.executescript(_EDIT_META_SCHEMA)),
+]
+migrate(EDITOR_DB_PATH, _MIGRATIONS)
+
+
 def _ensure_table(job_id: str):
     """Create the per-job edits table if it doesn't exist.
 
@@ -115,13 +132,6 @@ def _ensure_table(job_id: str):
             edited_text TEXT NOT NULL,
             edited_at TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (chapter_num, paragraph_index)
-        )
-    """)
-    # 【中文】edit_meta 是所有任务共用的元数据表，记录每个任务最后被编辑的时间。
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS edit_meta (
-            job_id TEXT PRIMARY KEY,
-            last_edited_at TEXT
         )
     """)
     conn.commit()

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import DATA_DIR
+from .migrations import migrate
 
 # 【中文】事件数据库的路径。和 checkpoints.db 放在同一个 data/ 目录下。
 DB_PATH = str(DATA_DIR / "translation_events.db")
@@ -79,11 +80,13 @@ CREATE INDEX IF NOT EXISTS idx_events_job ON translation_events(job_id);
 # · created_at：事件发生时间（SQLite 自动生成）
 # 两个索引分别按 event_type 和 job_id 加速查询。
 
-# Ensure schema exists at import time
+# Ensure schema exists at import time via the migration framework.
 # 【中文】模块被 import 时就建好表。这样后续代码不需要担心表不存在。
-_conn = _get_conn()
-_conn.executescript(_SCHEMA)
-_conn.commit()
+# 通过命名迁移跑一次：新建库建表，旧库跳过（名字已记录）。
+_MIGRATIONS = [
+    ("create_translation_events", lambda conn: conn.executescript(_SCHEMA)),
+]
+migrate(DB_PATH, _MIGRATIONS)
 
 
 # ── Public API ───────────────────────────────────────────────────
