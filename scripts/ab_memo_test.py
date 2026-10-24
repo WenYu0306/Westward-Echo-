@@ -120,7 +120,6 @@ def _translate_range(agent, chapters, start, end, book_id, out_dir, label):
                 target_lang="en-US",
                 genre="urban",
                 skip_readback=not is_sample,
-                use_flash_writer=not is_sample,
             )
         except CircuitBreakerOpenError:
             # 【中文】熔断器打开 = 连续失败太多，自动保护停机。

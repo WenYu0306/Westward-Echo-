@@ -1,4 +1,4 @@
-"""Audit: end-to-end smoke test with skip_readback + use_flash_writer.
+"""Audit: end-to-end smoke test with skip_readback.
 
 【中文·这个脚本干什么】
 端到端冒烟测试（smoke test）：用最简配置跑一遍完整翻译管线，验证"从原文进去、
@@ -45,10 +45,9 @@ ch = chapters[0]
 # 不污染生产数据。
 agent = TranslationAgent(book_id="audit_test")
 try:
-    # ── 第一轮：快速模式（跳过冷读 + 用便宜模型写）──
-    # 【中文】skip_readback=True 跳过 READBACK/FIX 循环，use_flash_writer=True
-    # 用便宜的 flash 模型代替正式 WRITE 模型。这两个开关让第一轮又快又省钱，
-    # 目的是验证"READ → WRITE 这条最短通路能跑通"。
+    # ── 第一轮：快速模式（跳过冷读）──
+    # 【中文】skip_readback=True 跳过 READBACK/FIX 循环。
+    # 这个开关让第一轮又快又省钱，目的是验证"READ → WRITE 这条最短通路能跑通"。
     result = agent.translate_chapter(
         chapter_title=ch.title,
         chapter_content=ch.content,
@@ -56,7 +55,6 @@ try:
         target_lang="en-US",
         genre="urban",
         skip_readback=True,
-        use_flash_writer=True,
     )
     tt = result.get("translated_text", "")
     analysis = result.get("read_analysis", {})
@@ -92,7 +90,6 @@ try:
         target_lang="en-US",
         genre="urban",
         skip_readback=False,
-        use_flash_writer=False,
     )
     fb = result2.get("readback_feedback", {})
     verdict = fb.get("verdict", "?")

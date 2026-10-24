@@ -349,7 +349,7 @@ def _run_evaluator(system_prompt: str, user_prompt: str, name: str) -> Optional[
     历史上曾用 DeepSeek 的 quality_score 节点，该节点在三模型拆分时已删除。
 
     Scoring is a judgement task, so it runs on the READBACK tier — the same
-    split the pipeline uses (MODEL_MAP["readback"]), on the Qwen provider.
+    split the pipeline uses (NODE_MODELS["readback"]), on the Qwen provider.
     It used to call MODEL_MAP["quality_score"] on the DeepSeek stack; that key
     and those config constants were both removed in c121f0b when the pipeline
     moved to the GLM/Qwen three-model split, so this raised KeyError/ImportError
@@ -357,10 +357,10 @@ def _run_evaluator(system_prompt: str, user_prompt: str, name: str) -> Optional[
     """
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
-    from src.config import LLM_API_KEY, LLM_BASE_URL, MODEL_MAP
+    from src.config import LLM_API_KEY, LLM_BASE_URL, NODE_MODELS
 
     llm = ChatOpenAI(
-        model=MODEL_MAP["readback"],
+        model=NODE_MODELS["readback"],
         api_key=LLM_API_KEY,
         base_url=LLM_BASE_URL,
         temperature=0.0,
@@ -528,7 +528,7 @@ def _generate_stress_chapters(lengths: range) -> list[str]:
     这是纯文字输出任务，用最便宜的 flash 档就够。生成的文本会缓存到文件里，
     下次跑直接复用，不再重复花钱。
 
-    Synthesising chapter prose is a text-output task, so it uses MODEL_MAP["write"]
+    Synthesising chapter prose is a text-output task, so it uses NODE_MODELS["write"]
     (GLM flash) on the GLM provider — the same tier split the pipeline uses, and
     the cheapest one that does the job, per the trial-phase flash-only policy.
     It used to call MODEL_MAP["translate"] on the DeepSeek stack; that key and
@@ -536,10 +536,10 @@ def _generate_stress_chapters(lengths: range) -> list[str]:
     """
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
-    from src.config import GLM_API_KEY, GLM_BASE_URL, MODEL_MAP
+    from src.config import GLM_API_KEY, GLM_BASE_URL, NODE_MODELS
 
     llm = ChatOpenAI(
-        model=MODEL_MAP["write"],
+        model=NODE_MODELS["write"],
         api_key=GLM_API_KEY,
         base_url=GLM_BASE_URL,
         temperature=0.7,

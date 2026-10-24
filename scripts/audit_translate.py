@@ -77,7 +77,6 @@ for i, ch in enumerate(chapters):
             target_lang="en-US",
             genre="urban",
             skip_readback=not is_sample,
-            use_flash_writer=not is_sample,
         )
     except Exception as e:
         print(f"ERROR: {e}")

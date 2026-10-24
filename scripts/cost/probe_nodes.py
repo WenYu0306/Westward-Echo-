@@ -162,7 +162,7 @@ for label, (cjk, idx) in picks.items():
         # patched 的 record_tokens 会自动记录每次 API 调用的 token。
         res = agent.translate_chapter(chapter_title=ch.title, chapter_content=ch.content,
             chapter_number=ch.index, previous_summary="", target_lang="en-US",
-            genre="folk_religion", skip_readback=False, use_flash_writer=False,
+            genre="folk_religion", skip_readback=False,
             content_type="novel")
         verdict = (res.get("readback_feedback") or {}).get("verdict")
         out_len = len(res.get("translated_text", "") or "")

@@ -140,7 +140,7 @@ def _build_pipeline_prompt(chapter) -> tuple[str, str, dict]:
     agent = TranslationAgent(book_id="diag_test")
     state = agent._make_state(
         chapter.title, chapter.content, chapter.index, "",
-        target_lang, "urban", skip_readback=True, use_flash_writer=True,
+        target_lang, "urban", skip_readback=True,
     )
     read_result = read_node(state, agent.exact_store, agent.semantic_store)
     analysis = read_result.get("read_analysis", {})

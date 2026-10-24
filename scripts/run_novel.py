@@ -266,7 +266,6 @@ def main():
                     target_lang="en-US",
                     genre=cfg["genre"],
                     skip_readback=not is_sample,
-                    use_flash_writer=not is_sample,
                 )
             except CircuitBreakerOpenError:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] CIRCUIT OPEN - sleep 30s")
@@ -288,7 +287,6 @@ def main():
                             target_lang="en-US",
                             genre=cfg["genre"],
                             skip_readback=not is_sample,
-                            use_flash_writer=not is_sample,
                         )
                     except Exception as e2:
                         print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e2} (after retry)")

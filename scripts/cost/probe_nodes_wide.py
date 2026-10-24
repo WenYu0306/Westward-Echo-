@@ -125,7 +125,7 @@ for book, frac, label in PLAN:
     try:
         res = agent.translate_chapter(chapter_title=ch.title, chapter_content=ch.content,
             chapter_number=ch.index, previous_summary="", target_lang="en-US",
-            genre=genre, skip_readback=False, use_flash_writer=False, content_type="novel")
+            genre=genre, skip_readback=False, content_type="novel")
         verdict = (res.get("readback_feedback") or {}).get("verdict")
         out_len = len(res.get("translated_text", "") or "")
     except Exception as e:

@@ -168,7 +168,6 @@ def main():
                     target_lang="en-US",
                     genre="urban",
                     skip_readback=not is_sample,
-                    use_flash_writer=not is_sample,
                 )
             except CircuitBreakerOpenError:
                 # 【中文】熔断器打开：API 连续失败太多次，自动暂停防雪崩。

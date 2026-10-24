@@ -75,8 +75,7 @@ import logging
 for name in ["httpx", "httpcore", "openai", "chromadb", "urllib3"]:
     logging.getLogger(name).setLevel(logging.WARNING)
 
-# 【中文】逐章重翻。skip_readback=True 表示跳过冷读环节（省时间省钱），
-# use_flash_writer=True 表示用便宜的 flash 模型做 WRITE。
+# 【中文】逐章重翻。skip_readback=True 表示跳过冷读环节（省时间省钱）。
 for en_idx in CHAPTERS_TO_FIX:
     src_ch = src_by_index.get(en_idx)
     if src_ch is None:
@@ -102,7 +101,6 @@ for en_idx in CHAPTERS_TO_FIX:
             target_lang="en-US",
             genre=cfg["genre"],
             skip_readback=True,
-            use_flash_writer=True,
         )
     except Exception as e:
         print(f"ERROR: {e}")
