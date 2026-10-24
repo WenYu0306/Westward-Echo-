@@ -514,8 +514,14 @@ def _load_checkpoint_translations(job_id: str) -> dict[int, str]:
                 (job_id,),
             ).fetchall()
         return {row["chapter_number"]: row["translated_text"] for row in rows}
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return {}  # 全新库，尚无存档表 → 合法的「无存档」
+        logger.error("Checkpoint read failed for job %s: %s", job_id, exc)
+        raise
     except Exception:
-        return {}
+        logger.exception("Checkpoint read failed for job %s", job_id)
+        raise
 
 
 def _load_checkpoint_summary(job_id: str, chapter_number: int) -> str:
@@ -535,5 +541,11 @@ def _load_checkpoint_summary(job_id: str, chapter_number: int) -> str:
                 (job_id, chapter_number),
             ).fetchone()
         return row[0] if row else ""
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return ""  # 全新库，尚无存档表 → 合法的「无存档」
+        logger.error("Checkpoint summary read failed for job %s: %s", job_id, exc)
+        raise
     except Exception:
-        return ""
+        logger.exception("Checkpoint summary read failed for job %s", job_id)
+        raise
