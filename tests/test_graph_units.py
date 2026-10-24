@@ -515,14 +515,6 @@ class TestMakeState:
         assert state["chapter_content"] == "王三在这里。"
         assert state["style_memo"] == "M"
 
-    def test_use_flash_writer_defaults_to_false(self):
-        a = bare_agent()
-        assert a._make_state(**make_state_kwargs())["use_flash_writer"] is False
-
-    def test_use_flash_writer_can_be_requested(self):
-        a = bare_agent()
-        assert a._make_state(**make_state_kwargs(use_flash_writer=True))["use_flash_writer"] is True
-
 
 # ────────────────────────────── chapter entry points ──────────────────────────────
 
@@ -551,26 +543,23 @@ class TestTranslateChapter:
         assert state["chapter_title"] == "第一章"
         assert state["genre"] == "folk_religion"
 
-    def test_fast_mode_flags_default_to_off(self):
-        # Both flags gate real work (the cold reader, the flash writer): a
-        # default of True would silently skip READBACK for every chapter.
+    def test_fast_mode_defaults_to_off(self):
+        # skip_readback gates the cold reader: a default of True would silently
+        # skip READBACK for every chapter.
         a = bare_agent()
         a.graph = FakeGraph()
         a.translate_chapter(chapter_title="第一章", chapter_content="聋婆婆等着。",
                             chapter_number=1)
         state = a.graph.invocations[0]["state"]
         assert state["skip_readback"] is False
-        assert state["use_flash_writer"] is False
 
-    def test_fast_mode_flags_reach_the_state(self):
+    def test_fast_mode_reaches_the_state(self):
         a = bare_agent()
         a.graph = FakeGraph()
         a.translate_chapter(chapter_title="第一章", chapter_content="聋婆婆等着。",
-                            chapter_number=1, skip_readback=True,
-                            use_flash_writer=True)
+                            chapter_number=1, skip_readback=True)
         state = a.graph.invocations[0]["state"]
         assert state["skip_readback"] is True
-        assert state["use_flash_writer"] is True
 
     def test_result_carries_a_glossary_snapshot(self):
         a = bare_agent()
@@ -593,7 +582,6 @@ class TestTranslateChapter:
         a._translate_once("第一章", "聋婆婆等着。", 1, "", "en-US", "folk_religion")
         state = a.graph.invocations[0]["state"]
         assert state["skip_readback"] is False
-        assert state["use_flash_writer"] is False
 
 
 class TestTranslateSplit:

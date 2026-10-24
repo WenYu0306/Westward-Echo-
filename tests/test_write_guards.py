@@ -699,48 +699,6 @@ class TestFidelityRulesFallback:
         assert "(No cultural fidelity rules for this language.)" not in prompt
 
 
-class TestFlashWriterFlagIsAccountingOnly:
-    """`use_flash_writer` used to look like a model switch. It is not: WRITE runs
-    on GLM_MODEL either way, and the flag only labelled the legacy counters
-    ("flash"/"pro"). These tests pin that the flag cannot change the model, so a
-    future reader cannot mistake it for a routing switch."""
-
-    def _run(self, state):
-        from src.agent.nodes import write as wmod
-        with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
-             patch("src.agent.nodes.write.job_store") as js, \
-             patch.object(wmod.TranslationStats, "record_tokens") as legacy:
-            js.get_confirmed_terms.return_value = {}
-            js.get_rejected_terms.return_value = []
-            mock_llm = MagicMock()
-            mock_llm.invoke.return_value = _Resp(
-                content='{"translated_text": "' + ("word " * 40) + '"}',
-                metadata={"finish_reason": "stop",
-                          "token_usage": {"prompt_tokens": 5, "completion_tokens": 6}})
-            cls.return_value = mock_llm
-            write_node(state)
-        return cls.call_args.kwargs, legacy
-
-    def test_absent_flag_defaults_to_off_and_pro_tier(self):
-        st = _state(_LONG_SOURCE)
-        st.pop("use_flash_writer")
-        kwargs, legacy = self._run(st)
-        assert legacy.call_args.kwargs["tier"] == "pro"
-
-    def test_flag_switches_only_the_accounting_label(self):
-        from src.config import GLM_MODEL
-        st = _state(_LONG_SOURCE)
-        st["use_flash_writer"] = True
-        kwargs, legacy = self._run(st)
-        assert kwargs["model"] == GLM_MODEL      # unchanged by the flag
-        assert legacy.call_args.kwargs["tier"] == "flash"
-
-    def test_model_is_identical_with_and_without_the_flag(self):
-        off = _state(_LONG_SOURCE); off["use_flash_writer"] = False
-        on = _state(_LONG_SOURCE); on["use_flash_writer"] = True
-        assert self._run(off)[0]["model"] == self._run(on)[0]["model"]
-
-
 class TestParseResponseFenceHandling:
     """A fenced reply with a closing ``` takes the [1:-1] branch; one without a
     closing fence must not lose its body. Mutation found the slice index was

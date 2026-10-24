@@ -50,7 +50,6 @@ def build_state(
     lang: str,
     genre: str,
     skip_readback: bool,
-    use_flash_writer: bool,
     content_type: str,
     exact_store,
     semantic_store,
@@ -132,7 +131,6 @@ def build_state(
             "For now: translate faithfully.)"
         ),
         "skip_readback": skip_readback,
-        "use_flash_writer": use_flash_writer,
         "api_key": api_key or "",
         # Cold reader briefing
         "cold_read_context": cold_read_context,

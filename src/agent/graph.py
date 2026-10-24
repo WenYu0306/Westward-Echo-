@@ -407,7 +407,6 @@ class TranslationAgent:
         target_lang: str = "en-US",
         genre: str = "romance_ceo",
         skip_readback: bool = False,
-        use_flash_writer: bool = False,
         content_type: str = "novel",
     ) -> dict:
         """Translate a single chapter through the 5-node reader-centric pipeline.
@@ -437,7 +436,6 @@ class TranslationAgent:
                            题材会影响提示词——仙侠里的"金丹""元婴"和都市言情里的
                            处理方式完全不同。
           skip_readback    True = 走快速模式，跳过冷读和修补（省约一半费用）
-          use_flash_writer WRITE 角色用更便宜的模型（进一步省钱）
           content_type     内容类型，目前只验证过 "novel"（小说）这一条路径，
                            填别的会退回按小说处理
 
@@ -461,20 +459,20 @@ class TranslationAgent:
             result = self._translate_split(
                 chapter_title, chapter_content, chapter_number,
                 previous_summary, target_lang, genre, skip_readback,
-                use_flash_writer, content_type=content_type,
+                content_type=content_type,
             )
         else:
             result = self._translate_once(
                 chapter_title, chapter_content, chapter_number,
                 previous_summary, target_lang, genre, skip_readback,
-                use_flash_writer, content_type=content_type,
+                content_type=content_type,
             )
 
         return result
 
     def _make_state(
         self, title, content, number, prev_summary, lang, genre,
-        skip_readback=False, use_flash_writer=False, content_type="novel",
+        skip_readback=False, content_type="novel",
     ) -> TranslatorState:
         """Build the initial state — delegates to state_builder.build_state.
 
@@ -489,7 +487,7 @@ class TranslationAgent:
         return build_state(
             title=title, content=content, number=number, prev_summary=prev_summary,
             lang=lang, genre=genre, skip_readback=skip_readback,
-            use_flash_writer=use_flash_writer, content_type=content_type,
+            content_type=content_type,
             exact_store=self.exact_store, semantic_store=self.semantic_store,
             style_memo=self.style_memo, api_key=self.api_key,
             book_id=getattr(self, "book_id", ""),
@@ -501,7 +499,7 @@ class TranslationAgent:
 
     def _translate_once(
         self, title, content, number, prev_summary, lang, genre,
-        skip_readback=False, use_flash_writer=False, content_type="novel",
+        skip_readback=False, content_type="novel",
     ) -> dict:
         """Run the 4-node pipeline on a single chapter.
 
@@ -519,13 +517,13 @@ class TranslationAgent:
         设 100 是留足余量，真撞到 100 说明出事了，引擎会主动报错停下。
         """
         state = self._make_state(title, content, number, prev_summary, lang, genre,
-                                 skip_readback, use_flash_writer, content_type)
+                                 skip_readback, content_type)
         result = self.graph.invoke(state, config={"recursion_limit": 100})
         return self._post_process(result, lang)
 
     def _translate_split(
         self, title, content, number, prev_summary, lang, genre,
-        skip_readback=False, use_flash_writer=False, content_type="novel",
+        skip_readback=False, content_type="novel",
     ) -> dict:
         """Translate a long chapter by splitting into segments.
 
@@ -565,7 +563,7 @@ class TranslationAgent:
 
             result = self._translate_once(
                 seg_title, seg["content"], number, segment_summary, lang, genre,
-                skip_readback, use_flash_writer, content_type=content_type,
+                skip_readback, content_type=content_type,
             )
 
             tt = result.get("translated_text", "")

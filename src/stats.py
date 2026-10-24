@@ -267,22 +267,13 @@ class TranslationStats:
         cls.record_failure(lang)
 
     @classmethod
-    def record_tokens(cls, input_tokens: int, output_tokens: int, tier: str = ""):
+    def record_tokens(cls, input_tokens: int, output_tokens: int):
         """Accumulate session token totals from an LLM API response.
-
-        ``tier`` is accepted and ignored. It used to select a DeepSeek
-        "flash"/"pro" bucket; those tiers no longer exist and the mapping had
-        drifted from reality (READ on qwen3.8-max was bucketed as "pro", FIX on
-        glm-5.3 as "flash"), so per-tier figures were meaningless. Callers still
-        pass it — keeping the parameter avoids touching five call sites for a
-        value that no longer carries information.
 
         Per-model attribution lives in src/token_ledger.py, which records the
         model name on every call and prices it in CNY at current vendor rates.
 
         【中文】累加本次调用的 token 数到会话总量。
-        ⚠️ tier 参数已被忽略（接受但不使用）。历史上它用来选 DeepSeek 的
-        flash/pro 桶，但那些桶已经不存在了。保留参数只是为了不改调用方代码。
         要查按模型分的 token 和成本，请用 token_ledger.summary()。
         """
         r = _get_redis()

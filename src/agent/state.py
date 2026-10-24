@@ -181,9 +181,6 @@ class TranslatorState(TypedDict):
     # 【中文】快速模式开关。True = 跳过冷读和修补，省一半费用。
     # 实际用法：大部分章节走快速模式，里程碑章节才走完整检查。
     skip_readback: bool
-    use_flash_writer: bool           # When True, WRITE uses Flash instead of Pro
-    # 【中文】WRITE 角色是否使用轻量模型（Flash）而非主力模型（Pro）。
-    # Flash 更快更便宜，适合简单章节；Pro 更贵但质量更高。
     api_key: str                     # BYOK: user-provided API key ("" = use env default)
     # 【中文】用户自带的 API 密钥（BYOK = Bring Your Own Key）。
     # 空串表示使用 .env 里配置的默认密钥。

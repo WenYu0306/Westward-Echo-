@@ -432,7 +432,6 @@ async def _translate_accepted(
                         chapter_number=ch.index, previous_summary=prev_summary,
                         target_lang=target_lang, genre=genre,
                         skip_readback=flash_mode,
-                        use_flash_writer=flash_mode,
                         content_type=content_type,
                     )
                 except CircuitBreakerOpenError:
@@ -453,7 +452,6 @@ async def _translate_accepted(
                                 chapter_number=ch.index, previous_summary=prev_summary,
                                 target_lang=target_lang, genre=genre,
                                 skip_readback=flash_mode,
-                                use_flash_writer=flash_mode,
                                 content_type=content_type,
                             )
                         except Exception as e2:
@@ -784,7 +782,6 @@ async def translate_multi(
                                 target_lang=lang,
                                 genre=genre,
                                 skip_readback=flash_mode,
-                                use_flash_writer=flash_mode,
                                 content_type=content_type,
                             )
                         except CircuitBreakerOpenError:
@@ -808,7 +805,6 @@ async def translate_multi(
                                         target_lang=lang,
                                         genre=genre,
                                         skip_readback=flash_mode,
-                                        use_flash_writer=flash_mode,
                                         content_type=content_type,
                                     )
                                 except Exception as e2:

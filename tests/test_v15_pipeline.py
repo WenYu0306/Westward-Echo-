@@ -263,12 +263,6 @@ class TestMakeState:
                                   skip_readback=True)
         assert state["skip_readback"] is True
 
-    def test_use_flash_writer_flag_passed(self):
-        agent = TranslationAgent(book_id="test_make_state_flash")
-        state = agent._make_state("T", "c", 1, "", "en-US", "romance_ceo",
-                                  use_flash_writer=True)
-        assert state["use_flash_writer"] is True
-
     def test_prefetched_glossary_used(self):
         agent = TranslationAgent(book_id="test_make_state_prefetch")
         agent._prefetched_exact = {"预取词": "PrefetchedTerm"}

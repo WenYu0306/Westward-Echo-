@@ -329,7 +329,6 @@ def _capture_readback_tokens(
         TranslationStats.record_tokens(
             input_tokens=usage_in,
             output_tokens=usage_out,
-            tier="flash",
         )
     except Exception:
         pass  # 统计是辅助功能，失败了不影响主流程

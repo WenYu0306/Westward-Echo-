@@ -130,7 +130,6 @@ def write_node(state: TranslatorState) -> dict:
     为什么存在：READ 只分析不写，WRITE 只写不分析，分工明确才能各自优化。
     """
     chapter_number = state["chapter_number"]
-    flash = state.get("use_flash_writer", False)
     # Which model actually served this chapter. The GLM-1301 fallback below
     # switches providers mid-chapter; without this the fallback call was booked
     # against GLM and its cost landed on the wrong model.
@@ -343,11 +342,10 @@ def write_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_success(target_lang)
 
     # 【中文·记录 token 用量】把这次调用的输入/输出 token 数记入账本，
-    # 用于算钱和监控成本趋势。tier 标记是 flash（便宜档）还是 pro（贵档）。
+    # 用于算钱和监控成本趋势。
     _capture_response_tokens(
         response,
         model=used_model,
-        tier="flash" if flash else "pro",
         book_id=state.get("book_id", ""),
         chapter=chapter_number,
     )
@@ -490,7 +488,6 @@ def write_node(state: TranslatorState) -> dict:
                     # 【中文】重试用的是主客户端（不是兜底客户端），
                     # 所以 token 费用记到主模型头上，即使第一次尝试走了兜底。
                     model=provider_kwargs["model"],
-                    tier="flash" if flash else "pro",
                     book_id=state.get("book_id", ""),
                     chapter=chapter_number,
                 )
@@ -735,7 +732,7 @@ def _format_image_gaps(gaps: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def _capture_response_tokens(response, model: str, tier: str = "flash",
+def _capture_response_tokens(response, model: str,
                              *, book_id: str = "", chapter: int = 0) -> None:
     """Record WRITE token usage against the model that actually served it.
 
@@ -753,7 +750,6 @@ def _capture_response_tokens(response, model: str, tier: str = "flash",
     参数：
       response  —— AI 的回复对象（里面藏着 usage 字段）
       model     —— 实际使用的模型名（可能是兜底模型）
-      tier      —— "flash"（便宜档）或 "pro"（贵档），用于分类统计
       book_id   —— 书籍 ID（可选）
       chapter   —— 章号（可选）
 
@@ -772,7 +768,6 @@ def _capture_response_tokens(response, model: str, tier: str = "flash",
         TranslationStats.record_tokens(
             input_tokens=usage_in,
             output_tokens=usage_out,
-            tier=tier,
         )
     except Exception:
         pass

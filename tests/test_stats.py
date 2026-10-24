@@ -73,14 +73,6 @@ class TestTranslationStats:
         assert ts["input"] == 3000
         assert ts["output"] == 1500
 
-    def test_tier_argument_is_accepted_and_ignored(self):
-        """Five call sites still pass tier="flash"/"pro" for DeepSeek tiers that
-        no longer exist. It must not change the numbers or raise."""
-        TranslationStats.record_tokens(1000, 500, tier="pro")
-        TranslationStats.record_tokens(1000, 500, tier="flash")
-        ts = TranslationStats.token_snapshot()
-        assert ts["total"] == 3000
-
     def test_snapshot_has_no_cost_figure(self):
         """The regression that mattered: this dict fed dashboard.py, and the
         cost in it was computed from DeepSeek USD rates applied to GLM/Qwen

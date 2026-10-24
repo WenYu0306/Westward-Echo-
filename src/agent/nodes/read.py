@@ -442,7 +442,6 @@ def _capture_read_tokens(response, model: str, *, book_id: str = "", chapter: in
         TranslationStats.record_tokens(
             input_tokens=usage_in,
             output_tokens=usage_out,
-            tier="pro",
         )
     except Exception:
         # 汇总计数失败不影响主流程（明细已经记了）
