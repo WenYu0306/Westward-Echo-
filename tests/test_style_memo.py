@@ -173,7 +173,10 @@ class TestCharactersDrawer:
         # characters.md should have only the header, no content entries
         characters_path = memo_store.root / "characters.md"
         content = characters_path.read_text("utf-8")
-        lines = [l for l in content.strip().split("\n") if l.strip() and not l.startswith("#")]
+        lines = [
+            line for line in content.strip().split("\n")
+            if line.strip() and not line.startswith("#")
+        ]
         assert len(lines) == 0, f"characters.md should be empty when gate is off, got: {lines}"
 
 

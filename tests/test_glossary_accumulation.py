@@ -23,7 +23,6 @@ import pytest
 
 from src.agent.graph import TranslationAgent
 
-
 # ── Mock LLM outputs for two consecutive chapters ────────────────────
 
 CH1_READ = json.dumps({
@@ -381,7 +380,9 @@ class TestGlossaryAccumulation:
                 )
 
         forced_accept_logs = [r for r in caplog.records if "FORCED_ACCEPT" in r.message]
-        assert len(forced_accept_logs) >= 1, "FORCED_ACCEPT must be logged when FIX can't satisfy READBACK"
+        assert len(forced_accept_logs) >= 1, (
+            "FORCED_ACCEPT must be logged when FIX can't satisfy READBACK"
+        )
 
 
 class TestBookIdPropagation:

@@ -221,4 +221,6 @@ class BackpressureGuard:
 # 【中文】全模块唯一的实例，整个系统共用这一个守卫。
 # max_queue_depth=100 与上面的默认值一致，写在这里是为了让"上限是多少"
 # 只有一个地方能看到，改的时候不会漏。
-backpressure = BackpressureGuard(max_queue_depth=100, redis_key="westward_echo:backpressure:pending")
+backpressure = BackpressureGuard(
+    max_queue_depth=100, redis_key="westward_echo:backpressure:pending"
+)

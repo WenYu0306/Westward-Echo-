@@ -40,6 +40,8 @@ scope for v1 — those gaps are narrative, not a single checkable token.
 那些是叙事层面的问题，没法用一个简单的字符串匹配来验证。
 """
 
+import re
+
 
 def _candidates(proposed_en: str) -> list[str]:
     """Split a proposed rendering into candidate strings to search for.
@@ -59,9 +61,6 @@ def _candidates(proposed_en: str) -> list[str]:
     会给两个选项让 WRITE 挑。这种情况下 WRITE 用哪个都算对。
     """
     return [c.strip() for c in proposed_en.split("/") if c.strip()]
-
-
-import re
 
 
 # 【中文·中文数字对照表】把中文数字字符映射成阿拉伯数字。

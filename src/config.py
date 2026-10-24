@@ -370,7 +370,9 @@ def node_model(node: str) -> str:
     try:
         return NODE_MODELS[node]
     except KeyError:
-        raise ValueError(f"unknown pipeline node {node!r}; expected one of {sorted(NODE_MODELS)}") from None
+        raise ValueError(
+            f"unknown pipeline node {node!r}; expected one of {sorted(NODE_MODELS)}"
+        ) from None
 
 
 def node_llm_kwargs(node: str, *, api_key_override: str = "") -> dict:

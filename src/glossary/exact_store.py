@@ -241,8 +241,8 @@ class ExactGlossary:
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO exact_glossary
-                   (book_id, term_cn, term_en, category, context, chapter_first_seen, note, status, \
-target_lang)
+                   (book_id, term_cn, term_en, category, context, chapter_first_seen,
+                    note, status, target_lang)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (self._book_id, term_cn, term_en, category, context, chapter, note, status,
                  target_lang),
@@ -562,7 +562,7 @@ target_lang)
         · 返回：[(中文1, 英文1, 中文2, 英文2), ...] 列表
         · 两两比较，O(n²) 复杂度，但术语数通常 < 100，可接受
         """
-        _STOPWORDS = frozenset({"the", "a", "an"})
+        _stopwords = frozenset({"the", "a", "an"})
         items = sorted(terms.items())
         pairs: list[tuple[str, str, str, str]] = []
         for i in range(len(items)):
@@ -597,7 +597,7 @@ target_lang)
                 # 【中文】检查英文首词是否相同（排除停用词）
                 w1 = en1.split()[0].lower() if en1.split() else ""
                 w2 = en2.split()[0].lower() if en2.split() else ""
-                if w1 and w1 == w2 and w1 not in _STOPWORDS:
+                if w1 and w1 == w2 and w1 not in _stopwords:
                     pairs.append((cn1, en1, cn2, en2))
         return pairs
 

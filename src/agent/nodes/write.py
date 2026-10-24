@@ -45,38 +45,48 @@ Is a storyteller, not a translation machine.
 """
 
 # 【中文·导入区】下面这些 import 是 WRITE 节点用到的全部外部零件。
-import json       # JSON 解析：AI 返回的是 JSON 格式，需要用它提取译文
-import logging    # 日志：记录重试、截断、过滤等关键事件
-import re         # 正则表达式：多层 JSON 解析的抢救手段之一
+import json  # JSON 解析：AI 返回的是 JSON 格式，需要用它提取译文
+import logging  # 日志：记录重试、截断、过滤等关键事件
+import re  # 正则表达式：多层 JSON 解析的抢救手段之一
 
 # LangChain 的消息类型和 OpenAI 兼容客户端
 # （虽然实际调用的是 GLM/Qwen，但它们都兼容 OpenAI 接口协议）
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-# 共享的内容过滤错误判断（GLM 1301 / Qwen 审查），四个节点共用
-from ..llm_fallback import is_content_filter_error as _is_content_filter_error
+# Token 账本：精确记录每次调用的 token 用量，用于算钱
+from ... import token_ledger
 
 # 熔断器：当某个 provider 连续失败时自动"跳闸"，防止反复烧钱
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
+
 # 完整性检查：对比原文和译文，看有没有整段被漏掉
 from ...completeness import check_completeness
+
 # 按节点名取模型配置（WRITE 用 GLM flash，兜底用 Qwen）
 from ...config import node_llm_kwargs
+
 # 文化忠实度规则：确保人名/称谓不被简单音译成拼音
 from ...cultural_rules import format_fidelity_for_prompt, load_fidelity_rules
+
 # 任务存储：读取人工确认/拒绝的术语对
 from ...job_store import job_store
+
 # 统计计数器：记录 API 调用次数和成功/失败
 from ...stats import TranslationStats
-# Token 账本：精确记录每次调用的 token 用量，用于算钱
-from ... import token_ledger
+
+# 共享的内容过滤错误判断（GLM 1301 / Qwen 审查），四个节点共用
+from ..llm_fallback import is_content_filter_error as _is_content_filter_error
+
 # 构建提示词里的角色/语种上下文（如"你是写给美国读者看的"）
 from ..prompts.personas import build_prompt_context
+
 # 按内容类型（novel/poetry 等）取对应的提示词模板集
 from ..prompts.registry import get_prompt_set
+
 # 各目标语言的文体风格备注（如西班牙语要用 tú 还是 usted）
 from ..prompts.translation import LANGUAGE_STYLE_NOTES
+
 # 流水线的共享状态数据结构
 from ..state import TranslatorState
 
@@ -389,12 +399,12 @@ def write_node(state: TranslatorState) -> dict:
     # 和交付扫描器 scan_deliverable.py 共用同一套判断逻辑，
     # 保证生产时检查和事后扫描不会"各说各话"。
     from ...output_guard import (
-        check_and_record,          # 综合检查并记录警告
-        has_json_envelope_residue, # 检测 JSON 外壳残留
-        has_meta_text_leak,        # 检测元文本泄漏（如脚手架文字）
+        check_and_record,  # 综合检查并记录警告
+        has_json_envelope_residue,  # 检测 JSON 外壳残留
+        has_meta_text_leak,  # 检测元文本泄漏（如脚手架文字）
         has_untranslated_chinese,  # 检测未翻译的中文残留
-        sanitize_translation,      # 清理常见格式问题
-        strip_chinese_residue,     # 剥离零散中文字符
+        sanitize_translation,  # 清理常见格式问题
+        strip_chinese_residue,  # 剥离零散中文字符
     )
 
     # 【中文·检查 1：中文残留】目标语言不是中文时，译文里不该有中文。

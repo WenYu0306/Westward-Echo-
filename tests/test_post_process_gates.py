@@ -495,8 +495,9 @@ class TestFixLessonLoop:
         assert calls == []
 
     def test_empty_and_non_string_lessons_are_skipped(self, agent):
+        from unittest.mock import MagicMock, patch
+
         from src.agent.nodes.fix import fix_node
-        from unittest.mock import patch, MagicMock
 
         response = {
             "polished_text": "Fixed version of the chapter.",
@@ -528,6 +529,7 @@ class TestFixLessonLoop:
         it the accumulation is silent and untested."""
         import operator
         from typing import get_type_hints
+
         from src.agent.state import TranslatorState
 
         hints = get_type_hints(TranslatorState, include_extras=True)

@@ -12,13 +12,15 @@ ignore = ["UP045"]
 known-first-party = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
-# These modules are single-page HTML/CSS/JS templates stored as Python
-# strings. Their lines are markup, not code — wrapping them would break
-# URLs/CSS/JS, so line length is not enforced inside them.
+# These modules store non-code content as Python strings: single-page
+# HTML/CSS/JS templates (markup) and LLM prompt templates. Their long lines
+# are content, not code — wrapping them would break URLs/CSS/JS or change
+# the prompt text, so line length is not enforced inside them.
 "src/web_ui.py" = ["E501"]
 "src/editor_ui.py" = ["E501"]
 "src/dashboard.py" = ["E501"]
 "src/usage_ui.py" = ["E501"]
+"src/agent/prompts/read.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -11,10 +11,6 @@ background thread, billed it, and still passed because the thread swallows
 exceptions. That is the fake-green path; do not remove the stub.
 """
 
-import json
-import os
-import tempfile
-import time
 
 import pytest
 from fastapi.testclient import TestClient

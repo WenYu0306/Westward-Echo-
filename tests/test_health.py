@@ -20,7 +20,6 @@ import pytest
 import src.health as health_mod
 from src.health import HealthChecker, check_disk_io, check_memory
 
-
 # ═══════════════════════════════════════════════════════════════
 # Deterministic clock
 #

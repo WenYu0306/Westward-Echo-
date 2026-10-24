@@ -285,8 +285,8 @@ class TestAllJobsHealth:
     def test_sorted_worst_first(self):
         import uuid
 
-        from src.job_store import JobStore
         from src.error_tracker import get_all_jobs_health
+        from src.job_store import JobStore
 
         store = JobStore()
         bad = store.create_job(f"bad_{uuid.uuid4().hex[:8]}.txt", "en-US", 1)

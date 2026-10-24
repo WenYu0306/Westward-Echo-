@@ -30,21 +30,28 @@ import logging
 
 # LangChain 的消息对象：SystemMessage 是"系统指令"，HumanMessage 是"用户消息"
 from langchain_core.messages import HumanMessage, SystemMessage
+
 # ChatOpenAI 是大模型的统一客户端
 from langchain_openai import ChatOpenAI
 
-# 熔断器：API 连续失败太多次时自动"跳闸"保护
-from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
-# node_llm_kwargs：根据节点名查出该用哪个模型和服务商
-from ...config import node_llm_kwargs
-# TranslationStats：统计 API 调用次数和 token 用量
-from ...stats import TranslationStats
 # token_ledger：按书/章/节点记录 token 消耗
 from ... import token_ledger
+
+# 熔断器：API 连续失败太多次时自动"跳闸"保护
+from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
+
+# node_llm_kwargs：根据节点名查出该用哪个模型和服务商
+from ...config import node_llm_kwargs
+
+# TranslationStats：统计 API 调用次数和 token 用量
+from ...stats import TranslationStats
+
 # build_prompt_context：根据题材和目标语言生成角色身份描述
 from ..prompts.personas import build_prompt_context
+
 # get_prompt_set：根据内容类型取一套提示词模板
 from ..prompts.registry import get_prompt_set
+
 # TranslatorState：流水线的"共享白板"数据结构
 from ..state import TranslatorState
 

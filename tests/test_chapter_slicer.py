@@ -249,7 +249,7 @@ class TestSegmentBoundary:
         assert all(s["content"].strip() for s in segments)
 
     def test_oversized_single_paragraph_is_split_at_sentences(self):
-        from src.chapter_slicer import MAX_CHARS_PER_SEGMENT, split_chapter
+        from src.chapter_slicer import split_chapter
 
         sentence = "这是一个很长的句子。" + "字" * 60
         content = sentence * 200  # one paragraph, far over the budget

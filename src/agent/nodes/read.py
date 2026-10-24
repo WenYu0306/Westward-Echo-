@@ -34,16 +34,21 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+# 【中文·token 账本】按 book_id + chapter 粒度记录每次调用的 token 消耗，
+# 用于成本核算。和 TranslationStats 的区别：Stats 是全局汇总，ledger 是逐条明细。
+from ... import token_ledger
+
 # 【中文·熔断器（circuit breaker）】一种保护机制：
 # 如果大模型 API 连续失败多次，熔断器会"跳闸"，后续调用直接报错而不发请求。
 # 防止 API 已经挂了还不停重试，白白烧钱和浪费时间。
 # 恢复一段时间后自动尝试重新接通。
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
+
 # 【中文·节点级模型路由表】每个角色可以用不同的模型/服务商。
 # node_llm_kwargs("read") 返回 READ 角色该用的模型名、API 密钥、base_url 等。
 # 好处：切换模型只改环境变量，不用改代码。
 from ...config import node_llm_kwargs
-from ..llm_fallback import is_content_filter_error
+
 # 【中文·文化规则加载器】根据目标语言和小说类型，加载对应的文化适配规则。
 # 比如翻仙侠时"筑基"不能译成 "foundation building"（字面意思完全不对）。
 from ...cultural_rules import (
@@ -52,23 +57,26 @@ from ...cultural_rules import (
     load_fidelity_rules,
     load_rules,
 )
+
 # 【中文·术语库两层存储】
 # ExactGlossary   —— 精确匹配（中文原词一模一样才命中），存在 SQLite 里
 # SemanticGlossary—— 语义相近匹配（意思相关的也算），存在向量库里
 # 两者配合：精确匹配保证已知术语一致，语义匹配兜底新出现的近义表达。
 from ...glossary.exact_store import ExactGlossary
 from ...glossary.semantic_store import SemanticGlossary
+
 # 【中文·翻译统计计数器】记录 API 调用次数、成功/失败次数、token 用量。
 from ...stats import TranslationStats
-# 【中文·token 账本】按 book_id + chapter 粒度记录每次调用的 token 消耗，
-# 用于成本核算。和 TranslationStats 的区别：Stats 是全局汇总，ledger 是逐条明细。
-from ... import token_ledger
+from ..llm_fallback import is_content_filter_error
+
 # 【中文·提示词上下文构建器】根据小说类型和目标语言，生成系统提示词需要的
 # 占位符值（如 audience 描述、语言名称等）。
 from ..prompts.personas import build_prompt_context
+
 # 【中文·提示词注册表】根据 content_type 获取对应的一套提示词模板。
 # 目前只有 "novel" 一种经过验证的分支。
 from ..prompts.registry import get_prompt_set
+
 # 【中文·共享白板数据结构】见 state.py 的详细注释。
 from ..state import TranslatorState
 

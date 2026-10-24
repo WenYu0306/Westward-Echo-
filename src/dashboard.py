@@ -29,8 +29,10 @@ Served at ``GET /dashboard`` (no auth).  Auto-refreshes every 5 seconds.
 # 【中文·下面这些 import 是 get_dashboard_data() 要用到的数据来源】
 # backpressure：反压机制，当任务队列太满时暂停接收新任务
 from .backpressure import backpressure
+
 # circuit_breaker：熔断器，当某个语言的 API 连续失败时自动断开，防止继续烧钱
 from .circuit_breaker import get_all_breakers
+
 # config：全局配置，这里取端口、限流参数、模型映射等展示在看板上
 from .config import (
     API_PORT,
@@ -41,8 +43,10 @@ from .config import (
     RATE_LIMIT_RPM,
     VERSION,
 )
+
 # HealthChecker：开机自检器；check_memory：查当前内存占用
 from .health import HealthChecker, check_memory
+
 # TranslationStats：翻译统计计数器（已翻章节数、API 调用数、错误率等）
 from .stats import TranslationStats
 

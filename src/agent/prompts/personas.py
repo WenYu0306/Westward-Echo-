@@ -65,6 +65,7 @@ import logging
 # 而不是在这里硬编码 "en-US"。这样如果将来默认语言变了，
 # 只需改 config.py 一处，两边同步更新。
 from ...config import DEFAULT_TARGET_LANG
+
 # 【中文】语言名称映射表来自 translation.py，不在这里重复声明。
 # 这和 config.py 里 SUPPORTED_LANGUAGES 是同一套"单一真相源"原则：
 # 同一份数据只在一个地方定义，其他地方都引用它，避免多处复制后悄悄走样。

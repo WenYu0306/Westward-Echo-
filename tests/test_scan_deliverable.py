@@ -181,7 +181,9 @@ class TestBodyCompleteness:
         assert self._check(scan, "it will poison you…\n") is None
 
     def test_empty_chapter_is_flagged(self, scan):
-        chapters = scan._split_chapters("## Chapter 9: 第8章 X\n\n## Chapter 10: 第9章 Y\n\nBody.\n")
+        chapters = scan._split_chapters(
+            "## Chapter 9: 第8章 X\n\n## Chapter 10: 第9章 Y\n\nBody.\n"
+        )
         finding = scan.check_body_completeness(
             chapters[0]["body"], chapters[0]["start_line"])
         assert finding["check"] == "EMPTY_CHAPTER"
@@ -610,7 +612,7 @@ class TestDominantQuoteStyle:
 
     def test_tie_defaults_to_straight(self, scan):
         # 1 直 + 1 弯 → 平票，不得抛错，落到 straight。
-        text = _chap(1, f'He said "a".') + _chap(2, f"He said {_CURLY}b{_CURLY_R}.")
+        text = _chap(1, 'He said "a".') + _chap(2, f"He said {_CURLY}b{_CURLY_R}.")
         chapters = scan._split_chapters(text)
         assert scan.dominant_quote_style(chapters) == "straight"
 

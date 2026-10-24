@@ -266,8 +266,10 @@ class TestCulturalRulesLanguages:
     def test_fidelity_languages_are_supported(self):
         data = self._rules()
         langs = set(data.get("fidelity", {}))
-        assert langs <= _registry(), \
-            f"cultural_rules.json fidelity has languages outside the registry: {langs - _registry()}"
+        assert langs <= _registry(), (
+            f"cultural_rules.json fidelity has languages outside the registry: "
+            f"{langs - _registry()}"
+        )
 
     def test_genre_rule_languages_are_supported(self):
         data = self._rules()

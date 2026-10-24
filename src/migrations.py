@@ -26,8 +26,9 @@ checkpoints.db / translation_events.db / editor_edits.db），每个文件的表
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Callable, Sequence, Union
+from typing import Callable
 
 # A migration is a callable (conn) -> None.
 Migration = Callable[[sqlite3.Connection], None]
@@ -66,7 +67,7 @@ def drop_column_if_exists(conn: sqlite3.Connection, table: str, column: str) -> 
         conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
 
 
-def migrate(db_path: Union[str, Path], migrations: Sequence[NamedMigration]) -> None:
+def migrate(db_path: str | Path, migrations: Sequence[NamedMigration]) -> None:
     """Apply pending named migrations in order, each in its own transaction.
 
     【中文】按顺序执行尚未跑过的迁移。每个迁移跑完立刻记入

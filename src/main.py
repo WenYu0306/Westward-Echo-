@@ -31,17 +31,17 @@ from fastapi.responses import HTMLResponse
 # ── 下面这些 import 就是在"取零件" ──
 # 【中文】每一个 from ... import ... 都是从项目其他文件里拿来一个现成组件，
 # 本文件只负责把它们摆到正确的位置上。看名字就能猜出用途：
-from .api.auth import APIKeyMiddleware          # 门禁：校验请求带的 API 密钥
+from .api.auth import APIKeyMiddleware  # 门禁：校验请求带的 API 密钥
 from .api.editor import app as editor_api_router  # 接口：段落编辑器（人工逐段改稿）
-from .api.logging import logger                 # 工具：统一写日志
+from .api.logging import logger  # 工具：统一写日志
 from .api.review import app as review_api_router  # 接口：术语审核（人工确认译名）
-from .api.routes import app as api_router       # 接口：主力接口（提交翻译任务等）
+from .api.routes import app as api_router  # 接口：主力接口（提交翻译任务等）
 from .config import API_PORT, CORS_ORIGINS, HEALTH_LIVE_LLM_PROBE, HOST, VERSION
 from .dashboard import DASHBOARD_PAGE, get_dashboard_data  # 页面：运行状态看板
-from .editor_ui import EDITOR_PAGE              # 页面：段落编辑器界面
-from .health import HealthChecker               # 开机自检器
+from .editor_ui import EDITOR_PAGE  # 页面：段落编辑器界面
+from .health import HealthChecker  # 开机自检器
 from .usage_ui import USAGE_PAGE, get_usage_data  # 页面：用量与错误分析
-from .web_ui import PAGE, REVIEW_PAGE           # 页面：首页 + 术语审核页
+from .web_ui import PAGE, REVIEW_PAGE  # 页面：首页 + 术语审核页
 
 
 def create_app() -> FastAPI:

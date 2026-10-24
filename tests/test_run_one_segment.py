@@ -14,7 +14,6 @@ unusable as a production runner:
 
 import importlib.util
 import json
-import os
 from pathlib import Path
 
 import pytest

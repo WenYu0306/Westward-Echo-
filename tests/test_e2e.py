@@ -3,7 +3,6 @@
 Run with:  pytest tests/test_e2e.py -v -k "not requires_api_key"
 or:        python3 tests/test_e2e.py
 """
-import json
 import os
 import sys
 import tempfile

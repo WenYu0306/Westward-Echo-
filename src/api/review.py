@@ -50,8 +50,10 @@ from fastapi import FastAPI, HTTPException, Query
 # SUPPORTED_LANGUAGES 是项目支持的目标语言清单（en-US/es-ES/de/fr），
 # 放在 config.py 里作为唯一真相源，所有地方都从这里读，避免多处不一致。
 from ..config import SUPPORTED_LANGUAGES
+
 # ExactGlossary 是术语库的精确匹配存储层，存在 SQLite 数据库里。
 from ..glossary.exact_store import ExactGlossary
+
 # job_store 是任务数据的存取层，这里用来读写"已确认/已拒绝"的术语反馈。
 from ..job_store import job_store
 

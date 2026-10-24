@@ -11,8 +11,6 @@ about Chroma's embedding behaviour.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.glossary.semantic_store import SemanticGlossary
 
 

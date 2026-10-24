@@ -17,7 +17,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.config import (
-    GLM_API_KEY,
     GLM_BASE_URL,
     LLM_API_KEY,
     LLM_BASE_URL,
@@ -201,8 +200,8 @@ class TestRoutingTableDrivesNodes:
         comprehension, so dropping it from qwen3.8-max (12/36 per M) to
         qwen3.8-flash (0.8/2.7) cuts that node ~15x with no code edit.
         """
-        from src.agent.nodes import readback as rbmod
         from src import config
+        from src.agent.nodes import readback as rbmod
 
         monkeypatch.setitem(config.NODE_MODELS, "readback", "qwen3.8-flash")
 
@@ -223,8 +222,8 @@ class TestRoutingTableDrivesNodes:
 
     def test_glm_node_follows_the_routed_model_and_effort(self, monkeypatch):
         """A GLM node re-tiered stays on GLM's reasoning control, not Qwen's."""
-        from src.agent.nodes import fix as fmod
         from src import config
+        from src.agent.nodes import fix as fmod
 
         monkeypatch.setitem(config.NODE_MODELS, "fix", "glm-5.3-flash")
         monkeypatch.setitem(config.NODE_EFFORTS, "fix", "low")
@@ -246,8 +245,8 @@ class TestRoutingTableDrivesNodes:
 
     def test_cross_provider_retier_routes_to_the_right_endpoint(self, monkeypatch):
         """Moving a Qwen node onto GLM must switch base_url and reasoning form."""
-        from src.agent.nodes import review_terms as rtmod
         from src import config
+        from src.agent.nodes import review_terms as rtmod
 
         monkeypatch.setitem(config.NODE_MODELS, "review_terms", "glm-5.3-flash")
         monkeypatch.setitem(config.NODE_EFFORTS, "review_terms", "low")
@@ -270,8 +269,8 @@ class TestRoutingTableDrivesNodes:
 
     def test_write_fallback_follows_the_routed_model(self, monkeypatch):
         """The 1301 fallback is separately routable, so it can be re-tiered too."""
-        from src.agent.nodes import write as wmod
         from src import config
+        from src.agent.nodes import write as wmod
 
         monkeypatch.setitem(config.NODE_MODELS, "write_fallback", "qwen3.8-flash")
         captured = {}
@@ -339,6 +338,6 @@ class TestRoutingTableDrivesNodes:
         assert captured["kwargs"]["api_key"] == "sk-user-owned"
 
     def test_every_routed_model_is_priced(self):
-        from src.config import NODE_MODELS, MODEL_PRICES_CNY_PER_M
+        from src.config import MODEL_PRICES_CNY_PER_M, NODE_MODELS
         for node, model in NODE_MODELS.items():
             assert model in MODEL_PRICES_CNY_PER_M, f"{node} -> {model} unpriced"

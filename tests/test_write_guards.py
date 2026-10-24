@@ -17,8 +17,6 @@ cannot make the test green by drifting along with the code.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.agent.nodes.write import (
     _parse_write_response,
     _was_truncated,
@@ -302,7 +300,7 @@ class TestWriteNodeRetryContract:
             def _invoke(_messages):
                 calls["n"] += 1
                 return _Resp(
-                    content='{"translated_text": "%s"}' % text,
+                    content=f'{{"translated_text": "{text}"}}',
                     metadata={"finish_reason": "stop"},
                 )
 
@@ -389,7 +387,6 @@ class TestFenceStripping:
 
 class TestGlossaryReachesCompletenessCheck:
     def test_glossary_is_passed_through(self):
-        from src.agent.nodes import write as wmod
         with patch("src.agent.nodes.write.check_completeness") as cc, \
              patch("src.agent.nodes.write.ChatOpenAI") as cls, \
              patch("src.agent.nodes.write.job_store") as js:
@@ -766,7 +763,6 @@ class TestFallbackWriterKeyPrecedence:
     path could be inverted with no test failing."""
 
     def _fallback_call(self, state):
-        from src.agent.nodes import write as wmod
         with patch("src.agent.nodes.write.ChatOpenAI") as cls, \
              patch("src.agent.nodes.write.job_store") as js, \
              patch("src.agent.nodes.write._build_fallback_writer") as builder:

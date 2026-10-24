@@ -64,23 +64,27 @@ from langgraph.graph import END, StateGraph
 
 # 长章节自动切块（太长的一次喂给 AI 效果差，也贵）
 from ..chapter_slicer import build_segment_title, should_split, split_chapter
+
 # 全局配置：最多重修几次、目标语言的显示名
 from ..config import MAX_RETRANSLATION_ATTEMPTS
+
 # 术语库两层存储：
 #   ExactGlossary   —— 精确匹配（中文原词一模一样才命中），存在 SQLite 数据库里
 #   SemanticGlossary—— 语义相近匹配（意思相关的也算），存在向量库里
 from ..glossary.exact_store import ExactGlossary
 from ..glossary.semantic_store import SemanticGlossary
+
+# 文化忠实度检查：确认 WRITE 没把有含义的名字简单音译成拼音
+# （已随 _post_process 一起抽到 post_process.py）
+# 流水线的"共享白板"数据结构：各角色往上读写同一份状态
+from .cold_read import build_cold_read_context
+
 # 4 个角色的具体实现（+ 1 个术语复核角色）
 from .nodes.fix import fix_node
 from .nodes.read import read_node
 from .nodes.readback import readback_node
 from .nodes.review_terms import review_terms_node
 from .nodes.write import write_node
-# 文化忠实度检查：确认 WRITE 没把有含义的名字简单音译成拼音
-# （已随 _post_process 一起抽到 post_process.py）
-# 流水线的"共享白板"数据结构：各角色往上读写同一份状态
-from .cold_read import build_cold_read_context
 from .post_process import post_process_chapter
 from .state import TranslatorState
 from .state_builder import build_state, format_semantic

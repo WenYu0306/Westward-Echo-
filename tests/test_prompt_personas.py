@@ -358,7 +358,7 @@ class TestStyleMemoReachesThePrompt:
         prompts/fix.py 规则 1：读者的反馈是唯一的授权范围。给 FIX 塞入全书
         累积经验会诱导它改读者没抱怨的地方。
         """
-        from src.agent.prompts.fix import FIX_USER, FIX_SYSTEM
+        from src.agent.prompts.fix import FIX_SYSTEM, FIX_USER
         assert "{style_memo}" not in FIX_USER
         assert "{style_memo}" not in FIX_SYSTEM
 
@@ -387,7 +387,7 @@ class TestStyleMemoReachesThePrompt:
         readback_node 只填 previous_context（角色名册+近章摘要）、
         chapter_content、reader 三项。
         """
-        from src.agent.prompts.readback import READBACK_USER, READBACK_SYSTEM
+        from src.agent.prompts.readback import READBACK_SYSTEM, READBACK_USER
         assert "{style_memo}" not in READBACK_USER
         assert "{style_memo}" not in READBACK_SYSTEM
 

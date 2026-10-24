@@ -11,7 +11,7 @@ from src.text_io import DEFAULT_ENCODINGS, decode_bytes, detect_and_read, looks_
 
 class TestDecodeBytes:
     def test_utf8_text_decodes(self):
-        assert decode_bytes("聋婆婆".encode("utf-8")) == "聋婆婆"
+        assert decode_bytes("聋婆婆".encode()) == "聋婆婆"
 
     def test_gbk_text_decodes_via_the_ladder(self):
         assert decode_bytes("聋婆婆".encode("gbk")) == "聋婆婆"
@@ -19,7 +19,7 @@ class TestDecodeBytes:
     def test_utf8_wins_over_gbk_for_utf8_input(self):
         # A GBK decode of UTF-8 bytes would silently succeed with mojibake,
         # so ordering matters: utf-8 must be tried first.
-        assert decode_bytes("聋婆婆".encode("utf-8")) == "聋婆婆"
+        assert decode_bytes("聋婆婆".encode()) == "聋婆婆"
 
     def test_undecodable_bytes_return_none(self):
         assert decode_bytes(b"\xff\xfe\x00\x01\x02") is None

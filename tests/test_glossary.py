@@ -189,7 +189,8 @@ class TestBookIsolation:
         ExactGlossary(db_path=db, book_id="book_x")
 
         conn = sqlite3.connect(db)
-        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        sql = "SELECT name FROM sqlite_master WHERE type='table'"
+        tables = [r[0] for r in conn.execute(sql).fetchall()]
         conn.close()
         assert "exact_glossary_legacy" in tables
         assert "exact_glossary" in tables

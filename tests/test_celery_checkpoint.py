@@ -6,12 +6,10 @@ Also tests _chapter_md format (the EPUB-parsable header that fixes bug C1)
 and TranslationProgress integration with JobStore.
 """
 
-import json
 import os
-import sqlite3
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -54,6 +52,7 @@ class TestChapterMd:
     def test_format_is_parseable_by_epub_regex(self):
         """The exact regex used by _parse_markdown_chapters in routes.py."""
         import re
+
         from src.celery_app import _chapter_md
 
         result = _chapter_md(42, "whatever", " Translated content here. ", "Answer")
@@ -75,7 +74,7 @@ class TestChapterMd:
 
 class TestCheckpointRoundTrip:
     def test_save_and_load_translations(self, temp_checkpoint_db):
-        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+        from src.celery_app import _load_checkpoint_translations, _save_checkpoint
 
         _save_checkpoint("job-abc", 1, "Chapter one text.", '{"a":"b"}', "summary 1")
         _save_checkpoint("job-abc", 2, "Chapter two text.", '{"a":"c"}', "summary 2")
@@ -84,7 +83,7 @@ class TestCheckpointRoundTrip:
         assert loaded == {1: "Chapter one text.", 2: "Chapter two text."}
 
     def test_save_overwrites_existing_chapter(self, temp_checkpoint_db):
-        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+        from src.celery_app import _load_checkpoint_translations, _save_checkpoint
 
         _save_checkpoint("job-x", 1, "First attempt.", "{}", "s1")
         _save_checkpoint("job-x", 1, "Second attempt.", "{}", "s2")
@@ -98,7 +97,6 @@ class TestCheckpointRoundTrip:
 
     def test_load_translations_no_db(self, temp_checkpoint_db):
         """When the DB file doesn't exist, return empty dict."""
-        from src.celery_app import _load_checkpoint_translations
         # temp_checkpoint_db sets the path but doesn't create the file yet
         # _load_checkpoint_translations checks Path.exists()
         import src.celery_app as cm
@@ -107,7 +105,7 @@ class TestCheckpointRoundTrip:
             assert cm._load_checkpoint_translations("any") == {}
 
     def test_save_and_load_summary(self, temp_checkpoint_db):
-        from src.celery_app import _save_checkpoint, _load_checkpoint_summary
+        from src.celery_app import _load_checkpoint_summary, _save_checkpoint
 
         _save_checkpoint("job-y", 3, "text", "{}", "Hero enters the cave.")
         assert _load_checkpoint_summary("job-y", 3) == "Hero enters the cave."
@@ -128,7 +126,7 @@ class TestCheckpointRoundTrip:
 
     def test_job_isolation(self, temp_checkpoint_db):
         """Different jobs must not see each other's chapters."""
-        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+        from src.celery_app import _load_checkpoint_translations, _save_checkpoint
 
         _save_checkpoint("job-a", 1, "A1", "{}", "sa")
         _save_checkpoint("job-b", 1, "B1", "{}", "sb")
@@ -138,7 +136,7 @@ class TestCheckpointRoundTrip:
         assert _load_checkpoint_translations("job-b") == {1: "B1", 2: "B2"}
 
     def test_translated_text_preserves_newlines(self, temp_checkpoint_db):
-        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+        from src.celery_app import _load_checkpoint_translations, _save_checkpoint
 
         multiline = "Line one.\n\nLine two.\nLine three."
         _save_checkpoint("job-ml", 1, multiline, "{}", "s")
@@ -152,9 +150,9 @@ class TestCheckpointRoundTrip:
 
 class TestTranslationProgress:
     def test_update_calls_job_store(self, temp_checkpoint_db):
-        from src.celery_app import TranslationProgress
         import src.celery_app as celery_mod
         import src.job_store as js
+        from src.celery_app import TranslationProgress
 
         # Set up a real job in the JobStore
         jid = js.job_store.create_job("test.txt", "en-US", 10)
@@ -176,9 +174,9 @@ class TestTranslationProgress:
         js.job_store.delete_job(jid)
 
     def test_complete_calls_job_store(self, temp_checkpoint_db):
-        from src.celery_app import TranslationProgress
         import src.celery_app as celery_mod
         import src.job_store as js
+        from src.celery_app import TranslationProgress
 
         jid = js.job_store.create_job("test.txt", "en-US", 5)
         mock_backend = MagicMock()
@@ -194,9 +192,9 @@ class TestTranslationProgress:
         js.job_store.delete_job(jid)
 
     def test_error_calls_job_store(self, temp_checkpoint_db):
-        from src.celery_app import TranslationProgress
         import src.celery_app as celery_mod
         import src.job_store as js
+        from src.celery_app import TranslationProgress
 
         jid = js.job_store.create_job("test.txt", "en-US", 5)
         mock_backend = MagicMock()
@@ -213,9 +211,9 @@ class TestTranslationProgress:
 
     def test_update_survives_job_store_error(self, temp_checkpoint_db):
         """If job_store.update_progress throws, _set still works (non-critical)."""
-        from src.celery_app import TranslationProgress
         import src.celery_app as celery_mod
         import src.job_store as js_module
+        from src.celery_app import TranslationProgress
 
         mock_backend = MagicMock()
         with pytest.MonkeyPatch.context() as mp:
@@ -260,7 +258,7 @@ class TestResumeCheckpointFlow:
 
     def test_resume_picks_up_at_correct_chapter(self, temp_checkpoint_db):
         """The resume task reads last completed chapter from checkpoint DB."""
-        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+        from src.celery_app import _load_checkpoint_translations, _save_checkpoint
 
         _save_checkpoint("batch-1", 1, "Ch1 en.", "{}", "s1")
         _save_checkpoint("batch-1", 2, "Ch2 en.", "{}", "s2")
@@ -285,6 +283,7 @@ class TestWalConcurrency:
         "database is locked". The fix tolerates the transient lock.
         """
         import threading
+
         from src.celery_app import _save_checkpoint
 
         errors = []
@@ -306,7 +305,8 @@ class TestWalConcurrency:
     def test_concurrent_save_checkpoint_preserves_all_rows(self, temp_checkpoint_db):
         """All concurrent writes must land (no lost update under WAL)."""
         import threading
-        from src.celery_app import _save_checkpoint, _load_checkpoint_translations
+
+        from src.celery_app import _load_checkpoint_translations, _save_checkpoint
 
         def worker(n):
             _save_checkpoint("job-y", n, f"text {n}", "{}", f"summary {n}")

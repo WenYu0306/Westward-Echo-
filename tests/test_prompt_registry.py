@@ -7,7 +7,6 @@ the pre-registry constants, and unknown types must fall back to novel
 rather than failing.
 """
 
-import string
 from unittest.mock import patch
 
 from src.agent.prompts.fix import FIX_SYSTEM, FIX_USER

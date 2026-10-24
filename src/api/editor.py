@@ -50,6 +50,7 @@ from fastapi.responses import JSONResponse
 
 # split_chapters 把整本小说原文按章节切开，这里用来找某一章的中文原文。
 from ..chapter_splitter import split_chapters
+
 # 【中文】从统一配置导入路径和语言清单，避免和本文件里的副本不一致。
 from ..config import DATA_DIR, OUTPUT_DIR, SUPPORTED_LANGUAGES, VERSION
 from ..job_store import job_store

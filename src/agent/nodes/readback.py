@@ -32,26 +32,33 @@ import logging
 # LangChain 的消息对象：SystemMessage 是"系统指令"（告诉 AI 扮演谁），
 # HumanMessage 是"用户消息"（这里指喂给冷读者的章节内容）
 from langchain_core.messages import HumanMessage, SystemMessage
+
 # ChatOpenAI 是大模型的统一客户端，不管底层是 GLM 还是 Qwen，
 # 都用同一个接口调用（类似"万能遥控器"）
 from langchain_openai import ChatOpenAI
 
+# token_ledger：按书/章/节点记录每次调用的 token 消耗，用于成本核算
+from ... import token_ledger
+
 # 熔断器：当某个语言的 API 连续失败太多次时自动"跳闸"，
 # 避免反复重试烧钱。CircuitBreakerOpenError 就是"跳闸了"的信号
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
+
 # node_llm_kwargs：根据节点名（"readback"）查出该用哪个模型、
 # 哪个服务商、什么密钥等配置，实现"每个角色可以用不同模型"
 from ...config import node_llm_kwargs
-from ..llm_fallback import is_content_filter_error
+
 # TranslationStats：统计 API 调用次数和 token 用量，用于看板展示
 from ...stats import TranslationStats
-# token_ledger：按书/章/节点记录每次调用的 token 消耗，用于成本核算
-from ... import token_ledger
+from ..llm_fallback import is_content_filter_error
+
 # build_prompt_context：根据题材和目标语言，生成角色身份描述
 # （比如"你是一个爱看奇幻小说的美国读者"）
 from ..prompts.personas import build_prompt_context
+
 # get_prompt_set：根据内容类型取一套提示词模板
 from ..prompts.registry import get_prompt_set
+
 # TranslatorState：流水线的"共享白板"数据结构
 from ..state import TranslatorState
 

@@ -47,7 +47,9 @@ class TestIsExpensive:
     def test_deep_tiers_are_expensive(self, model):
         assert cost_gate.is_expensive(model) is True
 
-    @pytest.mark.parametrize("model", ["qwen3.8-flash", "glm-5.3", "glm-5.3-flashx", "qwen3.7-flash"])
+    @pytest.mark.parametrize(
+        "model", ["qwen3.8-flash", "glm-5.3", "glm-5.3-flashx", "qwen3.7-flash"]
+    )
     def test_flash_and_standard_tiers_are_not(self, model):
         assert cost_gate.is_expensive(model) is False
 

@@ -1,9 +1,9 @@
 """Unit tests for src/measurements.py — Chinese unit detection and hint building."""
 
 from src.measurements import (
-    UNITS,
     _CN_DIGITS,
     _UNIT_RENDERERS,
+    UNITS,
     _example_for,
     _format_number,
     _parse_chinese_number,

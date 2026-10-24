@@ -68,6 +68,7 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
+from .. import token_ledger
 from ..api.logging import logger
 from ..backpressure import backpressure
 from ..chapter_splitter import ParagraphTag, split_chapters
@@ -82,7 +83,6 @@ from ..config import (
 )
 from ..job_store import job_store
 from ..stats import TranslationStats
-from .. import token_ledger
 from ..text_io import decode_bytes
 
 try:

@@ -70,7 +70,9 @@ class TestFidelityGate:
             translated_text="the medium served the fox spirit.",
             read_decisions=[{
                 "term_cn": "出马弟子",
-                "proposed_en": "a spirit medium who serves a court of fox, weasel, and snake spirits",
+                "proposed_en": (
+                    "a spirit medium who serves a court of fox, weasel, and snake spirits"
+                ),
             }],
             new_terms=[{"term_cn": "出马弟子", "term_en": "spirit medium", "category": "culture"}],
         )

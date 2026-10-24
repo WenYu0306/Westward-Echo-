@@ -8,12 +8,10 @@ mutants (numeric constants like ``[:300]``, ``top_k=15``, ``> 5``) are only
 killed by a test that sits exactly on the boundary.
 """
 
-import pytest
 from langgraph.graph import END
 
 from src.agent.graph import TranslationAgent, _needs_fix, _should_readback, build_graph
 from src.config import MAX_RETRANSLATION_ATTEMPTS
-
 
 # ────────────────────────────── fakes ──────────────────────────────
 

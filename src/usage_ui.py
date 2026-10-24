@@ -29,10 +29,10 @@ Served at ``GET /usage`` (no auth).  Auto-refreshes every 30 seconds.
 # 【中文·下面这些 import 是 get_usage_data() 要用到的数据来源】
 # error_tracker 模块负责记录和查询翻译过程中的各类事件和错误。
 from .error_tracker import (
-    get_all_jobs_health,   # 每个任务的翻译健康度（章节数、警告率）
-    get_editor_stats,      # 人工编辑行为统计（编辑章节数、术语确认/拒绝数）
-    get_event_summary,     # 最近 N 天的错误类型汇总
-    get_recent_issues,     # 最近的错误事件列表
+    get_all_jobs_health,  # 每个任务的翻译健康度（章节数、警告率）
+    get_editor_stats,  # 人工编辑行为统计（编辑章节数、术语确认/拒绝数）
+    get_event_summary,  # 最近 N 天的错误类型汇总
+    get_recent_issues,  # 最近的错误事件列表
 )
 
 # 【中文】下面是完整的用量分析网页 HTML/CSS/JS 代码，存成 Python 字符串。

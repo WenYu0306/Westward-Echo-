@@ -13,7 +13,7 @@ _temp_db = os.path.join(_tempdir, "test_jobs.db")
 
 with pytest.MonkeyPatch.context() as _mp:
     _mp.setattr("src.job_store.DB_PATH", _temp_db)
-    from src.job_store import JobStore, job_store
+    from src.job_store import JobStore
 
 
 @pytest.fixture
@@ -230,8 +230,8 @@ class TestProjects:
 
     def test_get_project_jobs(self, store):
         pid = store.create_project("novel.txt")
-        j1 = store.add_language_job(pid, "en-US", "novel.txt", 100)
-        j2 = store.add_language_job(pid, "es-ES", "novel.txt", 100)
+        store.add_language_job(pid, "en-US", "novel.txt", 100)
+        store.add_language_job(pid, "es-ES", "novel.txt", 100)
         jobs = store.get_project_jobs(pid)
         assert len(jobs) == 2
         langs = {j["target_lang"] for j in jobs}
