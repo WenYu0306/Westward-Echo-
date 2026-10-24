@@ -74,7 +74,6 @@ def _make_state(**overrides) -> TranslatorState:
         "image_gaps": [],
         "style_memo": "",
         "skip_readback": False,
-        "use_flash_writer": False,
         "cold_read_context": "",
         "dialect_context": "",
     }

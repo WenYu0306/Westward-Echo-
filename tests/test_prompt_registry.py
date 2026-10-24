@@ -77,7 +77,7 @@ class TestContentTypePlumbing:
         captured = []
 
         def fake_once(title, content, number, prev, lang, genre,
-                      skip_readback=False, use_flash_writer=False,
+                      skip_readback=False,
                       content_type="novel"):
             captured.append(content_type)
             return {

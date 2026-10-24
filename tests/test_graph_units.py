@@ -591,7 +591,7 @@ class TestTranslateSplit:
         calls = []
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             calls.append({"title": title, "prev": prev_summary})
             return dict(translations["results"][len(calls) - 1])
 
@@ -604,7 +604,7 @@ class TestTranslateSplit:
         seen = []
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             seen.append(prev_summary)
             return {
                 "translated_text": f"Part {len(seen)} " + "word " * 20,
@@ -631,7 +631,7 @@ class TestTranslateSplit:
         prevs = []
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             prevs.append(prev_summary)
             paras = "\n\n".join("A" * 80 + f" {i}" for i in range(4))
             return {
@@ -656,7 +656,7 @@ class TestTranslateSplit:
         prevs = []
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             prevs.append(prev_summary)
             return {
                 "translated_text": "short\n\nbits\n\nhere",  # all < 50 chars
@@ -682,10 +682,10 @@ class TestTranslateSplit:
         prevs = []
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             prevs.append(prev_summary)
             if flag_sink is not None:
-                flag_sink.append((skip_readback, use_flash_writer))
+                flag_sink.append(skip_readback)
             return {
                 "translated_text": "\n\n".join(paragraphs),
                 "new_terms_found": [], "adaptation_notes": [],
@@ -738,8 +738,8 @@ class TestTranslateSplit:
         agent = bare_agent()
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
-            flags.append((skip_readback, use_flash_writer))
+                      skip_readback=False, content_type="novel"):
+            flags.append(skip_readback)
             return {"translated_text": "Out.", "new_terms_found": [],
                     "adaptation_notes": [], "chapter_summary": "s",
                     "quality_score": 4.0, "quality_issues": [],
@@ -748,13 +748,13 @@ class TestTranslateSplit:
         agent._translate_once = fake_once
         agent._translate_split("长章", content, 1, "", "en-US", "folk_religion")
         assert flags
-        assert all(skip is False and flash is False for skip, flash in flags)
+        assert all(skip is False for skip in flags)
 
     def test_split_passes_fast_mode_flags_through(self):
         flags = []
         self._run_split_with_paragraphs(["AAAA" + "a" * 60], flag_sink=flags)
         assert flags, "split should have run"
-        assert all(skip is False and flash is False for skip, flash in flags)
+        assert all(skip is False for skip in flags)
 
     def test_split_quality_score_stays_unmeasured_when_absent(self):
         """A segment result with no quality_score must merge to 0.0, not 5.0.
@@ -767,7 +767,7 @@ class TestTranslateSplit:
         agent = bare_agent()
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             return {"translated_text": "Out.", "new_terms_found": [],
                     "adaptation_notes": [], "chapter_summary": "",
                     "glossary_snapshot_json": "{}"}  # no quality_score key
@@ -785,7 +785,7 @@ class TestTranslateSplit:
         agent = bare_agent()
 
         def fake_once(title, content, number, prev_summary, lang, genre,
-                      skip_readback=False, use_flash_writer=False, content_type="novel"):
+                      skip_readback=False, content_type="novel"):
             return {"translated_text": "Out.", "new_terms_found": [],
                     "adaptation_notes": ["note"], "chapter_summary": "s",
                     "quality_score": 4.0, "quality_issues": [],

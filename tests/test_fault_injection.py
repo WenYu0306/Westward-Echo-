@@ -1067,7 +1067,7 @@ class TestWriteNodeUnderFaults:
             "image_gaps": [],
             "style_memo": "",
             "skip_readback": False,
-            "use_flash_writer": False, "cold_read_context": "",
+            "cold_read_context": "",
             "dialect_context": "",
         }
 
@@ -1132,7 +1132,7 @@ class TestWriteNodeUnderFaults:
             "image_gaps": [],
             "style_memo": "",
             "skip_readback": False,
-            "use_flash_writer": False, "cold_read_context": "",
+            "cold_read_context": "",
             "dialect_context": "",
         }
 
