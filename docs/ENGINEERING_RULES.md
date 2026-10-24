@@ -73,7 +73,7 @@
 
 **排查手法**：`grep -rn "<配置名>" src/` 看是否只有展示层/注释在读，再 `grep -n "model=\|<硬编码常量>"` 看真实取值从哪来。
 
-**候选同类嫌疑**（未查）：`_KNOWN_GENRES`（`routes.py:52`，已确认死配置）、`stats.py` 的 `record_tokens(tier=)`（已确认"参数保留但忽略"）、`use_flash_writer`（`test_write_guards.py` 已钉住它"只是会计标记、不改模型"）。
+**候选同类嫌疑**（第 9 轮时未查；**2026-10 已全部收敛清除**）：`_KNOWN_GENRES`、`MODEL_MAP`、`stats.py` 的 `record_tokens(tier=)`、`use_flash_writer` —— 后三者分别由「死列/死别名收敛」与「删除死旗标 use_flash_writer 与死标签 tier」两个提交删除，`_KNOWN_GENRES` 已不在 `routes.py`。原记录保留：`_KNOWN_GENRES`（`routes.py:52`，已确认死配置）、`record_tokens(tier=)`（"参数保留但忽略"）、`use_flash_writer`（"只是会计标记、不改模型"）。
 
 **另一个模式：挂载/注册顺序决定路由是否可达**。`/api` catch-all 先注册就吞掉后注册的所有 `/api/*` 子应用，而**全量测试全绿**——因为 `review.py` 零覆盖。加子应用时必须确认顺序，且要有可达性测试（第 9 轮 `TestReviewApiIsMounted` 已钉住）。
 

@@ -21,6 +21,8 @@
 | **5** | ⚠️ **`.env.example` 缺 `GLM_API_KEY`/`GLM_BASE_URL`，且 `LLM_MODEL=qwen-plus` 是僵尸变量**（交接未记） | 前者意味着"Copy .env.example to .env"这条文档指明的路径在修好凭据门后**必然启动失败**；后者全仓 `getenv("LLM_MODEL")` 读取 **0 次**，真实变量是 `QWEN_MODEL`（默认 qwen3.8-max）——照抄模板的人会以为在跑 qwen-plus |
 | **6** | ⚠️ **`docker-compose.yml` 缺 `GLM_API_KEY`/`GLM_BASE_URL` 透传，却还在传 3 个已废弃的 `DEEPSEEK_*`**（**未修，未授权**） | 按 `health.py:check_config` 判据，容器部署会因缺 GLM 而报 unhealthy。属"动部署配置"，与条款6 写库侧同档，**本轮未授权故只记录** |
 
+> **更正（2026-10-24，防漂移）**：本条与 §五、§七 记录的「docker-compose 缺 GLM 透传」**已由 `c2a8e0e` 修复**（删 4 个废弃变量 `DEEPSEEK_API_KEY`/`DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL` + 僵尸 `LLM_MODEL`，补 `QWEN_MODEL` + `GLM_API_KEY`/`GLM_BASE_URL`/`GLM_MODEL`/`GLM_FULL_MODEL`，api/worker 两服务同步，`deploy.sh` 同步对齐）。原「未授权」仅指第 12 轮当时；读到本节请勿再把它当「仍未修」。
+
 ### B. 未完成项总账（8 项）
 
 | 类别 | 项数 | 具体 |
@@ -355,7 +357,7 @@ python3.11 scripts/mutation_test.py ab_readback_tier
 
 真正有效的选项是**反转默认值**（`CHECKPOINT_DB_PATH` 默认指临时库，生产需显式设 env），但那要改 `start.sh`/`docker-compose.yml`/`.env.example`，blast radius 超出零成本范围，**需用户决定**。
 
-⚠️ **本轮新查出、同属"动部署配置"未授权范围**：`docker-compose.yml` 的 api 服务 environment 只传 `DEEPSEEK_API_KEY`/`DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL`（三个已废弃）+ `LLM_API_KEY`，**没有 `GLM_API_KEY`/`GLM_BASE_URL`**（见 §A-6）。若下轮要做：environment 补 GLM 两个变量（并删三个 `DEEPSEEK_*` 透传），与 `CHECKPOINT_DB_PATH` 反转一起评估。
+⚠️ **本轮新查出、同属"动部署配置"未授权范围**：`docker-compose.yml` 的 api 服务 environment 只传 `DEEPSEEK_API_KEY`/`DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL`（三个已废弃）+ `LLM_API_KEY`，**没有 `GLM_API_KEY`/`GLM_BASE_URL`**（见 §A-6）。若下轮要做：environment 补 GLM 两个变量（并删三个 `DEEPSEEK_*` 透传），与 `CHECKPOINT_DB_PATH` 反转一起评估。（⚠️ **更正 2026-10-24**：docker-compose 缺 GLM 透传一项已由 `c2a8e0e` 修复，见 §A 更正；`CHECKPOINT_DB_PATH` 反转仍未做。）
 
 **当前实际有效的防护**（已存在，够用）：`tests/conftest.py:33-53` 在 import `src` 之前重定向 5 个写路径 + 投毒 6 个 API key，另有 `_block_outbound_network` + `_forbid_live_llm` 两个 autouse guard；加**硬规矩**（写库验证必须在 pytest 内跑）。
 
@@ -428,7 +430,7 @@ ls src/*.mutation_backup scripts/*.mutation_backup 2>/dev/null  # 应无输出
 
 **未改（明确记录）**
 - `data/token_ledger.jsonl` — 归零（被 `.gitignore:17` 排除，不产生提交）。快照见 §一-2。**A/B 实跑 136 次调用后仍是 0 行**
-- `docker-compose.yml` — 缺 GLM 透传，**未授权**（§A-6 / §五）
+- `docker-compose.yml` — 缺 GLM 透传，**未授权**（§A-6 / §五）（⚠️ **更正 2026-10-24**：已由 `c2a8e0e` 修复，见 §A 更正）
 - `src/agent/graph.py` 的 `_build_cold_read_context` — 术语段中文泄漏是**生产残留**（实测 58/58 章），**未擅自修改**（§一-1 / §二-2c）
 - round2/4/8/9/10 各交接文档的 8813/8811 旧记录 — 刻意不改（§一-2）
 

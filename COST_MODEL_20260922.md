@@ -4,6 +4,8 @@
 > 所有单价来自**两家厂商自己的定价页**（下方给了 URL 与抓取日期，并做了跨页交叉验证）。
 > 不是估算，不是套历史价，不是拍脑袋。
 
+> **更正（2026-10-24，防漂移）**：文中 §0.5/§6 多次提到的 `MODEL_MAP` 已删除（现为 `NODE_MODELS`，档位由 `QWEN_MODEL`/`GLM_MODEL` 环境变量 + `DEFAULT_NODE_MODELS` 决定）；§9 提到的 `job_store.py:207`/`stats.py:53-57` 过期 DeepSeek 价目表也已移除（改由 `config.MODEL_PRICES_CNY_PER_M` 按模型计价）。单价（§1）与实测 token（§2）仍有效；涉及 `MODEL_MAP` 与 DeepSeek 价目的表述属 2026-09 时的历史状态。
+
 ---
 
 ## 0. 一句话结论

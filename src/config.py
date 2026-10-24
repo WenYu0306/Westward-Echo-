@@ -61,8 +61,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("XIDU_DATA_DIR", "") or ROOT_DIR / "data")
 OUTPUT_DIR = Path(os.getenv("XIDU_OUTPUT_DIR", "") or ROOT_DIR / "output")
 
-# 【中文】项目版本号，目前 0.16.0。
-VERSION = "0.16.0"
+# 【中文】项目版本号，目前 0.17.0（v0.17 Style Memo 增强已落地，见 STYLE_MEMO_ENHANCED）。
+VERSION = "0.17.0"
 
 # --- LLM providers (2026-09 定案：全面弃 DeepSeek) ---
 # 两个 provider：
