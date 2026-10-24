@@ -147,6 +147,10 @@ LOG_FILE = os.getenv("LOG_FILE", str(DATA_DIR / "app.log"))
 HOST = os.getenv("HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
+# 【中文】跨域白名单。默认空 = 仅同源（本应用自己托管前端，无需跨域）。
+# 如需独立前端，设 CORS_ORIGINS=https://frontend.example.com,https://...
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+
 # --- v0.17 Style Memo enhancement ---
 # When True (default), the full 6-drawer memo is active: characters + prose
 # drawers receive data from READ analysis and cold-reader feedback.

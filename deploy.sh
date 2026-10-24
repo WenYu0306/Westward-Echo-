@@ -31,7 +31,8 @@ if [ ! -f .env ]; then
     echo "=== .env setup ==="
     read -p "Qwen API Key (sk-..., 判断层): " QWEN_KEY
     read -p "GLM API Key (sk-..., 文字层): " GLM_KEY
-    read -p "API Key for admin access (leave empty for dev mode): " API_KEY
+    # 自动生成随机 API_KEY：留空 = 免鉴权，任何能连到端口的人都能刷翻译账单，生产必须设。
+    API_KEY=$(openssl rand -hex 24)
 
     cat > .env <<ENVEOF
 LLM_API_KEY=${QWEN_KEY}

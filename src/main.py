@@ -36,7 +36,7 @@ from .api.editor import app as editor_api_router  # 接口：段落编辑器（�
 from .api.logging import logger                 # 工具：统一写日志
 from .api.review import app as review_api_router  # 接口：术语审核（人工确认译名）
 from .api.routes import app as api_router       # 接口：主力接口（提交翻译任务等）
-from .config import API_PORT, HEALTH_LIVE_LLM_PROBE, HOST, VERSION
+from .config import API_PORT, CORS_ORIGINS, HEALTH_LIVE_LLM_PROBE, HOST, VERSION
 from .dashboard import DASHBOARD_PAGE, get_dashboard_data  # 页面：运行状态看板
 from .editor_ui import EDITOR_PAGE              # 页面：段落编辑器界面
 from .health import HealthChecker               # 开机自检器
@@ -106,12 +106,11 @@ def create_app() -> FastAPI:
     # 任何一道不通过，请求就地被拦下，业务代码根本不会执行。
     app.add_middleware(
         CORSMiddleware,
-        # 【中文·跨域放行】浏览器的安全机制默认禁止网页调用别的地址上的接口。
-        # 这里设成 "*" 表示"任何来源都允许"，方便本机调试和局域网访问。
-        # ⚠️ 如果将来要公开部署到互联网，这个 "*" 需要收紧成具体的域名白名单，
-        # 否则任意网站都能带着用户的浏览器来调你的接口。
-        allow_origins=["*"],
-        allow_credentials=True,
+        # 【中文·跨域放行】默认仅同源（本应用自己托管前端，无需跨域）。
+        # 如需独立前端，在 .env 设 CORS_ORIGINS=https://frontend.example.com,...
+        # 逗号分隔域名白名单。allow_credentials 关闭：鉴权走 X-API-Key 头，无需 Cookie。
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
