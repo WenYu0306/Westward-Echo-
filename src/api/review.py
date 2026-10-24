@@ -297,7 +297,7 @@ def get_feedback(
     store = _get_store(book_id, lang)
 
     # 【中文】分别从任务存储和术语库读取三类数据。
-    confirmed = job_store.get_confirmed_terms(lang)
+    confirmed = job_store.get_confirmed_terms(lang, book_id=book_id)
     rejected = job_store.get_rejected_terms(lang)
     pending_terms = store.get_all_terms(
         status_filter="pending_review", target_lang=lang

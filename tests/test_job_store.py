@@ -319,7 +319,7 @@ class TestConfirmedTerms:
         eg.add("王三", "Wang San", category="character")
         eg.confirm_term("聋婆婆", target_lang="en-US")
 
-        confirmed = store.get_confirmed_terms("en-US")
+        confirmed = store.get_confirmed_terms("en-US", book_id="confirmed-terms-test")
 
         assert confirmed == {"聋婆婆": "Deaf Granny"}
 
@@ -333,7 +333,7 @@ class TestConfirmedTerms:
             "王三", "Wang San"
         )
 
-        assert store.get_confirmed_terms("en-US") == {}
+        assert store.get_confirmed_terms("en-US", book_id="confirmed-terms-empty") == {}
 
     def test_returns_empty_dict_when_glossary_table_absent(self, store, tmp_path, monkeypatch):
         """The branch the two tests above never reach.

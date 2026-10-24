@@ -80,7 +80,8 @@ if _celery_ok:
                               translate_mode: str = "flash", qa_interval: int = 20,
                               genre: str = "romance_ceo",
                               glossary_preset_glossary: str = "",
-                              content_type: str = "novel"):
+                              content_type: str = "novel",
+                              api_key: str = ""):
         """Main translation Celery task — durable, retryable, checkpointed.
 
         content_type is accepted for forward compatibility; only "novel" is
@@ -114,7 +115,7 @@ if _celery_ok:
             chunks = split_chapters(text)
             translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
-            agent = TranslationAgent(target_lang=target_lang)
+            agent = TranslationAgent(book_id=job_id, target_lang=target_lang, api_key=api_key)
             all_translations = []
 
             # ── Pre-load glossary from preset (warm start) ──
@@ -231,7 +232,8 @@ if _celery_ok:
     def resume_translate_task(self, job_id: str, start_chapter: int, glossary_snapshot: str,
                                text: str = "", target_lang: str = "en-US",
                                translate_mode: str = "flash", qa_interval: int = 20,
-                               genre: str = "romance_ceo", content_type: str = "novel"):
+                               genre: str = "romance_ceo", content_type: str = "novel",
+                               api_key: str = ""):
         """Resume a crashed translation from the given starting chapter number.
 
         Accepts a glossary snapshot (JSON) and a start_chapter index so the
@@ -259,7 +261,7 @@ if _celery_ok:
             chunks = split_chapters(text)
             translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
-            agent = TranslationAgent(target_lang=target_lang)
+            agent = TranslationAgent(book_id=job_id, target_lang=target_lang, api_key=api_key)
 
             # Restore glossary from the checkpoint snapshot
             # 【中文】从快照恢复术语表。这一步至关重要：如果不恢复，

@@ -28,6 +28,31 @@ cannot reasonably complete.
 """
 
 import threading
+from typing import Optional
+
+try:
+    import redis as _redis
+except ImportError:  # pragma: no cover — redis 是 requirements.txt 已声明的依赖
+    _redis = None
+
+# 【中文】Redis 原子脚本：try_accept 的「检查上限→自增」与 release 的「>0 才减」。
+# 用 Lua 保证两步在 Redis 服务端原子执行，避免并发请求把计数顶穿上限。
+_ACCEPT_LUA = """
+local cur = redis.call('GET', KEYS[1])
+if cur and tonumber(cur) >= tonumber(ARGV[1]) then
+    return 0
+end
+redis.call('INCR', KEYS[1])
+return 1
+"""
+
+_RELEASE_LUA = """
+local cur = redis.call('GET', KEYS[1])
+if cur and tonumber(cur) > 0 then
+    redis.call('DECR', KEYS[1])
+end
+return 1
+"""
 
 
 class BackpressureGuard:
@@ -49,7 +74,7 @@ class BackpressureGuard:
             guard.release()
     """
 
-    def __init__(self, max_queue_depth: int = 100):
+    def __init__(self, max_queue_depth: int = 100, redis_key: Optional[str] = None):
         """【中文】初始化背压守卫。
 
         参数：
@@ -61,6 +86,34 @@ class BackpressureGuard:
         self._max_queue_depth = max_queue_depth
         self._pending_count: int = 0
         self._lock = threading.Lock()
+        # 【中文】跨进程共享计数器：redis_key 非空时用 Redis 计数（带进程内回退），
+        # 否则退化为纯进程内计数（测试与无 Celery 的同步路径）。
+        self._redis_key = redis_key
+        self._redis = None
+        self._redis_checked = False
+
+    def _get_redis(self):
+        """Return a cached Redis client, or None if unconfigured/unreachable.
+
+        【中文】懒加载 Redis 连接，结果缓存。只在 redis_key 非空时尝试。
+        连不上（测试环境无 Redis、或 Redis 宕机）就返回 None，调用方回退到
+        进程内计数。ping 只发生一次，之后复用缓存，避免每次请求都探测。
+        """
+        if self._redis_key is None or _redis is None:
+            return None
+        if self._redis_checked:
+            return self._redis
+        self._redis_checked = True
+        try:
+            from .config import REDIS_URL
+            client = _redis.Redis.from_url(
+                REDIS_URL, socket_connect_timeout=0.5, socket_timeout=0.5
+            )
+            client.ping()
+            self._redis = client
+        except Exception:
+            self._redis = None
+        return self._redis
 
     def try_accept(self) -> bool:
         """Return True if new work can be accepted. Increments pending count.
@@ -74,6 +127,12 @@ class BackpressureGuard:
         ⚠️ 返回 True 之后，**必须**在任务结束时调 ``release()``，
         否则名额永远不会还回来，系统最终会卡在"永远满"的状态。
         """
+        r = self._get_redis()
+        if r is not None:
+            try:
+                return bool(r.eval(_ACCEPT_LUA, 1, self._redis_key, self._max_queue_depth))
+            except Exception:
+                pass  # Redis 出错 → 回退进程内计数
         with self._lock:
             if self._pending_count >= self._max_queue_depth:
                 return False
@@ -86,6 +145,13 @@ class BackpressureGuard:
         【中文】归还一个名额。任务做完了（不管成功还是失败）都要调一次。
         内部做了 >0 保护，多调一次也不会变成负数。
         """
+        r = self._get_redis()
+        if r is not None:
+            try:
+                r.eval(_RELEASE_LUA, 1, self._redis_key)
+                return
+            except Exception:
+                pass  # Redis 出错 → 回退进程内计数
         with self._lock:
             if self._pending_count > 0:
                 self._pending_count -= 1
@@ -96,8 +162,7 @@ class BackpressureGuard:
         【中文】查询当前是否处于"背压状态"（队列已满）。
         只读检查，不改变计数。供看板等监控界面显示用。
         """
-        with self._lock:
-            return self._pending_count >= self._max_queue_depth
+        return self.queue_depth >= self._max_queue_depth
 
     @property
     def queue_depth(self) -> int:
@@ -105,6 +170,13 @@ class BackpressureGuard:
 
         【中文】当前正在排队或执行中的任务数量。
         """
+        r = self._get_redis()
+        if r is not None:
+            try:
+                val = r.get(self._redis_key)
+                return int(val) if val is not None else 0
+            except Exception:
+                pass  # Redis 出错 → 回退进程内计数
         with self._lock:
             return self._pending_count
 
@@ -120,6 +192,12 @@ class BackpressureGuard:
         生产环境不应该调这个——如果运行中清零，等于把所有"占着的名额"
         都丢了，可能导致实际并发远超上限。
         """
+        r = self._get_redis()
+        if r is not None:
+            try:
+                r.delete(self._redis_key)
+            except Exception:
+                pass  # Redis 出错 → 忽略，进程内计数也会清零
         with self._lock:
             self._pending_count = 0
 
@@ -131,16 +209,16 @@ class BackpressureGuard:
           · max_queue_depth：上限
           · backpressured：是否已满（布尔值）
         """
-        with self._lock:
-            return {
-                "queue_depth": self._pending_count,
-                "max_queue_depth": self._max_queue_depth,
-                "backpressured": self._pending_count >= self._max_queue_depth,
-            }
+        depth = self.queue_depth
+        return {
+            "queue_depth": depth,
+            "max_queue_depth": self._max_queue_depth,
+            "backpressured": depth >= self._max_queue_depth,
+        }
 
 
 # Module-level singleton
 # 【中文】全模块唯一的实例，整个系统共用这一个守卫。
 # max_queue_depth=100 与上面的默认值一致，写在这里是为了让"上限是多少"
 # 只有一个地方能看到，改的时候不会漏。
-backpressure = BackpressureGuard(max_queue_depth=100)
+backpressure = BackpressureGuard(max_queue_depth=100, redis_key="westward_echo:backpressure:pending")

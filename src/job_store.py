@@ -529,7 +529,7 @@ total_chapters, status)
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
-    def get_confirmed_terms(self, target_lang: str = "en-US") -> dict:
+    def get_confirmed_terms(self, target_lang: str = "en-US", book_id: str = "default") -> dict:
         """Return only confirmed terms (higher authority than auto-extracted).
 
         These are terms a human reviewer has explicitly approved.
@@ -564,8 +564,8 @@ total_chapters, status)
             rows = conn.execute(
                 """SELECT term_cn, term_en
                    FROM exact_glossary
-                   WHERE status = 'confirmed' AND target_lang = ?""",
-                (target_lang,),
+                   WHERE book_id = ? AND status = 'confirmed' AND target_lang = ?""",
+                (book_id, target_lang),
             ).fetchall()
             return {row[0]: row[1] for row in rows}
         finally:

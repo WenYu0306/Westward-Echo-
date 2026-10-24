@@ -23,6 +23,8 @@
 接口文档是给开发者看的，首页是给人打开的。
 """
 
+import hmac
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -76,11 +78,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
         # Everything else requires API key
         # 【中文】从请求头里取出调用方传来的密钥，和服务端预设的比对。
-        # 注意用的是 != 而不是更安全的 constant-time 比较函数，
-        # 对于本地/内网服务问题不大，但如果公开部署建议改用
-        # hmac.compare_digest() 防止时序攻击（timing attack）。
+        # 用 hmac.compare_digest 做恒定时间比较，防止时序攻击（timing attack）。
         client_key = request.headers.get("X-API-Key", "")
-        if client_key != API_KEY:
+        if not hmac.compare_digest(client_key, API_KEY):
             # 【中文】密钥不对或没带 → 返回 HTTP 401（未授权）。
             # 401 的含义是"你没有证明自己有权访问"，
             # 区别于 403（"我认识你但不允许你做这件事"）。

@@ -168,9 +168,9 @@ async def _validate_novel_upload(file: UploadFile):
       ③ 检查转换结果是否包含中文字符（前 10000 字符内至少有一个）。
          不含中文说明可能传错了文件，直接拒绝。
     """
-    # 【中文】先把文件内容全部读入内存，然后检查大小。
-    # ⚠️ 这意味着超大文件会短暂占用内存，但 50MB 上限已经限制了风险。
-    content = await file.read()
+    # 【中文】按大小上限读入（最多 MAX+1 字节），超限立即拒绝，
+    # 避免把超大文件整体读进内存造成内存耗尽。
+    content = await file.read(MAX_UPLOAD_SIZE_BYTES + 1)
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
         return None, f"File too large. Maximum {MAX_UPLOAD_SIZE_MB}MB."
 
@@ -370,6 +370,7 @@ async def _translate_accepted(
             genre=genre,
             glossary_preset_glossary=preset_glossary_json,
             content_type=content_type,
+            api_key=api_key,
         )
         return {"job_id": job_id, "task_id": task.id, "total_chapters": total, "status": "queued"}
 
@@ -699,6 +700,7 @@ async def translate_multi(
                     genre=genre,
                     glossary_preset_glossary=preset_glossary_json,
                     content_type=content_type,
+                    api_key=api_key,
                 )
                 results.append({"lang": lang, "job_id": job_id, "task_id": task.id})
             else:
@@ -1566,19 +1568,27 @@ def _convert_docx(raw: bytes) -> Optional[str]:
     返回：拼接后的纯文本字符串，失败返回 None。
     """
     import tempfile
+    tmp_path = None
     try:
         # 【中文】python-docx 也只接受文件路径，需要先写临时文件。
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf:
+            tmp_path = tf.name
             tf.write(raw)
             tf.flush()
-            from docx import Document as DocxDocument
-            doc = DocxDocument(tf.name)
-            # 【中文】遍历所有段落，取非空的文本拼接起来。
-            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-            os.unlink(tf.name)
-            return text.strip() or None
+        from docx import Document as DocxDocument
+        doc = DocxDocument(tmp_path)
+        # 【中文】遍历所有段落，取非空的文本拼接起来。
+        text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        return text.strip() or None
     except Exception:
         return None
+    finally:
+        # 【中文】无论成功失败都清理临时文件，避免磁盘空间泄漏。
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 def _convert_epub(raw: bytes) -> Optional[str]:

@@ -168,7 +168,7 @@ def write_node(state: TranslatorState) -> dict:
     # 比如确认"鬼节"必须译为 "Ghost Festival"，或否决把"师父"译成 "master"。
     # 这些人工决定会存进 job_store，每次写译文时都塞进提示词里，
     # 确保 AI 不会再犯已经被纠正过的错误。
-    confirmed = job_store.get_confirmed_terms(target_lang)
+    confirmed = job_store.get_confirmed_terms(target_lang, book_id=state.get("book_id", ""))
     confirmed_text = ""
     if confirmed:
         # 格式化成提示词里的条目，语气强硬（MUST / do NOT change），
