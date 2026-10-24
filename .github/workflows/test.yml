@@ -59,6 +59,15 @@ jobs:
           python scripts/static_audit.py
           python scripts/static_audit.py --include-src
 
+      # Dead-code gate (vulture): catches module-level names defined but never
+      # referenced — the class of defect static_audit.py (imports/unbound locals)
+      # cannot see. --min-confidence 100 only flags the clearest cases so the
+      # gate starts green; lower it once a whitelist is established.
+      - name: Dead code (vulture)
+        run: |
+          pip install vulture
+          vulture src/ --min-confidence 100
+
       - name: Run tests
         run: |
           pip install pytest

@@ -576,6 +576,3 @@ total_chapters, status)
 # 【中文】模块级单例：整个进程共享一个 JobStore 实例。
 job_store = JobStore()
 
-# Convenience function for external callers
-# 【中文】便捷函数：外部可以直接调 get_incomplete_jobs() 而不用导入 job_store。
-get_incomplete_jobs = job_store.get_incomplete_jobs

@@ -104,19 +104,6 @@ app = FastAPI(title="Westward Echo API", version=VERSION)
 # 或注入恶意字符。所有接收 job_id 的接口都必须先过这道校验。
 _VALID_JOB_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
 
-# NOTE: a `_KNOWN_LANGS` frozenset used to sit here alongside `_KNOWN_GENRES`,
-# documented as the API's language whitelist. Nothing ever read it — uploads go
-# through with any `target_lang` string and unknown ones fall back to en-US in
-# personas._lang_profile. Removed rather than wired up: an unenforced whitelist
-# reads as a guarantee that does not exist, and the authoritative list is
-# config.SUPPORTED_LANGUAGES (imported above, used by the output-file lookups).
-#
-# 【中文】以前这里有个 _KNOWN_LANGS 集合号称是"语言白名单"，但实际上没有任何代码读它，
-# 传什么 target_lang 都能通过，未知的会默默退回到 en-US。这种"写了但没用"的白名单
-# 比没有更危险——它给人一种"有校验"的错觉。所以删掉了，真正的权威列表是
-# config.SUPPORTED_LANGUAGES（上面已导入），输出文件查找时用那个。
-_KNOWN_GENRES = frozenset({"romance_ceo", "xianxia", "urban", "scifi", "folk_religion"})
-
 
 def _split_by_content_type(text: str, content_type: str):
     """Split upload text into translatable chapters (SKIP-filtered).
