@@ -475,7 +475,7 @@ class TestFixLessonLoop:
         assert len(calls) == 5
 
     def test_cap_constant_is_five(self):
-        from src.agent.graph import _MAX_FIX_LESSONS_PER_CHAPTER
+        from src.agent.post_process import _MAX_FIX_LESSONS_PER_CHAPTER
         assert _MAX_FIX_LESSONS_PER_CHAPTER == 5
 
     def test_long_lesson_is_truncated_not_dropped(self, agent):

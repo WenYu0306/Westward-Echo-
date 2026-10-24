@@ -80,6 +80,7 @@ from .nodes.write import write_node
 # 文化忠实度检查：确认 WRITE 没把有含义的名字简单音译成拼音
 # （已随 _post_process 一起抽到 post_process.py）
 # 流水线的"共享白板"数据结构：各角色往上读写同一份状态
+from .cold_read import build_cold_read_context
 from .post_process import post_process_chapter
 from .state import TranslatorState
 from .state_builder import build_state, format_semantic
@@ -328,104 +329,15 @@ class TranslationAgent:
 
     def _build_cold_read_context(self, chapter_number: int = 0,
                                  target_lang: str = "en-US") -> str:
-        """Build a one-page briefing for the cold reader — no LLM needed.
+        """Build a one-page briefing for the cold reader — delegates to cold_read.
 
-        ``target_lang`` scopes the character roster: a store holding several
-        languages must not brief the reader with another job's renderings.
-
-        【中文·给冷读者写一页"读者须知"】
-
-        冷读者的设定是"毫不知情的外国读者"，但也不能让它真的一无所知——
-        否则它连人物是谁都不知道，会把"没看过前文"误判成"这段写得烂"。
-        所以这里给它一份简短的背景说明，只包含三类信息：
-          1. PREVIOUSLY   —— 前情提要（最近几章讲了啥）
-          2. CHARACTERS   —— 人物表（这些名字分别是谁）
-          3. TERMINOLOGY  —— 已确定的术语表（这些词该怎么理解）
-
-        【中文·注意这份须知里"不该有什么"】
-        绝对不能出现中文原文。冷读者必须"盲读"英文成品，
-        一旦让它看到中文，它就不是读者而是"对照检查员"了，
-        那种宽容的评审就失去意义（下面代码里专门有一处为此做过修正）。
-
-        【中文·这个方法不花钱】纯字符串拼接，不调用任何 AI。
-
-        【参数 target_lang 的作用】术语库可能同时装着好几种语言，
-        必须按当前语言取，否则会把别的任务的译名混进来（比如
-        翻西班牙语的书却给冷读者看英语人名表）。
+        【中文·给冷读者写"读者须知"】逻辑已抽到 cold_read.build_cold_read_context，
+        这里只把 agent 的缓冲区、术语库、经验本传进去。
         """
-        parts = []
-
-        # ── 1. What's happened recently ──
-        # 【中文·第一块：前情提要】
-        if self._chapter_context:
-            # 有存好的摘要就列出来
-            parts.append("## PREVIOUSLY (recent chapter summaries)\n")
-            for entry in self._chapter_context:
-                parts.append(f"- {entry}")
-            parts.append("")
-        elif chapter_number > 1:
-            # 没有摘要但已经翻到第 2 章之后了，至少告诉它"你正在读第 N 章"，
-            # 免得它以为是开头，对"没有铺垫"产生错误抱怨。
-            parts.append("## PREVIOUSLY\n"
-                         f"You are reading Chapter {chapter_number}. "
-                         "This is an early chapter.\n")
-
-        # ── 2. Who's who (from exact glossary) ──
-        # 【中文·第二块：人物表】从术语库里挑出"看起来像人名"的条目
-        known = self.exact_store.to_dict(target_lang=target_lang)
-        char_list = []
-        for cn, en in known.items():
-            if len(cn) >= 2 and len(en) >= 2:
-                # Render the English name only. The cold reader is a blind
-                # target-language reader, so the trailing Chinese source name
-                # `(cn)` was a source-text leak (clause 10) — metadata-level,
-                # but stripping it makes the roster strictly blind. The
-                # `len(cn) >= 2` guard still reads the source length to tell a
-                # real name from a single-character term; it just no longer
-                # prints the source.
-                #
-                # 【中文·这里曾经漏过原文，已修正】
-                # 早先人物表每行是「英文名 (中文原名)」，看起来只是附注，
-                # 但对"必须盲读"的冷读者来说，这就是原文泄漏——
-                # 它一看到中文就能猜出意思，评审就不诚实了。所以现在只印英文名。
-                #
-                # 【中文·那 len(cn) >= 2 为什么还留着】它是在**用中文的长度**
-                # 做筛选判断（两个汉字以上才像人名，单个字多半是术语如"剑""气"），
-                # 判断完并不把中文打印出来。"看长度"和"给读者看"是两回事。
-                char_list.append(f"  - **{en}**")
-            if len(char_list) >= 15:
-                break   # 【中文】最多列 15 个，再多就把提示词撑长了
-        if char_list:
-            parts.append("## CHARACTERS\n" + '\n'.join(char_list) + "\n")
-
-        # ── 3. Key terms from style memo ──
-        # 【中文·第三块：已确定的术语】从经验本里捞形如「[原词] → 译法」的行
-        terms_text = self.style_memo.read_all()
-        term_lines = []
-        for line in terms_text.split('\n'):
-            stripped = line.strip()
-            if stripped.startswith('[') and '→' in stripped:
-                term_lines.append(f"- {stripped[:120]}")
-                if len(term_lines) >= 8:
-                    break   # 【中文】同样限量，最多 8 条
-        if term_lines:
-            parts.append("## ESTABLISHED TERMINOLOGY\n")
-            parts.extend(term_lines)
-            parts.append("")
-
-        # A briefing with any one section is still worth sending: an off-by-one
-        # here (`<= 1`) silently discarded a chapter-2+ briefing that had only
-        # the "early chapter" line, or only a character roster.
-        #
-        # 【中文·这里踩过"差一个"的经典 bug】
-        # 早先的判断条件写成了 len(parts) <= 1，意思是"不足两块就整个不发"。
-        # 结果：只有一块内容的须知被默默丢弃了——比如第 2 章之后
-        # 只有"你在读第 N 章"这一句、或者只有人物表没有前情提要，
-        # 这两种情况本来都该发给冷读者，却被扔了。
-        # 现在改成"空才不发"，只要有任何一块内容就照发。
-        if not parts:
-            return ""
-        return '\n'.join(parts)
+        return build_cold_read_context(
+            self._chapter_context, self.exact_store, self.style_memo,
+            chapter_number=chapter_number, target_lang=target_lang,
+        )
 
     def load_glossary(self, target_lang: str = "en-US"):
         """【中文·从数据库把术语读进内存】
