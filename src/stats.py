@@ -397,7 +397,7 @@ class TranslationStats:
         # Error rate per language over the last 100 calls. Entries are
         # "lang|1" (success) or "lang|0" (failure), newest last.
         # 【中文】错误率：取最近 100 次调用，按语言分组统计失败占比。
-        error_rates = {}
+        error_rates: dict[str, dict[str, int]] = {}
         for item in r.lrange(_RECENT_CALLS_KEY, -100, -1):
             text = item.decode() if isinstance(item, bytes) else item
             lang, _, ok = text.rpartition("|")
@@ -475,7 +475,7 @@ class TranslationStats:
             # 【中文】算每种语言在最近 100 次 API 调用中的错误率。
             # 用滑动窗口而不是全量历史，让指标能及时反映当前状态。
             recent_calls = cls._recent_api_calls[-100:]
-            error_rates = {}
+            error_rates: dict[str, dict[str, int]] = {}
             for _ts, _lang, _ok in recent_calls:
                 if _lang not in error_rates:
                     error_rates[_lang] = {"total": 0, "failed": 0}

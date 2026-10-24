@@ -313,7 +313,7 @@ DEFAULT_NODE_EFFORTS = {
 }
 
 
-def _env_overridden(table: dict, prefix: str) -> dict:
+def _env_overridden(table: dict[str, str], prefix: str) -> dict[str, str]:
     """Apply per-node ``XIDU_NODE_<prefix>_<NODE>`` overrides to a default table.
 
     【中文】用环境变量覆盖默认配置表的通用函数。

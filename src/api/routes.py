@@ -599,7 +599,7 @@ async def translate_multi(
     qa_interval: int = Form(20),
     glossary_preset: str = Form(""),
     api_key: str = Form(""),
-) -> dict:
+):
     """Start translation into multiple languages simultaneously.
 
     Creates a project, then one job per language. All language variants
@@ -1018,7 +1018,7 @@ def _parse_markdown_chapters(md_text: str) -> list[dict]:
     lines = md_text.split("\n")
     chapters = []
     current_title = None
-    current_lines = []
+    current_lines: list[str] = []
     current_num = 0
 
     for line in lines:

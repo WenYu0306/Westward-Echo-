@@ -188,7 +188,7 @@ def _parse_review(content: str) -> dict[str, str]:
     "哪些要改、改成什么"。这个函数做了过滤+提取两步合一。
     """
     # 兜底值：如果 JSON 解析失败，当作"没有需要修正的"处理
-    fallback = {"reviews": []}
+    fallback: dict = {"reviews": []}
     result, _ = parse_llm_json(content, fallback)
     corrected = {}
     for r in result.get("reviews", []):
@@ -297,7 +297,10 @@ def review_terms_node(state: TranslatorState) -> dict:
             return {}
 
     # ── 解析复核结果并应用修正 ──
-    corrected = _parse_review(response.content)
+    content = response.content
+    if not isinstance(content, str):
+        content = str(content)
+    corrected = _parse_review(content)
     if not corrected:
         # 全部 pass 或解析失败 → 无需修改
         return {}

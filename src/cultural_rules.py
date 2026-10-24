@@ -67,7 +67,7 @@ format_fidelity_for_prompt() 会返回空字符串。这是已知缺口，不是
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 
 def _default_rules_path() -> Path:
@@ -439,7 +439,7 @@ def load_fidelity_rules(target_lang: str = "en-US",
     · ⚠️ 已知缺口：目前只有 en-US 有 fidelity 规则，其他语言返回空字典。
     """
     data = _load_raw_data(path)
-    return data.get("fidelity", {}).get(target_lang, {})
+    return cast(dict, data.get("fidelity", {}).get(target_lang, {}))
 
 
 def format_fidelity_for_prompt(rules: dict) -> str:

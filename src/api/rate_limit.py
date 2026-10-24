@@ -33,6 +33,7 @@
 
 import threading
 import time
+from collections.abc import Awaitable, Callable
 from typing import Optional
 
 from fastapi import Request, Response
@@ -307,7 +308,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     调用方看到 429 就应该停下来等一等，不要立刻重试。
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         """Check rate limit before passing the request to business logic.
 
         【中文】每个请求进来时执行的限流检查。

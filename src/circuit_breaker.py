@@ -36,7 +36,7 @@ import threading
 import time
 import uuid
 from collections import deque
-from typing import Callable
+from typing import Callable, cast
 
 try:
     import redis as _redis
@@ -556,7 +556,7 @@ class CircuitBreaker:
             try:
                 now = time.time()
                 self._prune_redis(r, now)
-                return r.zcard(self._redis_failures_key)
+                return cast(int, r.zcard(self._redis_failures_key))
             except Exception:
                 pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
@@ -616,7 +616,7 @@ class CircuitBreaker:
                 state, opened_at = self._read_state(r)
                 if state == self.OPEN and (time.time() - opened_at) >= self._recovery_timeout:
                     return self.HALF_OPEN
-                return state
+                return cast(str, state)
             except Exception:
                 pass  # Redis 出错 → 回退进程内状态机
         with self._lock:

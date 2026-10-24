@@ -52,7 +52,7 @@ from __future__ import annotations
 import uuid
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 from xml.etree import ElementTree as ET
 
 # ── XML namespaces used by the EPUB package/NCX files ──────────────
@@ -280,7 +280,7 @@ def _build_container_xml() -> bytes:
         "full-path": "OEBPS/content.opf",
         "media-type": "application/oebps-package+xml",
     })
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return cast(bytes, ET.tostring(root, encoding="utf-8", xml_declaration=True))
 
 
 def _build_opf(
@@ -389,7 +389,7 @@ def _build_opf(
     if has_glossary:
         ET.SubElement(spine, "itemref", {"idref": "glossary"})
 
-    return ET.tostring(package, encoding="utf-8", xml_declaration=True)
+    return cast(bytes, ET.tostring(package, encoding="utf-8", xml_declaration=True))
 
 
 def _build_ncx(
@@ -479,7 +479,7 @@ def _build_ncx(
         ET.SubElement(ET.SubElement(gloss_point, "navLabel"), "text").text = "Glossary / 术语表"
         ET.SubElement(gloss_point, "content", {"src": "glossary.xhtml"})
 
-    return ET.tostring(ncx, encoding="utf-8", xml_declaration=True)
+    return cast(bytes, ET.tostring(ncx, encoding="utf-8", xml_declaration=True))
 
 
 def _build_nav_xhtml(chapters: list[dict], has_glossary: bool) -> str:
