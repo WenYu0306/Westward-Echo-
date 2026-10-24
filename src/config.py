@@ -288,22 +288,28 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # 所以跨 provider 降档（READBACK → glm-5.3-flash）也能正确路由。
 DEFAULT_NODE_MODELS = {
     "read":           QWEN_MODEL,      # Qwen 3.8 max（GLM 的 1301 内容过滤会拦真实网文）
+    "read_fallback":  GLM_MODEL,       # Qwen 内容过滤/审查时的 GLM 兜底
     "write":          GLM_MODEL,       # GLM 5.3 flash 文字输出
     "write_fallback": QWEN_MODEL,      # GLM 1301 时的 Qwen 兜底
     "readback":       QWEN_MODEL,      # Qwen 3.8 max 判断（**降档首选目标**）
+    "readback_fallback": GLM_MODEL,    # Qwen 内容过滤/审查时的 GLM 兜底
     "fix":            GLM_FULL_MODEL,  # GLM 5.3 文字思考
     "review_terms":   QWEN_MODEL,      # Qwen 3.8 max 判断
+    "review_terms_fallback": GLM_MODEL,  # Qwen 内容过滤/审查时的 GLM 兜底
 }
 
 # GLM 用 reasoning_effort 档位；默认 max 贵 35 倍，必须显式设。
 # Qwen 节点若被切到 GLM 模型，用 "low" 兜底（判断/输出类任务，非深度思考）。
 DEFAULT_NODE_EFFORTS = {
     "read":           "low",
+    "read_fallback":  "low",
     "write":          GLM_WRITE_EFFORT,   # low — 忠实输出
     "write_fallback": "low",
     "readback":       "low",
+    "readback_fallback": "low",
     "fix":            GLM_FIX_EFFORT,     # high — 深度修复
     "review_terms":   "low",
+    "review_terms_fallback": "low",
 }
 
 

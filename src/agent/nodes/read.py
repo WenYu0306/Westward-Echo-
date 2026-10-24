@@ -43,6 +43,7 @@ from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 # node_llm_kwargs("read") 返回 READ 角色该用的模型名、API 密钥、base_url 等。
 # 好处：切换模型只改环境变量，不用改代码。
 from ...config import node_llm_kwargs
+from ..llm_fallback import is_content_filter_error
 # 【中文·文化规则加载器】根据目标语言和小说类型，加载对应的文化适配规则。
 # 比如翻仙侠时"筑基"不能译成 "foundation building"（字面意思完全不对）。
 from ...cultural_rules import (
@@ -215,13 +216,7 @@ def read_node(
     # 【中文】从路由表获取 READ 该用的模型配置（模型名、密钥、base_url）。
     # api_key_override：如果用户在界面上提供了自己的密钥（BYOK），优先用它。
     provider_kwargs = node_llm_kwargs("read", api_key_override=state.get("api_key", ""))
-    llm = ChatOpenAI(  # type: ignore[call-arg]
-        temperature=0.3,       # 低但有创造性：分析需要洞察，不是纯判断题
-        max_tokens=16384,      # READ 的输出很长（详细分析），给足空间
-        request_timeout=900,   # 15 分钟超时：READ 是最慢的节点
-        max_retries=0,         # 不自动重试，由熔断器统一管理
-        **provider_kwargs,     # 展开路由表的配置（model、api_key、base_url 等）
-    )
+    llm = _build_read_client(**provider_kwargs)
     # 记录实际使用的模型名（路由表可能把 READ 分配到不同档次的模型）
     used_model = provider_kwargs["model"]
 
@@ -311,21 +306,48 @@ def read_node(
         response = breaker.call(llm.invoke, messages)
         # 调用成功，记录成功计数
         TranslationStats.record_api_success(target_lang)
-        # 记录 token 消耗到明细账本
-        _capture_read_tokens(
-            response,
-            model=used_model,
-            book_id=state.get("book_id", ""),
-            chapter=state.get("chapter_number", 0),
-        )
     except CircuitBreakerOpenError:
         # 熔断器跳闸：API 近期连续失败，暂时不再尝试
         TranslationStats.record_api_failure(target_lang)
         raise  # 向上抛出，由 TranslationAgent 决定怎么处理
-    except Exception:
+    except Exception as exc:
         # 其他异常（网络超时、API 返回错误等）
         TranslationStats.record_api_failure(target_lang)
-        raise
+        # 【中文·Qwen 内容过滤兜底】Qwen 也有内容安全审查，一旦拦截
+        # （"敏感/不安全"等），换 GLM 重试一次；其他错误仍向上抛。
+        # ⚠️ 注意：GLM 比 Qwen 更严（它正是 1301 的源头），这个兜底是
+        # "尽力而为"——若 GLM 也拦，本章照旧失败，但至少多了一次机会。
+        if not is_content_filter_error(exc):
+            raise
+        fallback_kwargs = node_llm_kwargs(
+            "read_fallback", api_key_override=state.get("api_key", "")
+        )
+        used_model = fallback_kwargs["model"]
+        logger.warning(
+            "READ ch%d: content filter rejected — retrying once on %s",
+            state["chapter_number"], used_model,
+        )
+        try:
+            from ...error_tracker import record_event
+            record_event(
+                None, state["chapter_number"], "content_filter_fallback",
+                f"Qwen content filter on ch{state['chapter_number']}; retried on {used_model}",
+                target_lang,
+            )
+        except Exception:
+            pass
+        if not fallback_kwargs["api_key"]:
+            raise
+        response = breaker.call(_build_read_client(**fallback_kwargs).invoke, messages)
+        TranslationStats.record_api_success(target_lang)
+
+    # 记录 token 消耗到明细账本（主 provider 或兜底 provider 的最终结果）
+    _capture_read_tokens(
+        response,
+        model=used_model,
+        book_id=state.get("book_id", ""),
+        chapter=state.get("chapter_number", 0),
+    )
 
     # ── 解析大模型的 JSON 分析结果 ──
     # Parse the READ agent's analysis
@@ -346,6 +368,22 @@ def read_node(
         "context_signals": context_signals,  # 检测信号（留给下游参考）
         "image_gaps": analysis.get("image_gaps", []),  # 单独提取画面缺口
     }
+
+
+def _build_read_client(**provider_kwargs) -> ChatOpenAI:
+    """A READ client on the routed provider (primary or content-filter fallback).
+
+    Same generation parameters for both, so a fallback chapter is not silently
+    analysed in a different register. Model/base_url/api_key/reasoning all arrive
+    pre-resolved from ``node_llm_kwargs`` — this function must not pick a provider.
+    """
+    return ChatOpenAI(  # type: ignore[call-arg]
+        temperature=0.3,       # 低但有创造性：分析需要洞察，不是纯判断题
+        max_tokens=16384,      # READ 的输出很长（详细分析），给足空间
+        request_timeout=900,   # 15 分钟超时：READ 是最慢的节点
+        max_retries=0,         # 不自动重试，由熔断器统一管理
+        **provider_kwargs,     # 展开路由表的配置（model、api_key、base_url 等）
+    )
 
 
 def _capture_read_tokens(response, model: str, *, book_id: str = "", chapter: int = 0) -> None:

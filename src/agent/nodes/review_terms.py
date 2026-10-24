@@ -49,10 +49,24 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from ...config import node_llm_kwargs
+from ..llm_fallback import is_content_filter_error
 from ..parse_utils import parse_llm_json
 from ..state import TranslatorState
 
 logger = logging.getLogger(__name__)
+
+
+def _build_review_client(**provider_kwargs) -> ChatOpenAI:
+    """A REVIEW_TERMS client on the routed provider (primary or content-filter fallback)."""
+    return ChatOpenAI(  # type: ignore[call-arg]
+        temperature=0.1,       # 极低温度：复核是判断题，不需要创造性
+        max_tokens=4096,       # 复核结果很短，4K 足够
+        request_timeout=120,   # 超时 2 分钟（比 READ 短很多，因为任务简单）
+        max_retries=0,         # 不自动重试：失败了就走兜底跳过
+        # 强制要求模型返回 JSON 格式（OpenAI 的结构化输出功能）
+        model_kwargs={"response_format": {"type": "json_object"}},
+        **provider_kwargs,
+    )
 
 # Only these categories are worth reviewing. location/technique/item/era are
 # legitimately transliterated or literal — no cultural meaning to lose.
@@ -250,15 +264,7 @@ def review_terms_node(state: TranslatorState) -> dict:
         return {}
 
     # ── 构建大模型客户端 ──
-    llm = ChatOpenAI(  # type: ignore[call-arg]
-        temperature=0.1,       # 极低温度：复核是判断题，不需要创造性
-        max_tokens=4096,       # 复核结果很短，4K 足够
-        request_timeout=120,   # 超时 2 分钟（比 READ 短很多，因为任务简单）
-        max_retries=0,         # 不自动重试：失败了就走兜底跳过
-        # 强制要求模型返回 JSON 格式（OpenAI 的结构化输出功能）
-        model_kwargs={"response_format": {"type": "json_object"}},
-        **provider_kwargs,
-    )
+    llm = _build_review_client(**provider_kwargs)
 
     # ── 组装提示词并调用 ──
     user_prompt = _REVIEW_USER.format(terms_list=_format_terms(to_review))
@@ -270,10 +276,25 @@ def review_terms_node(state: TranslatorState) -> dict:
     try:
         response = llm.invoke(messages)
     except Exception as exc:  # fail-safe: leave decisions untouched
-        # 【中文】大模型调用失败（网络超时、API 报错等）→ 记警告日志，
-        # 返回空字典让流水线继续。不抛异常，不阻塞后续章节。
-        logger.warning("REVIEW_TERMS: LLM call failed, skipping review: %s", exc)
-        return {}
+        # 【中文·内容过滤兜底】Qwen 审查拦截时换 GLM 重试一次；其他错误
+        # 照旧失败跳过（fail-safe：不抛异常，不阻塞后续章节）。
+        # 这个节点是"软性"复核，失败只意味着术语暂不修正，不会丢章节。
+        if not is_content_filter_error(exc):
+            logger.warning("REVIEW_TERMS: LLM call failed, skipping review: %s", exc)
+            return {}
+        fallback_kwargs = node_llm_kwargs("review_terms_fallback")
+        if not fallback_kwargs["api_key"]:
+            logger.warning("REVIEW_TERMS: content filter rejected, no fallback key — skipping")
+            return {}
+        logger.warning(
+            "REVIEW_TERMS: content filter rejected — retrying once on %s",
+            fallback_kwargs["model"],
+        )
+        try:
+            response = _build_review_client(**fallback_kwargs).invoke(messages)
+        except Exception as fexc:
+            logger.warning("REVIEW_TERMS: fallback call failed, skipping review: %s", fexc)
+            return {}
 
     # ── 解析复核结果并应用修正 ──
     corrected = _parse_review(response.content)

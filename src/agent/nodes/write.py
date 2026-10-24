@@ -54,6 +54,9 @@ import re         # 正则表达式：多层 JSON 解析的抢救手段之一
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+# 共享的内容过滤错误判断（GLM 1301 / Qwen 审查），四个节点共用
+from ..llm_fallback import is_content_filter_error as _is_content_filter_error
+
 # 熔断器：当某个 provider 连续失败时自动"跳闸"，防止反复烧钱
 from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 # 完整性检查：对比原文和译文，看有没有整段被漏掉
@@ -825,36 +828,6 @@ def _was_truncated(response) -> str:
         return reason if reason in _TRUNCATED_FINISH_REASONS else ""
     except Exception:
         return ""
-
-
-def _is_content_filter_error(exc: Exception) -> bool:
-    """True when the provider's safety layer rejected the request.
-
-    Zhipu returns HTTP 400 with ``code 1301`` and a ``contentFilter`` block:
-
-        {"contentFilter": [{"level": 1, "role": "assistant"}],
-         "error": {"code": "1301", "message": "系统检测到输入或生成内容可能包含不安全或敏感内容"}}
-
-    Retrying the same provider does not help — the filter is deterministic on
-    the same text — and rewriting the source to appease it would mean shipping
-    a censored translation. Measured behaviour: it rejects mainstream published
-    novels, not only profanity. Running 《间客》 (Mao Ni, published) through the
-    normal pipeline lost 1 of 2 chapters to this.
-
-    【中文·判断是否是 GLM 内容过滤错误】
-
-    作用：检查异常信息里有没有 1301 / contentFilter / "不安全" 这些关键词。
-    如果有，说明是智谱的安全层误拦了真实网文，需要切换到 Qwen 兜底。
-
-    为什么用字符串匹配而不是类型判断：LangChain 会把 provider 的错误
-    包装成各种异常类型，没有统一的异常类可以 catch，只能看错误消息内容。
-
-    ⚠️ 实测：《间客》（猫腻，已出版正规小说）走正常流水线，2 章里有 1 章被拦。
-    这不是色情暴力，就是普通网文内容，所以必须换 provider 而不是改原文。
-    """
-    # 把异常类型名和消息拼成一个字符串，然后检查关键词
-    text = f"{type(exc).__name__}: {exc}"
-    return "1301" in text or "contentFilter" in text or "不安全" in text
 
 
 def _build_fallback_writer(**provider_kwargs) -> ChatOpenAI:

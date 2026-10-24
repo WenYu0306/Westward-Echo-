@@ -42,6 +42,7 @@ from ...circuit_breaker import CircuitBreakerOpenError, get_breaker
 # node_llm_kwargs：根据节点名（"readback"）查出该用哪个模型、
 # 哪个服务商、什么密钥等配置，实现"每个角色可以用不同模型"
 from ...config import node_llm_kwargs
+from ..llm_fallback import is_content_filter_error
 # TranslationStats：统计 API 调用次数和 token 用量，用于看板展示
 from ...stats import TranslationStats
 # token_ledger：按书/章/节点记录每次调用的 token 消耗，用于成本核算
@@ -116,13 +117,7 @@ def readback_node(state: TranslatorState) -> dict:
     provider_kwargs = node_llm_kwargs(
         "readback", api_key_override=state.get("api_key", ""),
     )
-    llm = ChatOpenAI(  # type: ignore[call-arg]
-        temperature=0.1,    # 低温度 = 输出稳定，评审结果可复现
-        max_tokens=4096,    # 评审意见不需要太长，4096 够用
-        request_timeout=120,  # 2 分钟超时，防卡死
-        max_retries=0,      # 不自动重试，由熔断器统一管理
-        **provider_kwargs,  # 注入模型名、base_url、api_key 等
-    )
+    llm = _build_readback_client(**provider_kwargs)
     used_model = provider_kwargs["model"]
 
     # Build previous context for the cold reader
@@ -176,21 +171,46 @@ def readback_node(state: TranslatorState) -> dict:
         response = breaker.call(llm.invoke, messages)
         # 调用成功，记一笔
         TranslationStats.record_api_success(target_lang)
-        # 记录本次调用的 token 消耗（按书/章/节点记账）
-        _capture_readback_tokens(
-            response,
-            model=used_model,
-            book_id=state.get("book_id", ""),
-            chapter=state.get("chapter_number", 0),
-        )
     except CircuitBreakerOpenError:
         # 熔断器跳闸了：该语言的 API 连续失败太多，暂时停止调用
         TranslationStats.record_api_failure(target_lang)
         raise  # 向上抛，让流水线知道这章失败了
-    except Exception:
+    except Exception as exc:
         # 其他异常（网络超时、模型返回错误等）
         TranslationStats.record_api_failure(target_lang)
-        raise
+        # 【中文·Qwen 内容过滤兜底】Qwen 审查拦截时换 GLM 重试一次，
+        # 其他错误仍向上抛。GLM 比 Qwen 更严，此兜底是"尽力而为"。
+        if not is_content_filter_error(exc):
+            raise
+        fallback_kwargs = node_llm_kwargs(
+            "readback_fallback", api_key_override=state.get("api_key", "")
+        )
+        used_model = fallback_kwargs["model"]
+        logger.warning(
+            "READBACK ch%d: content filter rejected — retrying once on %s",
+            state["chapter_number"], used_model,
+        )
+        try:
+            from ...error_tracker import record_event
+            record_event(
+                None, state["chapter_number"], "content_filter_fallback",
+                f"Qwen content filter on ch{state['chapter_number']}; retried on {used_model}",
+                target_lang,
+            )
+        except Exception:
+            pass
+        if not fallback_kwargs["api_key"]:
+            raise
+        response = breaker.call(_build_readback_client(**fallback_kwargs).invoke, messages)
+        TranslationStats.record_api_success(target_lang)
+
+    # 记录本次调用的 token 消耗（主 provider 或兜底 provider 的最终结果）
+    _capture_readback_tokens(
+        response,
+        model=used_model,
+        book_id=state.get("book_id", ""),
+        chapter=state.get("chapter_number", 0),
+    )
 
     # 【中文·解析冷读者的回复】大模型返回的是 JSON 格式的评审意见，
     # 这里把它解析成 Python 字典。解析失败时降级为 NEEDS_FIX（宁可误杀不可漏放）
@@ -249,6 +269,17 @@ def readback_node(state: TranslatorState) -> dict:
         "quality_score": quality_score,
         "quality_issues": issues,
     }
+
+
+def _build_readback_client(**provider_kwargs) -> ChatOpenAI:
+    """A READBACK client on the routed provider (primary or content-filter fallback)."""
+    return ChatOpenAI(  # type: ignore[call-arg]
+        temperature=0.1,    # 低温度 = 输出稳定，评审结果可复现
+        max_tokens=4096,    # 评审意见不需要太长，4096 够用
+        request_timeout=120,  # 2 分钟超时，防卡死
+        max_retries=0,      # 不自动重试，由熔断器统一管理
+        **provider_kwargs,  # 注入模型名、base_url、api_key 等
+    )
 
 
 def _capture_readback_tokens(

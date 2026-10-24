@@ -281,6 +281,16 @@ class TestRoutingTableDrivesNodes:
             **config.node_llm_kwargs("write_fallback", api_key_override="sk-test"))
         assert captured["kwargs"]["model"] == "qwen3.8-flash"
 
+    def test_judgment_fallbacks_route_to_glm(self):
+        """Every Qwen judgment node has a separately-routable GLM fallback."""
+        from src import config
+        for node in ("read_fallback", "readback_fallback", "review_terms_fallback"):
+            kwargs = config.node_llm_kwargs(node, api_key_override="sk-test")
+            assert kwargs["model"] == config.GLM_MODEL, (node, kwargs["model"])
+            assert kwargs["base_url"] == config.GLM_BASE_URL
+            assert kwargs["reasoning_effort"] == "low"
+            assert "extra_body" not in kwargs  # GLM 不用 thinking_budget
+
     def test_unknown_model_name_is_rejected_not_silently_routed(self):
         """A model the router cannot place must raise, not pick an endpoint."""
         from src.config import node_provider

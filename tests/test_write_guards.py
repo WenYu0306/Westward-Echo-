@@ -445,6 +445,18 @@ class TestContentFilterDetection:
         from src.agent.nodes.write import _is_content_filter_error
         assert _is_content_filter_error(Exception("401 invalid api key")) is False
 
+    def test_qwen_sensitive_marker_is_detected(self):
+        from src.agent.llm_fallback import is_content_filter_error
+        assert is_content_filter_error(Exception("输入包含敏感内容，已拦截")) is True
+
+    def test_qwen_violation_marker_is_detected(self):
+        from src.agent.llm_fallback import is_content_filter_error
+        assert is_content_filter_error(Exception("内容违规，调用被拒绝")) is True
+
+    def test_openai_content_filter_finish_reason_is_detected(self):
+        from src.agent.llm_fallback import is_content_filter_error
+        assert is_content_filter_error(Exception("finish_reason: content_filter")) is True
+
 
 class TestFallbackWriterConfig:
     """The fallback writer must carry the same guards as the primary one:
