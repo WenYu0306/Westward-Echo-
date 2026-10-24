@@ -65,7 +65,7 @@ from langgraph.graph import END, StateGraph
 # 长章节自动切块（太长的一次喂给 AI 效果差，也贵）
 from ..chapter_slicer import build_segment_title, should_split, split_chapter
 # 全局配置：最多重修几次、目标语言的显示名
-from ..config import MAX_RETRANSLATION_ATTEMPTS, target_language_label
+from ..config import MAX_RETRANSLATION_ATTEMPTS
 # 术语库两层存储：
 #   ExactGlossary   —— 精确匹配（中文原词一模一样才命中），存在 SQLite 数据库里
 #   SemanticGlossary—— 语义相近匹配（意思相关的也算），存在向量库里
@@ -81,6 +81,7 @@ from .nodes.write import write_node
 from .fidelity import check_cultural_fidelity, is_single_rendering, is_valid_rendering
 # 流水线的"共享白板"数据结构：各角色往上读写同一份状态
 from .state import TranslatorState
+from .state_builder import build_state, format_semantic
 
 logger = logging.getLogger(__name__)
 
@@ -578,189 +579,28 @@ class TranslationAgent:
         self, title, content, number, prev_summary, lang, genre,
         skip_readback=False, use_flash_writer=False, content_type="novel",
     ) -> TranslatorState:
-        """Build the initial state for a chapter translation.
+        """Build the initial state — delegates to state_builder.build_state.
 
-        Populates exact_matches_text and semantic_matches_text from the
-        glossary stores — this is the only glossary lookup step (no tool calls).
-
-        【中文·填写"共享白板"，这是流水线开跑前的准备工作】
-
-        什么是"状态"（state）：把它想成一块**所有角色共用的白板**。
-        READ 往白板上写它的分析，WRITE 读分析、写英文稿，
-        READBACK 读英文稿、写评审意见，FIX 读意见、改稿子……
-        4 个角色不直接对话，全靠这块白板传递信息。
-
-        本方法就是在发车前把白板擦干净、写上初始内容：
-        原文是什么、第几章、翻成什么语言、有哪些术语可用等。
-
-        【中文·白板内容分四类】（下面 return 的字典里有分组注释）
-          输入类   —— 章节原文、标题、章号、题材
-          术语类   —— 查好的术语表（本章用得上哪些译名）
-          输出类   —— 先留空，等各角色往里填
-          上下文类 —— 前情提要、经验本、给冷读者的须知
-
-        【中文·一个重要设计：术语是"提前算好塞进去"的】
-        本项目**不让 AI 自己调工具查术语**（no tool calls）。
-        而是开跑前就在这里把术语查好、拼成文本，直接写进提示词。
-        原因：让 AI 自己决定何时查术语，它经常查错、重复查、或该查时忘了查，
-        结果术语不一致。提前算好塞进去，就完全没有这类不确定性。
+        【中文·填写"共享白板"】拼装逻辑已抽到 state_builder.build_state，
+        这里只负责把 agent 自己的字段（术语库、经验本、prefetch 缓存）取出来
+        传进去。prefetch 的「读后清空」留在这里。
         """
-        # Exact matches: terms that appear in this chapter's text.
-        # Use notes-enhanced format so the WRITE agent gets cultural context,
-        # not just word-for-word mappings.
-        # If ChapterPrefetcher already ran these lookups in a background thread,
-        # use the cached results to skip the blocking lookups.
-        #
-        # 【中文·第一层术语：精确匹配】
-        # "精确"指中文原词一模一样才算命中。比如术语库里有"金丹 → Golden Core"，
-        # 本章正文出现"金丹"二字就命中。这层快、准，是术语一致性的主力。
-        #
-        # 下面这个 if 是在问："后台线程是不是已经提前查好了？"
-        # 查好了就直接拿现成的（并且把缓存清空，避免下一章误用旧结果），
-        # 没查好就当场查——当场查会卡住等结果，所以能预取就预取。
-        if self._prefetched_exact is not None:
-            exact_matches = self._prefetched_exact
-            self._prefetched_exact = None
-        else:
-            # Scoped to this chapter's language, not the store's active one: a
-            # store can now hold several languages at once, and defaulting to
-            # the active language would inject another job's renderings into
-            # this prompt.
-            #
-            # 【中文】这里显式传 target_lang=lang 是有原因的：术语库可能同时
-            # 装着好几种语言，如果不指定就会用"当前活跃格"，
-            # 结果把别的任务的译名混进本章提示词里。
-            exact_matches = self.exact_store.match_in_text(content, target_lang=lang)
-        # 【中文·把命中的术语拼成给 AI 看的文本】
-        # 有命中就用"带注释版"——不只给"A → B"的对照，还附上文化说明
-        # （比如这个词有什么典故、为什么这么译）。
-        # WRITE 拿到的是背景知识而不是一张冷冰冰的对照表，处理起来更准。
-        # 一个都没命中就用"简版"，避免塞一堆空表格浪费提示词空间。
-        exact_text = (
-            self.exact_store.to_formatted_text_with_notes(exact_matches, target_lang=lang)
-            if exact_matches
-            else self.exact_store.to_formatted_text(exact_matches, target_lang=lang)
+        prefetched_exact = self._prefetched_exact
+        prefetched_semantic = self._prefetched_semantic
+        self._prefetched_exact = None
+        self._prefetched_semantic = None
+        return build_state(
+            title=title, content=content, number=number, prev_summary=prev_summary,
+            lang=lang, genre=genre, skip_readback=skip_readback,
+            use_flash_writer=use_flash_writer, content_type=content_type,
+            exact_store=self.exact_store, semantic_store=self.semantic_store,
+            style_memo=self.style_memo, api_key=self.api_key,
+            book_id=getattr(self, "book_id", ""),
+            prefetched_exact=prefetched_exact, prefetched_semantic=prefetched_semantic,
+            cold_read_context=self._build_cold_read_context(
+                chapter_number=number, target_lang=lang
+            ),
         )
-
-        # Semantic matches: culturally related terms for context
-        # 【中文·第二层术语：语义相近匹配】
-        # 精确匹配有个盲区：本章写"御剑飞行"，但术语库里只存过"飞剑"，
-        # 字面不同就查不到。语义搜索能靠"意思接近"把它捞出来。
-        # top_k=15 表示最多取 15 条最相关的。
-        if self._prefetched_semantic is not None:
-            semantic_hits = self._prefetched_semantic
-            self._prefetched_semantic = None
-        else:
-            semantic_hits = self.semantic_store.search(content, top_k=15, target_lang=lang)
-        # Filter out terms already covered by exact matches
-        # 【中文·去重】已经被精确匹配捞到的，就别在语义结果里再出现一遍。
-        # 同一个术语在提示词里重复出现既占篇幅又可能前后不一致。
-        semantic_hits = [t for t in semantic_hits if t["term_cn"] not in exact_matches]
-        semantic_text = self._format_semantic(semantic_hits, target_lang=lang)
-
-        # 【中文·下面就是把白板填满。按用途分了组，注释说明每组干什么】
-        return {
-            # Input
-            # 【输入】本章要翻的原始材料
-            "chapter_title": title,
-            "chapter_content": content,
-            "chapter_number": number,
-            # getattr: some callers build an agent via object.__new__ to skip
-            # chroma/sqlite side effects and never run __init__.
-            #
-            # 【中文·这里为什么不直接写 self.book_id】
-            # 有些调用方（主要是测试）为了避开"连数据库、建向量库"这些副作用，
-            # 用特殊手法造出一个空壳对象，**根本没跑过 __init__**，
-            # 于是 self.book_id 这个属性压根不存在，直接访问会崩。
-            # getattr(对象, 名字, 默认值) 的意思是"有就用，没有就给默认值"，
-            # 这里给空字符串，让空壳对象也能正常工作。
-            "book_id": getattr(self, "book_id", ""),
-            "target_lang": lang,
-            "genre": genre,
-            "content_type": content_type,
-            # Glossary
-            # 【术语】上面两层查询的结果，四种形态各有用途：
-            #   exact_glossary        原始字典形式（程序内部用）
-            #   semantic_terms        语义结果原始列表
-            #   exact_matches_text    拼好的文本（塞进提示词给 AI 看）
-            #   semantic_matches_text 同上
-            "exact_glossary": self.exact_store.to_dict(target_lang=lang),
-            "semantic_terms": semantic_hits,
-            "exact_matches_text": exact_text,
-            "semantic_matches_text": semantic_text,
-            # Output (populated by nodes)
-            # 【输出】先留空，等各角色跑完往里填
-            "translated_text": "",       # WRITE 填英文成品
-            "new_terms_found": [],       # READ 填本章新术语
-            "adaptation_notes": [],      # WRITE 填文化改编说明
-            "fix_lessons": [],           # FIX 填"我改了什么"（会存进经验本）
-            "chapter_summary": "",       # 填本章剧情摘要
-            # Context
-            # 【上下文】上一章摘要，帮本章衔接剧情
-            "previous_chapter_summary": prev_summary,
-            # Quality / feedback
-            # 0.0 = "not measured". readback_node is the only writer of a real
-            # score. The old 5.0 initial value meant fast-mode chapters (which
-            # skip READBACK) reported a perfect score nobody ever gave them.
-            #
-            # 【中文·这个初始值曾经是错的，值得留意】
-            # 0.0 的含义是"没测过"，只有冷读者（READBACK）能写入真实分数。
-            # 早先这里写的是 5.0（满分），于是走快速模式的章节
-            # 明明**跳过了质检、没人给过分**，报表上却显示满分。
-            # 这类"假满分"比没有分数更危险，因为它会让人误以为质量有保障。
-            # 现在改成 0.0，配合 readback_skipped 标记，能明确区分
-            # "确实测了但不合格"和"根本没测"。
-            "quality_score": 0.0,
-            "quality_issues": [],
-            "retranslation_count": 0,        # 已经重修几轮（上限见 _MAX_FIX_ATTEMPTS）
-            "readback_skipped": skip_readback,  # 标记本章是否跳过了冷读
-            "glossary_snapshot_json": "",    # 术语快照，_post_process 里填
-            # v0.15 reader-centric fields
-            # 【中文·四个角色专属的字段】
-            "read_analysis": {},       # READ 的分析结果（文化差异、画面缺口、术语决策）
-            "readback_feedback": {},   # READBACK 的评审意见（判决 + 具体问题）
-            "context_signals": "",     # 上下文信号（方言、系统面板、单位、拟声词等检测结果）
-            "image_gaps": [],          # 画面缺口清单（中文读者秒懂、外国读者无感的那些）
-            # read_relevant() takes no chapter context: it returns the newest
-            # entries per drawer (recency, not relevance). The chapter's own
-            # terms reach the prompt via exact_matches_text (built above from
-            # `content`) and its text via chapter_content — passing either one
-            # here would imply a matching step that does not exist.
-            #
-            # 【中文·翻译经验本（style memo）】
-            # 这是本项目长期积累的知识库，分六个抽屉存（人物口吻、节奏规律、
-            # 文化桥接套路、行文韵律、术语决策等）。翻到后面的章节时，
-            # 前面学到的东西都在这里，所以全书风格统一。
-            #
-            # read_relevant() 名字有点误导：它其实不看本章内容，
-            # 只是从每个抽屉里取**最新**的若干条（按新旧，不按相关度）。
-            # 本章专属的术语已经通过上面的 exact_matches_text 传进去了，
-            # 正文也在 chapter_content 里，不需要再传一次。
-            #
-            # or 后面那串是"经验本还是空的"（翻第一章）时的兜底提示：
-            # 明确告诉 AI"你还没有任何积累，请紧贴原文，
-            # 不要自己编画面和内心独白；随着经验本变厚，你的创作权限才会变大"。
-            # 这条兜底很重要——否则第一章就可能自由发挥，跑偏之后
-            # 后面所有章节都跟着这个错误基调走。
-            "style_memo": self.style_memo.read_relevant() or (
-                "(No translation memory yet. This is the first chapter. "
-                "Stay close to the source text — do not invent sensory details "
-                "or interior monologue that the original doesn't contain. "
-                "Your creative authority grows as the memo accumulates. "
-                "For now: translate faithfully.)"
-            ),
-            "skip_readback": skip_readback,        # 快速模式开关（岔路口 1 看它）
-            "use_flash_writer": use_flash_writer,  # WRITE 是否用便宜模型
-            "api_key": self.api_key or "",  # BYOK: user-provided key overrides env
-            # 【中文】调用方自带的密钥优先；留空则用 .env 里的默认密钥
-            # Cold reader briefing
-            # 【中文·给冷读者的"读者须知"】由上面那个方法生成
-            "cold_read_context": self._build_cold_read_context(
-                chapter_number=number,
-                target_lang=lang,
-            ),
-            "dialect_context": "",   # 方言提示，由方言检测模块后续填充
-        }
 
     def _translate_once(
         self, title, content, number, prev_summary, lang, genre,
@@ -1181,39 +1021,10 @@ class TranslationAgent:
 
     @staticmethod
     def _format_semantic(terms: list[dict], target_lang: str = "en-US") -> str:
-        """Format semantic results as a markdown table.
+        """Format semantic results as a markdown table (delegates to state_builder).
 
-        The target column is labelled from ``target_lang``; it used to be
-        hard-coded "English" (see exact_store.to_formatted_text for the same
-        defect on the exact-glossary path).
-
-        【中文·把语义术语拼成一张 Markdown 表格，塞进提示词给 AI 看】
-
-        为什么用表格：模型对表格结构的理解比一长串文字稳定得多，
-        "哪个是中文、哪个是译名、属于哪类"一目了然，不容易对错行。
-
-        【中文·这里修过一个"标签写死"的 bug】
-        表头第二列早先硬编码成 "English"。在只支持英语时没问题，
-        但项目后来支持了西班牙语/德语/法语，于是翻西班牙语的书时，
-        表格却告诉模型"这一列是英语"——模型可能因此输出英语而不是西班牙语。
-        现在改成按 target_lang 动态取显示名（见 config.target_language_label）。
-
-        【中文·@staticmethod 是什么】表示这个方法不需要访问对象自身的数据
-        （没有 self 参数），纯粹是"给一批数据、返回一个字符串"的工具函数。
-        放在类里只是为了归类方便。
+        【中文·把语义术语拼成 Markdown 表格】逻辑已抽到 state_builder.format_semantic，
+        这里保留为薄委托，供既有调用方（如测试）继续使用。
         """
-        if not terms:
-            # 一条都没有时返回一句明确的说明，而不是空字符串。
-            # 空字符串会让提示词里出现一个光秃秃的表头，模型容易困惑。
-            return "(No semantic matches.)"
-        target = target_language_label(target_lang)
-        lines = [f"| Chinese | {target} | Category |",
-                 "|----------|---------|----------|"]   # 第二行是 Markdown 表格的分隔线
-        for t in terms:
-            lines.append(
-                f"| {t['term_cn']} | {t['term_en']} | "
-                f"{t.get('category', 'culture')} |"
-            )
-        # 【中文】把各行用换行符连成一整段文本
-        return "\n".join(lines)
+        return format_semantic(terms, target_lang)
 
