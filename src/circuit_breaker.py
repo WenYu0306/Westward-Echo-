@@ -34,8 +34,59 @@ Celery 翻译任务在调用大模型前，先通过熔断器的 ``call()`` 方�
 
 import threading
 import time
+import uuid
 from collections import deque
 from typing import Callable
+
+try:
+    import redis as _redis
+except ImportError:  # pragma: no cover — redis 是 requirements.txt 已声明的依赖
+    _redis = None
+
+# 【中文】Redis 键名。跨进程共享熔断器：翻译在 worker 进程里记录失败/成功，
+# 看板在 API 进程里读状态，两者是不同进程，必须靠 Redis 共享。否则：
+# ① 每个 worker 进程各记各的失败数，跳闸阈值被"稀释"（concurrency=2 时要
+#    2 倍的失败才跳闸）；② 看板进程读不到 worker 的熔断器状态，永远显示空。
+# 这里用普通 Redis 命令（不用 Lua）：熔断器的竞态是良性的（两个进程同时
+# 跳闸只是幂等地把 state 置为 open；两个进程同时放行一个 HALF_OPEN 探测
+# 只是多发一个探测请求，和今天 concurrency=2 的行为一致）。
+_REGISTRY_KEY = "westward_echo:breakers:registry"
+
+
+def _state_key(language: str) -> str:
+    return f"westward_echo:breaker:{language.lower()}:state"
+
+
+def _failures_key(language: str) -> str:
+    return f"westward_echo:breaker:{language.lower()}:failures"
+
+
+_redis_client = None
+_redis_checked = False
+
+
+def _get_redis():
+    """Return a cached Redis client, or None if unconfigured/unreachable.
+
+    【中文】懒加载 Redis 连接，结果缓存。连不上就返回 None，调用方回退到
+    进程内状态。ping 只发生一次，之后复用缓存。
+    """
+    global _redis_client, _redis_checked
+    if _redis is None:
+        return None
+    if _redis_checked:
+        return _redis_client
+    _redis_checked = True
+    try:
+        from .config import REDIS_URL
+        client = _redis.Redis.from_url(
+            REDIS_URL, socket_connect_timeout=0.5, socket_timeout=0.5
+        )
+        client.ping()
+        _redis_client = client
+    except Exception:
+        _redis_client = None
+    return _redis_client
 
 
 class CircuitBreakerOpenError(Exception):
@@ -151,6 +202,152 @@ class CircuitBreaker:
         self._total_calls: int = 0
         self._open_transitions: int = 0
 
+        # 【中文】Redis 键名：跨进程共享熔断器状态（hash）与失败窗口（zset）。
+        self._redis_state_key = _state_key(name)
+        self._redis_failures_key = _failures_key(name)
+
+    # ── Redis helpers ───────────────────────────────────────────
+
+    def _hget(self, r, field: str):
+        """Decode one hash field from the Redis state hash (bytes → str/None).
+
+        【中文】读状态 hash 的一个字段并解码成字符串，缺省返回 None。
+        """
+        v = r.hget(self._redis_state_key, field)
+        if v is None:
+            return None
+        return v.decode() if isinstance(v, bytes) else v
+
+    def _int_field(self, r, field: str) -> int:
+        """Read an int counter field from the Redis state hash (default 0).
+
+        【中文】读一个整数计数字段，缺省/损坏都按 0 处理。
+        """
+        v = self._hget(r, field)
+        try:
+            return int(v) if v is not None else 0
+        except (TypeError, ValueError):
+            return 0
+
+    def _read_state(self, r):
+        """Read (state, opened_at) from Redis. Defaults to (CLOSED, 0.0)."""
+        state = self._hget(r, "state") or self.CLOSED
+        opened = self._hget(r, "opened_at")
+        try:
+            opened_at = float(opened) if opened is not None else 0.0
+        except (TypeError, ValueError):
+            opened_at = 0.0
+        return state, opened_at
+
+    def _prune_redis(self, r, now: float) -> None:
+        """Drop failures older than the rolling window from the zset."""
+        r.zremrangebyscore(
+            self._redis_failures_key, 0, now - self._window_seconds
+        )
+
+    def _admit_redis(self, r) -> None:
+        """Admit-check in Redis; fast-fail if OPEN/HALF_OPEN-full, else admit.
+
+        Raises CircuitBreakerOpenError on fast-fail. Redis errors propagate so
+        the caller can fall back to the in-process state machine *before* ``fn``
+        runs — the one place a fallback is safe, because it has no side effect
+        on the wrapped call.
+        """
+        now = time.time()
+        state, opened_at = self._read_state(r)
+
+        if state == self.OPEN:
+            if now - opened_at >= self._recovery_timeout:
+                # 【中文】恢复超时已过，从 OPEN 切到 HALF_OPEN 开始试探。
+                r.hset(self._redis_state_key, mapping={
+                    "state": self.HALF_OPEN, "opened_at": now, "half_open_attempts": 0,
+                })
+                state = self.HALF_OPEN
+            else:
+                r.hincrby(self._redis_state_key, "total_calls", 1)
+                r.hincrby(self._redis_state_key, "total_failures", 1)
+                remaining = max(0.0, self._recovery_timeout - (now - opened_at))
+                raise CircuitBreakerOpenError(
+                    f"Circuit breaker '{self.name}' is OPEN. "
+                    f"{remaining:.0f}s until recovery attempt."
+                )
+
+        if state == self.HALF_OPEN:
+            # Best-effort probe throttling: races may admit one extra probe,
+            # which matches today's per-process behaviour under concurrency=2.
+            if self._int_field(r, "half_open_attempts") >= self._half_open_max:
+                r.hincrby(self._redis_state_key, "total_calls", 1)
+                r.hincrby(self._redis_state_key, "total_failures", 1)
+                raise CircuitBreakerOpenError(
+                    f"Circuit breaker '{self.name}' is HALF_OPEN and its "
+                    f"{self._half_open_max} probe slot(s) are taken; "
+                    f"fast-failing instead of piling onto a suspect API."
+                )
+            r.hincrby(self._redis_state_key, "half_open_attempts", 1)
+
+        r.hincrby(self._redis_state_key, "total_calls", 1)
+
+    def _record_failure_redis(self, r) -> None:
+        """Record a failure in Redis; may trip the breaker.
+
+        Plain commands are used on purpose: a race where two processes both
+        trip is benign (setting state=open twice is idempotent).
+        """
+        now = time.time()
+        r.zadd(self._redis_failures_key, {uuid.uuid4().hex: now})
+        self._prune_redis(r, now)
+        count = r.zcard(self._redis_failures_key)
+        r.hincrby(self._redis_state_key, "total_failures", 1)
+
+        state = self._hget(r, "state") or self.CLOSED
+        if state == self.HALF_OPEN:
+            r.hset(self._redis_state_key, mapping={"state": self.OPEN, "opened_at": now})
+        elif state == self.CLOSED and count >= self._failure_threshold:
+            r.hset(self._redis_state_key, mapping={"state": self.OPEN, "opened_at": now})
+            r.hincrby(self._redis_state_key, "open_transitions", 1)
+            try:
+                from .error_tracker import record_event
+                record_event(
+                    None, None, "circuit_breaker",
+                    f"{self.name} breaker OPEN after {count} failures "
+                    f"in the last {self._window_seconds:.0f}s",
+                    self.name,
+                )
+            except Exception:
+                pass  # Event recording must never block circuit breaker logic
+
+    def _record_success_redis(self, r) -> None:
+        """Record a success in Redis — reset the circuit to CLOSED."""
+        state = self._hget(r, "state") or self.CLOSED
+        if state != self.CLOSED:
+            # A recovery probe succeeded — clear the window.
+            r.delete(self._redis_failures_key)
+        r.hset(self._redis_state_key, mapping={
+            "state": self.CLOSED, "half_open_attempts": 0,
+        })
+        r.hincrby(self._redis_state_key, "total_successes", 1)
+
+    def _snapshot_redis(self, r) -> dict:
+        """Return a dashboard snapshot aggregated from Redis."""
+        now = time.time()
+        state, opened_at = self._read_state(r)
+        if state == self.OPEN and (now - opened_at) >= self._recovery_timeout:
+            state = self.HALF_OPEN
+        self._prune_redis(r, now)
+        return {
+            "name": self.name,
+            "state": state,
+            "failure_count": r.zcard(self._redis_failures_key),
+            "total_successes": self._int_field(r, "total_successes"),
+            "total_failures": self._int_field(r, "total_failures"),
+            "total_calls": self._int_field(r, "total_calls"),
+            "open_transitions": self._int_field(r, "open_transitions"),
+            "failure_threshold": self._failure_threshold,
+            "recovery_timeout": self._recovery_timeout,
+            "window_seconds": self._window_seconds,
+            "half_open_max": self._half_open_max,
+        }
+
     # ── public API ──────────────────────────────────────────────
 
     def call(self, fn: Callable, *args, **kwargs):
@@ -175,6 +372,32 @@ class CircuitBreaker:
 
         ⚠️ fn 的执行在锁外面进行，避免持锁期间做耗时的网络 I/O。
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                self._admit_redis(r)
+            except CircuitBreakerOpenError:
+                raise
+            except Exception:
+                r = None  # Redis 出错 → 回退进程内状态机（fn 尚未执行，回退安全）
+
+        if r is not None:
+            # 【中文】Redis 已放行：执行 fn，再记录结果。记录失败只降级，
+            # 不重跑 fn——fn 可能是有副作用、要花钱的大模型调用，绝不能跑两次。
+            try:
+                result = fn(*args, **kwargs)
+            except Exception:
+                try:
+                    self._record_failure_redis(r)
+                except Exception:
+                    pass
+                raise
+            try:
+                self._record_success_redis(r)
+            except Exception:
+                pass
+            return result
+
         with self._lock:
             self._total_calls += 1
             if self._state == self.OPEN:
@@ -245,6 +468,13 @@ class CircuitBreaker:
           不清除的话，旧的失败记录还在窗口里，下一次随便一个失败就又跳闸了，
           recovery_timeout 就白等了。
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                self._record_success_redis(r)
+                return
+            except Exception:
+                pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
             recovering = self._state != self.CLOSED
             self._state = self.CLOSED
@@ -261,6 +491,13 @@ class CircuitBreaker:
         · 如果在 CLOSED 状态下失败 → 检查窗口内失败数是否达到阈值，
           达到了就跳到 OPEN
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                self._record_failure_redis(r)
+                return
+            except Exception:
+                pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
             now = time.monotonic()
             self._failure_times.append(now)
@@ -314,6 +551,14 @@ class CircuitBreaker:
         _failure_times 队列，导致计数器和实际窗口内容不一致。
         要重置请用 _reset() 方法。
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                now = time.time()
+                self._prune_redis(r, now)
+                return r.zcard(self._redis_failures_key)
+            except Exception:
+                pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
             self._prune_window(time.monotonic())
             return len(self._failure_times)
@@ -342,6 +587,15 @@ class CircuitBreaker:
         注意：如果已经到了恢复时间，虽然内部状态还是 OPEN，
         但逻辑上应该视为"即将进入 HALF_OPEN"，所以返回 False。
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                state, opened_at = self._read_state(r)
+                if state == self.OPEN and (time.time() - opened_at) < self._recovery_timeout:
+                    return True
+                return False
+            except Exception:
+                pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
             if self._state == self.OPEN:
                 if self._should_attempt_recovery():
@@ -356,6 +610,15 @@ class CircuitBreaker:
         【中文】当前状态的字符串表示。
         如果内部是 OPEN 但恢复超时已过，对外显示为 half_open。
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                state, opened_at = self._read_state(r)
+                if state == self.OPEN and (time.time() - opened_at) >= self._recovery_timeout:
+                    return self.HALF_OPEN
+                return state
+            except Exception:
+                pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
             if self._state == self.OPEN and self._should_attempt_recovery():
                 return self.HALF_OPEN
@@ -376,6 +639,12 @@ class CircuitBreaker:
         ⚠️ 内部已持有锁，所以直接访问 _state 和 _failure_times，
         不能再调 self.state 或 self._failure_count（它们也会获取锁，会死锁）。
         """
+        r = _get_redis()
+        if r is not None:
+            try:
+                return self._snapshot_redis(r)
+            except Exception:
+                pass  # Redis 出错 → 回退进程内状态机
         with self._lock:
             # Access _state directly — self.state acquires _lock which
             # would deadlock since we already hold it. Same for the failure
@@ -499,6 +768,13 @@ def get_breaker(
                     window_seconds=window_seconds,
                     half_open_max=half_open_max,
                 )
+    # 【中文】把语言登记进 Redis 集合，让看板进程的 get_all_breakers() 能发现它。
+    r = _get_redis()
+    if r is not None:
+        try:
+            r.sadd(_REGISTRY_KEY, language)
+        except Exception:
+            pass  # Redis 出错 → 仅影响跨进程发现，不影响本进程使用
     return _breakers[key]
 
 
@@ -508,5 +784,22 @@ def get_all_breakers() -> dict:
     【中文】返回所有已注册的熔断器的状态快照。
     供看板一次性展示所有语言的熔断器状态。
     """
+    r = _get_redis()
+    if r is not None:
+        try:
+            result = {}
+            for member in r.smembers(_REGISTRY_KEY):
+                lang = member.decode() if isinstance(member, bytes) else member
+                cb = CircuitBreaker(
+                    name=lang,
+                    failure_threshold=_DEFAULT_THRESHOLD,
+                    recovery_timeout=_DEFAULT_RECOVERY,
+                    window_seconds=_WINDOW_SECONDS,
+                    half_open_max=_DEFAULT_HALF_OPEN_MAX,
+                )
+                result[lang] = cb.snapshot()
+            return result
+        except Exception:
+            pass  # Redis 出错 → 回退进程内注册表
     with _breakers_lock:
         return {lang: cb.snapshot() for lang, cb in _breakers.items()}

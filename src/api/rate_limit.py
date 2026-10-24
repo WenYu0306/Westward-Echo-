@@ -18,11 +18,12 @@
   · 如果一段时间没人来，牌会攒起来，但最多攒 N 张（不会无限堆积）。
 这样既保证了平均速率不超过 N/分钟，又允许短时间内的突发流量。
 
-【中文·两种使用模式】
+【中文·两种运行模式】
   ① HTTP 中间件模式（RateLimitMiddleware）：对外部请求生效，
      超额直接返回 429 拒绝，让调用方自己决定什么时候重试。
-  ② 内部自节流模式（wait_if_needed）：翻译流水线内部调用大模型时用，
-     没牌了就等一下再试，而不是直接报错。这样翻译不会因为偶尔超速而中断。
+  ② 跨进程共享：桶状态存在 Redis（redis_key 非空且 Redis 可达时），
+     多个 uvicorn worker 共享同一个桶，整体速率一致；Redis 不可用时
+     自动回退到进程内计数（单进程场景与测试环境）。
 
 【中文·配置方式】
 通过 .env 环境变量控制：
@@ -41,6 +42,39 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from ..config import RATE_LIMIT_ENABLED, RATE_LIMIT_RPM
 from .logging import logger
 
+try:
+    import redis as _redis
+except ImportError:  # pragma: no cover — redis 是 requirements.txt 已声明的依赖
+    _redis = None
+
+# 【中文】Redis 原子脚本：consume 的「按时间补牌 → 扣一张」。
+# 用 Lua 保证补牌与扣牌在 Redis 服务端原子执行。令牌桶跨进程共享的前提是
+# 多个 API 进程（uvicorn workers>1）共享同一个桶，否则每个进程各管各的，
+# 总速率会变成 N 倍。Lua 脚本里的时间用墙上时钟（time.time()），
+# 因为 time.monotonic() 的起点是进程私有的，跨进程无法比较。
+_CONSUME_LUA = """
+local tokens = redis.call('HGET', KEYS[1], 'tokens')
+local last = redis.call('HGET', KEYS[1], 'ts')
+local capacity = tonumber(ARGV[1])
+local rate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+
+if not tokens then tokens = capacity else tokens = tonumber(tokens) end
+if not last then last = now else last = tonumber(last) end
+
+local refill = (now - last) * rate
+tokens = math.min(capacity, tokens + refill)
+
+if tokens >= 1 then
+    redis.call('HSET', KEYS[1], 'tokens', tokens - 1)
+    redis.call('HSET', KEYS[1], 'ts', now)
+    return 1
+end
+redis.call('HSET', KEYS[1], 'tokens', tokens)
+redis.call('HSET', KEYS[1], 'ts', now)
+return 0
+"""
+
 
 class TokenBucket:
     """Thread-safe token bucket rate limiter.
@@ -51,12 +85,11 @@ class TokenBucket:
     它是线程安全的（thread-safe），意味着多个请求同时来抢牌也不会出错。
     对外提供三件事：
       · consume()           —— 尝试拿一张牌，返回 True/False。
-      · wait_if_needed()    —— 没牌就等一会儿再试（内部自节流用）。
       · remaining           —— 当前还剩多少张牌（信息展示用）。
       · seconds_until_next_token —— 预计还要等多久才有下一张牌。
     """
 
-    def __init__(self, rate: int, capacity: Optional[int] = None):
+    def __init__(self, rate: int, capacity: Optional[int] = None, redis_key: Optional[str] = None):
         """Initialize the token bucket.
 
         【中文】初始化令牌桶。
@@ -64,6 +97,8 @@ class TokenBucket:
           · rate     —— 每分钟补充多少张牌（即允许的请求速率）。
           · capacity —— 桶的最大容量（最多攒多少张牌）。
                        不传的话默认等于 rate，即最多攒一分钟的量。
+          · redis_key—— 跨进程共享计数器在 Redis 里的键名。非空时优先用 Redis
+                       计数（带进程内回退），为空则退化为纯进程内计数（测试用）。
         """
         self._rate = rate  # tokens per minute
         # 【中文】capacity 决定桶的上限。如果调用方没指定，就用 rate 作为上限，
@@ -77,6 +112,54 @@ class TokenBucket:
         # 【中文】线程锁：保证同一时刻只有一个线程在修改桶的状态，
         # 防止两个请求同时拿到同一张牌。
         self._lock = threading.Lock()
+        # 【中文】跨进程共享令牌桶：redis_key 非空时用 Redis 计数（带进程内回退），
+        # 否则退化为纯进程内计数。多个 uvicorn worker 时靠它保证整体速率一致。
+        self._redis_key = redis_key
+        self._redis = None
+        self._redis_checked = False
+
+    def _get_redis(self):
+        """Return a cached Redis client, or None if unconfigured/unreachable.
+
+        【中文】懒加载 Redis 连接，结果缓存。只在 redis_key 非空时尝试。
+        连不上（测试环境无 Redis、或 Redis 宕机）就返回 None，调用方回退到
+        进程内计数。ping 只发生一次，之后复用缓存，避免每次请求都探测。
+        """
+        if self._redis_key is None or _redis is None:
+            return None
+        if self._redis_checked:
+            return self._redis
+        self._redis_checked = True
+        try:
+            from ..config import REDIS_URL
+            client = _redis.Redis.from_url(
+                REDIS_URL, socket_connect_timeout=0.5, socket_timeout=0.5
+            )
+            client.ping()
+            self._redis = client
+        except Exception:
+            self._redis = None
+        return self._redis
+
+    def _read_redis_tokens(self) -> Optional[float]:
+        """Read the refilled token count from Redis, or None if unavailable.
+
+        【中文】从 Redis 读令牌数并按墙上时钟补牌，返回当前令牌数。
+        仅供 remaining / seconds_until_next_token 这类"信息展示"用，
+        不是原子操作（读到的瞬间可能有并发变化），所以只用于近似值。
+        Redis 不可用（无键 / 连不上 / 报错）返回 None，调用方回退进程内。
+        """
+        r = self._get_redis()
+        if r is None:
+            return None
+        try:
+            now = time.time()
+            raw = r.hgetall(self._redis_key)
+            tokens = float(raw.get(b"tokens", self._capacity))
+            last = float(raw.get(b"ts", now))
+            return min(self._capacity, tokens + (now - last) * (self._rate / 60.0))
+        except Exception:
+            return None
 
     def consume(self, now: Optional[float] = None) -> bool:
         """Attempt to consume 1 token. Returns True if allowed, False if denied.
@@ -93,6 +176,20 @@ class TokenBucket:
         ③ 如果桶里至少有 1 张牌，扣掉 1 张并返回 True。
         ④ 否则返回 False。
         """
+        r = self._get_redis()
+        if r is not None:
+            try:
+                # 【中文】优先走 Redis：跨进程共享同一个桶，保证总速率一致。
+                # Lua 脚本用墙上时钟补牌并扣一张，原子执行。
+                return bool(
+                    r.eval(
+                        _CONSUME_LUA, 1, self._redis_key,
+                        self._capacity, self._rate / 60.0, time.time(),
+                    )
+                )
+            except Exception:
+                pass  # Redis 出错 → 回退进程内计数
+
         if now is None:
             now = time.monotonic()
 
@@ -111,69 +208,6 @@ class TokenBucket:
                 return True
             return False
 
-    def wait_if_needed(self, max_wait_seconds: float = 5.0) -> float:
-        """If rate limited, block until a token is available (up to max_wait).
-
-        This is the "soft" mode used internally by the translation loop to
-        self-throttle.  The HTTP middleware still returns 429 for external
-        clients.
-
-        Returns actual wait time in seconds.  Returns 0 if a token was
-        immediately available.
-
-        【中文】"软限流"模式：没牌就等，等到有牌或超时为止。
-        这是翻译流水线内部用的——调大模型时发现超速了，就暂停一下再试，
-        而不是直接报错中断翻译。
-
-        参数：
-          · max_wait_seconds —— 最多等多久（秒），默认 5 秒。
-                                超过这个时间还没牌就放弃等待。
-        返回：实际等待了多少秒。如果立刻就有牌，返回 0。
-
-        【中文·为什么不用 seconds_until_next_token 来计算等待时间】
-        因为那个方法内部也要获取锁（self._lock），而这里已经在循环里了，
-        如果在持锁状态下再调它会死锁（reentrant lock issue）。
-        所以这里直接在锁内计算等待时间，避免重复加锁。
-        """
-        start = time.monotonic()
-        deadline = start + max_wait_seconds
-
-        while True:
-            now = time.monotonic()
-            # 【中文】每次循环先试着拿一张牌，拿到了就直接返回。
-            if self.consume(now):
-                return now - start
-
-            # Calculate how long until next token is available
-            # 【中文】看看离超时还有多久，超时就退出循环。
-            remaining = deadline - now
-            if remaining <= 0:
-                break
-
-            # Calculate required wait directly (avoid calling seconds_until_next_token
-            # which acquires the lock, to prevent reentrant lock issues)
-            # 【中文】在锁内直接计算还需要等多久才有下一张牌。
-            # deficit = 还差多少张牌才够 1 张。
-            # wait = 按补牌速率算出补齐这些牌需要多少秒。
-            with self._lock:
-                deficit = 1.0 - self._tokens
-                wait = deficit / (self._rate / 60.0) if deficit > 0 else 0.0
-            # Sleep for a fraction of the wait (or remaining time), whichever is smaller
-            # 【中文】取三者最小值作为本次休眠时长：
-            #   · wait      —— 理论上有牌需要等的时间
-            #   · remaining —— 离超时还剩的时间
-            #   · 0.5       —— 单次最多睡半秒，避免睡太久错过补牌时机
-            sleep_time = min(wait, remaining, 0.5)
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
-        # Timeout — one last try
-        # 【中文】超时后再做最后一次尝试，万一刚好有牌了呢。
-        if self.consume():
-            return time.monotonic() - start
-        # 【中文】实在没牌了，返回最大等待时间表示"我等满了但还是没拿到"。
-        return max_wait_seconds
-
     @property
     def remaining(self) -> int:
         """Approximate remaining tokens (for informational headers).
@@ -182,6 +216,9 @@ class TokenBucket:
         用在响应头 X-RateLimit-Remaining 里，告诉调用方"你还能调几次"。
         注意这是近似值，因为在你读到这个数字的瞬间，可能已经有新牌补进来了。
         """
+        tokens = self._read_redis_tokens()
+        if tokens is not None:
+            return max(0, int(tokens))
         with self._lock:
             return max(0, int(self._tokens))
 
@@ -194,6 +231,12 @@ class TokenBucket:
         用在响应头 X-RateLimit-Reset 和 429 响应的 retry_after 里，
         告诉调用方"请过 N 秒再来"。
         """
+        tokens = self._read_redis_tokens()
+        if tokens is not None:
+            if tokens >= 1.0:
+                return 0.0
+            deficit = 1.0 - tokens
+            return deficit / (self._rate / 60.0)
         with self._lock:
             if self._tokens >= 1.0:
                 return 0.0
@@ -202,9 +245,11 @@ class TokenBucket:
             return deficit / (self._rate / 60.0)
 
 
-# Singleton bucket shared across all workers (thread-safe for single-process).
+# Singleton bucket shared across all workers (thread-safe for single-process,
+# Redis-backed for cross-process when REDIS_URL is reachable).
 # 【中文】全局唯一的令牌桶实例。所有请求共用同一个桶，
 # 这样才能准确控制整体速率。如果用多个桶，每个各管各的，限流就失效了。
+# 通过 redis_key 跨进程共享：多个 uvicorn worker 时保证整体速率一致。
 _bucket: Optional[TokenBucket] = None
 # 【中文】保护 _bucket 初始化的锁。双重检查锁定（double-checked locking）：
 # 外层检查避免每次都加锁的性能开销，内层检查防止两个线程同时创建桶。
@@ -224,7 +269,11 @@ def _get_bucket() -> TokenBucket:
             if _bucket is None:
                 # 【中文】rate 和 capacity 都从配置读取，
                 # 改 .env 里的 RATE_LIMIT_RPM 就能调整限流阈值。
-                _bucket = TokenBucket(rate=RATE_LIMIT_RPM, capacity=RATE_LIMIT_RPM)
+                _bucket = TokenBucket(
+                    rate=RATE_LIMIT_RPM,
+                    capacity=RATE_LIMIT_RPM,
+                    redis_key="westward_echo:ratelimit:default",
+                )
     return _bucket
 
 
