@@ -6,6 +6,12 @@
 
 ---
 
+## Documentation
+
+文档总入口见 [`docs/README.md`](docs/README.md)（列出全部文档及其状态）；当前状态与未完成项见 [`docs/STATUS.md`](docs/STATUS.md)。
+
+---
+
 ## What This Is
 
 Westward Echo does not translate word-for-word. It **compiles** — four reader agents (a cultural analyst, a writer, a cold reader, and an editor) each approach a chapter from a different reader's perspective, identify the cultural gaps an English reader cannot fill on their own, and rebuild the sensory and emotional imagery so the text lands the way it lands for a native Chinese reader.

@@ -189,7 +189,7 @@ class TestReviewTermsUsesQwen:
 # Before this, MODEL_MAP was dead config: every node imported a provider
 # constant directly, so re-tiering a node meant editing code, and editing
 # MODEL_MAP changed nothing. These tests pin that the table now drives the
-# nodes — the cost lever in COST_MODEL_20260922.md §0.5 is connected.
+# nodes — the cost lever in docs/COST_MODEL.md §0.5 is connected.
 
 
 class TestRoutingTableDrivesNodes:

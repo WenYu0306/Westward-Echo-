@@ -66,16 +66,12 @@ novels/test_*.txt
 DESIGN_BRIEF.md
 Echo_Series_Maimai.md
 QWEN_PROMPT.md
-docs/*.html
-!docs/anchor-v4.html
-!docs/anchor-v5.html
 novels/实验文本.txt
 scripts/com.westwardecho.tunnel.plist
 *.png
 
 # Pilot data (finished scripts from 铸文 + compilation output — not code)
 pilots/
-V0.17_ENHANCEMENT_PLAN.md
 
 # Deliverable archive: timestamped copies of shipped output.
 # novels/output/ is already ignored (see `output/` above), which left the
@@ -84,6 +80,9 @@ V0.17_ENHANCEMENT_PLAN.md
 # ~13.6 MB — only the checksum manifest is tracked.
 archive/deliverables/**/*.md
 !archive/deliverables/**/MANIFEST.sha256
+
+# Dead UI design mockups (anchor-v3 + early dashboard/editor/index/review/usage HTML) — not source.
+archive/designs-html/
 
 # A/B experiment archive: real API runs, fully tracked (no ignore rule).
 # Unlike deliverables above, these are NOT regenerable: the pipeline has no

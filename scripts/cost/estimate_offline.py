@@ -179,7 +179,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", default=None, help="只估这一本（key 见脚本 BOOKS）")
     # 【中文】FIX 触发率默认 0.5，即 50% 的章节需要 FIX。
-    # 这个值来自实测观察（COST_MODEL_20260922.md §0.5）。
+    # 这个值来自实测观察（docs/COST_MODEL.md §0.5）。
     ap.add_argument("--fix-rate", type=float, default=0.5, help="FIX 触发率，默认 0.5（实测）")
     args = ap.parse_args(argv)
     from src.text_io import detect_and_read

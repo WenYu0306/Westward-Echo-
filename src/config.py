@@ -277,7 +277,7 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 #
 # 为什么强调：本表此前是**死配置**——它声明了分工，但五个生产节点全都直接
 # import provider 常量建模，只有 dashboard 和 adversarial_test.py 读它。所以
-# "改 MODEL_MAP 给 READBACK 降档"改了也一分钱省不下来（COST_MODEL_20260922.md
+# "改 MODEL_MAP 给 READBACK 降档"改了也一分钱省不下来（docs/COST_MODEL.md
 # §0.5 指出的 10–17 倍杠杆因此一直是断开的）。与 round7 修的"语种清单复制 12
 # 份"是同一类缺陷：配置声明与真实行为各走各的。
 #
