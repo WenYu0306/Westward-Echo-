@@ -96,3 +96,43 @@ class TestBootstrapCi:
     def test_interval_brackets_the_mean(self):
         low, high = qe.bootstrap_ci([1.0, 2.0, 3.0, 4.0], n_resamples=500)
         assert low <= 2.5 <= high
+
+
+class TestRunMetricx:
+    def test_paths_are_made_absolute_before_the_subprocess(self, tmp_path, monkeypatch):
+        """The subprocess runs with cwd=METRICX_REPO; a relative input path
+        resolves against the checkout and fails with FileNotFoundError."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        python_bin = tmp_path / "python"
+        python_bin.write_text("#!/bin/sh\n")
+        input_path = tmp_path / "input.jsonl"
+        input_path.write_text("{}\n")
+        output_path = tmp_path / "output.jsonl"
+        monkeypatch.setenv("METRICX_REPO", str(repo))
+        monkeypatch.setenv("METRICX_PYTHON", str(python_bin))
+
+        captured = {}
+
+        class _Result:
+            returncode = 0
+            stderr = ""
+
+        def fake_run(command, **kwargs):
+            captured["command"] = command
+            captured["cwd"] = kwargs.get("cwd")
+            return _Result()
+
+        monkeypatch.setattr(qe.subprocess, "run", fake_run)
+
+        monkeypatch.chdir(tmp_path)
+        qe.run_metricx(qe.Path("input.jsonl"), qe.Path("output.jsonl"))
+
+        command = captured["command"]
+        sent_input = command[command.index("--input_file") + 1]
+        sent_output = command[command.index("--output_file") + 1]
+        assert qe.Path(sent_input).is_absolute()
+        assert qe.Path(sent_output).is_absolute()
+        assert qe.Path(sent_input).resolve() == input_path.resolve()
+        assert qe.Path(sent_output).resolve() == output_path.resolve()
+        assert captured["cwd"] == str(repo)

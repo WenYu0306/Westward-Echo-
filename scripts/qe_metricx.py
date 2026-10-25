@@ -192,8 +192,10 @@ def run_metricx(input_path: Path, output_path: Path) -> None:
         "--model_name_or_path", os.getenv("METRICX_MODEL", DEFAULT_MODEL),
         "--max_input_length", "1536",
         "--batch_size", "1",
-        "--input_file", str(input_path),
-        "--output_file", str(output_path),
+        # Absolute: the subprocess runs with cwd=METRICX_REPO, so a relative
+        # path would resolve against the checkout, not the project.
+        "--input_file", str(input_path.resolve()),
+        "--output_file", str(output_path.resolve()),
         "--qe",
     ]
     proc = subprocess.run(command, cwd=str(repo), env=env,
