@@ -296,7 +296,7 @@ def write_node(state: TranslatorState) -> dict:
         TranslationStats.record_api_call(target_lang)
         # 通过熔断器调用大模型。breaker.call() 会在熔断器打开时直接抛异常，
         # 不真正发请求。
-        response = breaker.call(llm.invoke, messages)
+        response, elapsed = token_ledger.timed_call(breaker.call, llm.invoke, messages)
         TranslationStats.record_api_success(target_lang)
     except CircuitBreakerOpenError:
         # 熔断器已跳闸，provider 处于冷却期，直接向上抛让流水线处理
@@ -344,8 +344,8 @@ def write_node(state: TranslatorState) -> dict:
         if not fallback_key:
             raise
         # 用兜底 provider 重新调用，同样的提示词、同样的消息
-        response = breaker.call(
-            _build_fallback_writer(**fallback_kwargs).invoke, messages
+        response, elapsed = token_ledger.timed_call(
+            breaker.call, _build_fallback_writer(**fallback_kwargs).invoke, messages
         )
         # 更新实际使用的模型名，确保 token 费用记到正确的 provider 头上
         used_model = fallback_model
@@ -358,6 +358,7 @@ def write_node(state: TranslatorState) -> dict:
         model=used_model,
         book_id=state.get("book_id", ""),
         chapter=chapter_number,
+        elapsed_s=elapsed,
     )
 
     # 【中文·解析 AI 返回的 JSON】AI 被要求返回 JSON 格式，但经常不完美，
@@ -487,7 +488,9 @@ def write_node(state: TranslatorState) -> dict:
                                   "The translated_text field MUST contain the full chapter."),
                 ]
                 TranslationStats.record_api_call(target_lang)
-                retry_response = breaker.call(llm.invoke, retry_messages)
+                retry_response, retry_elapsed = token_ledger.timed_call(
+                    breaker.call, llm.invoke, retry_messages
+                )
                 TranslationStats.record_api_success(target_lang)
                 _capture_response_tokens(
                     retry_response,
@@ -500,6 +503,7 @@ def write_node(state: TranslatorState) -> dict:
                     model=provider_kwargs["model"],
                     book_id=state.get("book_id", ""),
                     chapter=chapter_number,
+                    elapsed_s=retry_elapsed,
                 )
                 # 用同样的 5 层解析器处理重试结果
                 retry_result = _parse_write_response(
@@ -743,7 +747,8 @@ def _format_image_gaps(gaps: list[dict]) -> str:
 
 
 def _capture_response_tokens(response, model: str,
-                             *, book_id: str = "", chapter: int = 0) -> None:
+                             *, book_id: str = "", chapter: int = 0,
+                             elapsed_s: float | None = None) -> None:
     """Record WRITE token usage against the model that actually served it.
 
     The ledger always gets a row, even when the provider sent no usage payload
@@ -770,7 +775,7 @@ def _capture_response_tokens(response, model: str,
     usage_in, usage_out = token_ledger.extract_usage(response)
     # 精确账本：无论有没有用量数据都记一行
     token_ledger.record("write", model, usage_in, usage_out,
-                        book_id=book_id, chapter=chapter)
+                        book_id=book_id, chapter=chapter, elapsed_s=elapsed_s)
     # 没有用量数据就不更新汇总计数器（半条数据没法累加）
     if usage_in is None or usage_out is None:
         return

@@ -11,6 +11,11 @@
 """
 from __future__ import annotations
 
+import re
+
+# 【中文】CJK 统一表意文字。冷读简报里出现任何一个字都意味着"盲读"失效。
+_CJK = re.compile(r'[一-鿿]')
+
 
 def build_cold_read_context(
     chapter_context: list[str],
@@ -58,13 +63,19 @@ def build_cold_read_context(
         parts.append("## CHARACTERS\n" + '\n'.join(char_list) + "\n")
 
     # ── 3. Key terms from style memo ──
-    # 【中文·第三块：已确定的术语】从经验本里捞形如「[原词] → 译法」的行
+    # 【中文·第三块：已确定的术语】经验本里的行形如 `[chN] 中文 → 英文 // 备注`。
+    # 只把箭头右侧的英文译法写给冷读者——整行照搬会把中文源词也带进去，
+    # 冷读者就不再是"盲读"（实测 58/58 章都携带中文源名）。
     terms_text = style_memo.read_all()
     term_lines = []
     for line in terms_text.split('\n'):
         stripped = line.strip()
         if stripped.startswith('[') and '→' in stripped:
-            term_lines.append(f"- {stripped[:120]}")
+            rendering = stripped.split('→', 1)[1].strip()
+            rendering = rendering.split('//', 1)[0].strip()
+            if not rendering or _CJK.search(rendering):
+                continue
+            term_lines.append(f"- **{rendering[:120]}**")
             if len(term_lines) >= 8:
                 break   # 【中文】同样限量，最多 8 条
     if term_lines:

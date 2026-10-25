@@ -175,7 +175,7 @@ def readback_node(state: TranslatorState) -> dict:
         # 记一笔"发起了一次 API 调用"
         TranslationStats.record_api_call(target_lang)
         # 通过熔断器调用大模型。如果熔断器已跳闸，这里会直接抛异常
-        response = breaker.call(llm.invoke, messages)
+        response, elapsed = token_ledger.timed_call(breaker.call, llm.invoke, messages)
         # 调用成功，记一笔
         TranslationStats.record_api_success(target_lang)
     except CircuitBreakerOpenError:
@@ -208,7 +208,9 @@ def readback_node(state: TranslatorState) -> dict:
             pass
         if not fallback_kwargs["api_key"]:
             raise
-        response = breaker.call(_build_readback_client(**fallback_kwargs).invoke, messages)
+        response, elapsed = token_ledger.timed_call(
+            breaker.call, _build_readback_client(**fallback_kwargs).invoke, messages
+        )
         TranslationStats.record_api_success(target_lang)
 
     # 记录本次调用的 token 消耗（主 provider 或兜底 provider 的最终结果）
@@ -217,6 +219,7 @@ def readback_node(state: TranslatorState) -> dict:
         model=used_model,
         book_id=state.get("book_id", ""),
         chapter=state.get("chapter_number", 0),
+        elapsed_s=elapsed,
     )
 
     # 【中文·解析冷读者的回复】大模型返回的是 JSON 格式的评审意见，
@@ -291,6 +294,7 @@ def _build_readback_client(**provider_kwargs) -> ChatOpenAI:
 
 def _capture_readback_tokens(
     response, model: str, *, book_id: str = "", chapter: int = 0,
+    elapsed_s: float | None = None,
 ) -> None:
     """Record READBACK token usage — per node/chapter in the ledger.
 
@@ -320,7 +324,7 @@ def _capture_readback_tokens(
     usage_in, usage_out = token_ledger.extract_usage(response)
     token_ledger.record(
         "readback", model, usage_in, usage_out,
-        book_id=book_id, chapter=chapter,
+        book_id=book_id, chapter=chapter, elapsed_s=elapsed_s,
     )
     # Half a usage payload is not a figure worth accumulating into the
     # legacy counters; the ledger row above already carries whatever

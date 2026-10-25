@@ -48,6 +48,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from ... import token_ledger
 from ...config import node_llm_kwargs
 from ..llm_fallback import is_content_filter_error
 from ..parse_utils import parse_llm_json
@@ -265,6 +266,7 @@ def review_terms_node(state: TranslatorState) -> dict:
 
     # ── 构建大模型客户端 ──
     llm = _build_review_client(**provider_kwargs)
+    used_model = provider_kwargs["model"]
 
     # ── 组装提示词并调用 ──
     user_prompt = _REVIEW_USER.format(terms_list=_format_terms(to_review))
@@ -274,7 +276,7 @@ def review_terms_node(state: TranslatorState) -> dict:
     ]
 
     try:
-        response = llm.invoke(messages)
+        response, elapsed = token_ledger.timed_call(llm.invoke, messages)
     except Exception as exc:  # fail-safe: leave decisions untouched
         # 【中文·内容过滤兜底】Qwen 审查拦截时换 GLM 重试一次；其他错误
         # 照旧失败跳过（fail-safe：不抛异常，不阻塞后续章节）。
@@ -291,10 +293,22 @@ def review_terms_node(state: TranslatorState) -> dict:
             fallback_kwargs["model"],
         )
         try:
-            response = _build_review_client(**fallback_kwargs).invoke(messages)
+            response, elapsed = token_ledger.timed_call(
+                _build_review_client(**fallback_kwargs).invoke, messages
+            )
+            used_model = fallback_kwargs["model"]
         except Exception as fexc:
             logger.warning("REVIEW_TERMS: fallback call failed, skipping review: %s", fexc)
             return {}
+
+    # 【中文】记入成本账本。这个节点以前完全不记账，而它跑在 qwen3.8-max
+    # 档上——每章一次的复核费用此前从未出现在任何成本数字里。
+    token_ledger.record_response(
+        response, "review_terms", used_model,
+        book_id=state.get("book_id", ""),
+        chapter=state.get("chapter_number", 0),
+        elapsed_s=elapsed,
+    )
 
     # ── 解析复核结果并应用修正 ──
     content = response.content

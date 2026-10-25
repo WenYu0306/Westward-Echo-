@@ -24,9 +24,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.chapter_splitter import split_chapters, ParagraphTag  # noqa: E402
-from src.text_io import detect_and_read  # noqa: E402
 from scripts.run_novel import NOVELS  # noqa: E402
+from scripts.scan_deliverable import scan_file  # noqa: E402
+from src import token_ledger  # noqa: E402
+from src.chapter_splitter import ParagraphTag, split_chapters  # noqa: E402
+from src.text_io import detect_and_read  # noqa: E402
 
 # NOTE: _is_term_consistent / _extract_candidate_term were imported here until the
 # term check was rewritten to use verbatim matching only. They are fuzzy matchers
@@ -153,6 +155,24 @@ def generate_report(novel_key: str) -> dict:
     quality_path = out_dir / "_quality.json"
     quality = json.loads(quality_path.read_text(encoding="utf-8")) if quality_path.exists() else []
 
+    # Full-corpus structural scan: 100% of chapters, zero API calls. The
+    # cold-read sample above covers 2.6%; this is the check that caught a
+    # chapter whose whole body was still sealed in a JSON envelope and 749
+    # untranslated chapter titles. It is a triage list, not a pass/fail gate —
+    # see scan_deliverable.py's calibration note (TRUNCATED_BODY ~18% FP).
+    structure = scan_file(md_path)
+
+    # Cost and wall-clock time. Prefer the run's own _cost.json (written by
+    # run_novel.py in the translating process); otherwise read the persisted
+    # ledger, because this process did not make the calls and would see zero.
+    cost_path = out_dir / "_cost.json"
+    if cost_path.exists():
+        cost = json.loads(cost_path.read_text(encoding="utf-8"))
+        cost_source = "_cost.json"
+    else:
+        cost = token_ledger.summary_from_file(cfg.get("book_id", novel_key))
+        cost_source = "token_ledger.jsonl"
+
     # ── Checks ──
     passed = []
     issues = []        # hard defects — these determine the grade
@@ -244,6 +264,21 @@ def generate_report(novel_key: str) -> dict:
     else:
         passed.append("冷读抽检: 未执行")
 
+    # 7. Full-corpus structure — surfaced as an advisory, never graded.
+    # TRUNCATED_BODY carries a calibrated ~18% false-positive rate (poem
+    # attributions, sexagenary dates), so grading on it would punish honest
+    # output; the JSON-residue subset is already graded in check 3 above.
+    if structure["findings_total"] or structure["numbering_defects"]:
+        advisories.append(
+            f"全量结构扫描: {structure['chapters_with_findings']}/"
+            f"{structure['chapters_total']} 章有发现（{structure['findings_total']} 条），"
+            f"章号异常 {structure['numbering_defects']} 处，"
+            f"引号风格偏离 {structure['quotes']['defects']} 章，"
+            f"术语表冲突 {len(structure['glossary']['conflicts'])} 组。"
+            f"逐条清单见 _report.json 的 structure.findings；"
+            f"TRUNCATED_BODY 经标定约 18% 误报，需人工判读。"
+        )
+
     # ── Grade ──
     # Grade on hard defects only. `advisories` are findings that need human
     # judgement (term absence may be legitimate compression; the cold-read
@@ -251,7 +286,6 @@ def generate_report(novel_key: str) -> dict:
     # defects would let a report grade C purely for being honest about its own
     # sampling limits.
     grade = "A+" if not issues else ("B" if len(issues) <= 3 else "C")
-
     report = {
         "book": cfg["name"],
         "genre": cfg["genre"],
@@ -283,10 +317,15 @@ def generate_report(novel_key: str) -> dict:
             "cold_read_pass": sum(1 for q in quality if q.get("verdict") == "PASS"),
             "cold_read_needs_fix": sum(1 for q in quality if q.get("verdict") == "NEEDS_FIX"),
             "cold_read_is_quality_evidence": False,
+            "structure_findings": structure["findings_total"],
+            "structure_chapters_affected": structure["chapters_with_findings"],
+            "cost_cny": cost.get("cost_cny"),
+            "wall_clock_minutes": cost.get("minutes"),
         },
+        "structure": structure,
+        "cost": {**cost, "source": cost_source},
         "term_details": {
-            "verbatim_all_count": len(t_all),
-            "verbatim_partial_count": len(t_partial),
+            "verbatim_all_count": len(t_all),            "verbatim_partial_count": len(t_partial),
             "verbatim_none_count": len(t_none),
             # Partial hits are the actionable queue for human spot-checking,
             # biggest gaps first: a term that should appear in 300 chapters and
@@ -422,6 +461,59 @@ def _write_report_md(report: dict, path: Path):
         "（按章节标题解析计数，不等于内容已逐章质检）",
         "",
     ]
+    structure = report.get("structure") or {}
+    if structure:
+        by_check = structure.get("findings_by_check") or {}
+        by_check_text = (
+            "（" + "、".join(f"{k} {v}" for k, v in by_check.items()) + "）"
+            if by_check else ""
+        )
+        lines += [
+            "---",
+            "",
+            "## 全量结构扫描（0 API · 100% 章节）",
+            "",
+            f"- 受影响章节：{structure['chapters_with_findings']}/{structure['chapters_total']}",
+            f"- 逐章发现：{structure['findings_total']} 条{by_check_text}",
+            f"- 章号异常：{structure['numbering_defects']} 处",
+            f"- 引号风格偏离：{structure['quotes']['defects']} 章"
+            f"（主导：{structure['quotes']['dominant']}）",
+            f"- 术语表冲突：{len(structure['glossary']['conflicts'])} 组"
+            f"（条目 {structure['glossary']['terms_total']}）",
+            "",
+            "> 这是分诊清单而非通过/失败门禁：TRUNCATED_BODY 经标定约 18% 误报"
+            "（诗词署名、干支纪年等合法结尾）。逐条证据见 `_report.json` 的 "
+            "`structure.findings`，需人工判读。",
+            "",
+        ]
+
+    cost = report.get("cost") or {}
+    lines += ["---", "", "## 编译成本与耗时", ""]
+    if cost.get("calls"):
+        lines += [
+            f"- 数据来源：{cost.get('source', '?')}",
+            f"- API 调用：{cost['calls']} 次（未计量 {cost.get('unmetered_calls', 0)}，"
+            f"未知价 {cost.get('unpriced_calls', 0)}）",
+            f"- Token：{cost.get('input_tokens', 0):,} 入 + "
+            f"{cost.get('output_tokens', 0):,} 出",
+            f"- 成本：¥{cost.get('cost_cny', 0):.4f}",
+        ]
+        if cost.get("minutes") is not None:
+            lines.append(f"- 墙钟总时长：{cost['minutes']} 分钟")
+        timing = cost.get("timing") or {}
+        if timing.get("chapter_p50_s") is not None:
+            lines.append(
+                f"- 每章耗时（节点累计）：p50 {timing['chapter_p50_s']}s / "
+                f"p95 {timing['chapter_p95_s']}s（{timing['chapters_timed']} 章有计时）"
+            )
+        lines.append("")
+    else:
+        lines += [
+            "> 本次交付没有成本记录：账本上线晚于该书的翻译，或运行路径未记账。",
+            "> 这不是「成本为 0」，而是「无数据」。",
+            "",
+        ]
+
     if report["issues"]:
         lines.append("## 待改进项")
         lines.append("")

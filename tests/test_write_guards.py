@@ -641,7 +641,10 @@ class TestCaptureHelpersSemantics:
         # re-tierable, and booking a flash chapter against a hard-coded max name
         # would put its cost on the wrong model.
         assert led.call_args.args[1] == "qwen3.8-flash"
-        assert led.call_args.kwargs == {"book_id": "difu", "chapter": 173}
+        kwargs = led.call_args.kwargs
+        assert kwargs["book_id"] == "difu"
+        assert kwargs["chapter"] == 173
+        assert kwargs["elapsed_s"] is None      # this call site did not time it
 
     def test_readback_helper_books_the_model_it_is_given(self):
         from src.agent.nodes import readback as rbmod
@@ -651,7 +654,10 @@ class TestCaptureHelpersSemantics:
              patch.object(rbmod.TranslationStats, "record_tokens"):
             rbmod._capture_readback_tokens(resp, "qwen3.8-flash", book_id="difu", chapter=9)
         assert led.call_args.args == ("readback", "qwen3.8-flash", 7, 8)
-        assert led.call_args.kwargs == {"book_id": "difu", "chapter": 9}
+        kwargs = led.call_args.kwargs
+        assert kwargs["book_id"] == "difu"
+        assert kwargs["chapter"] == 9
+        assert kwargs["elapsed_s"] is None
 
     def test_fix_helper_books_the_model_it_is_given(self):
         from src.agent.nodes import fix as fmod
@@ -661,7 +667,21 @@ class TestCaptureHelpersSemantics:
              patch.object(fmod.TranslationStats, "record_tokens"):
             fmod._capture_fix_tokens(resp, "glm-5.3-flash", book_id="difu", chapter=9)
         assert led.call_args.args == ("fix", "glm-5.3-flash", 7, 8)
-        assert led.call_args.kwargs == {"book_id": "difu", "chapter": 9}
+        kwargs = led.call_args.kwargs
+        assert kwargs["book_id"] == "difu"
+        assert kwargs["chapter"] == 9
+        assert kwargs["elapsed_s"] is None
+
+    def test_read_helper_forwards_elapsed_time(self):
+        """Timing must reach the ledger, not be measured and dropped."""
+        from src.agent.nodes import read as rmod
+        resp = _Resp(content="x", metadata={"token_usage": {
+            "prompt_tokens": 7, "completion_tokens": 8}})
+        with patch.object(rmod.token_ledger, "record") as led, \
+             patch.object(rmod.TranslationStats, "record_tokens"):
+            rmod._capture_read_tokens(resp, "qwen3.8-max", book_id="b", chapter=1,
+                                      elapsed_s=12.5)
+        assert led.call_args.kwargs["elapsed_s"] == 12.5
 
 
 class TestFidelityRulesFallback:

@@ -58,6 +58,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from pathlib import Path
 
 from .config import MODEL_PRICES_CNY_PER_M
@@ -84,6 +85,18 @@ _METADATA_KEYS = (
 # 【中文】"未计量"标记。当大模型响应里没有可读的 token 用量时，
 # 记为 UNMETERED 而不是悄悄丢掉——这样看汇总时能发现"有多少次没记到"。
 UNMETERED = "UNMETERED"
+
+
+def timed_call(fn, *args, **kwargs):
+    """Run one provider call and return ``(result, elapsed_seconds)``.
+
+    【中文】给一次大模型调用计时，返回（结果, 耗时秒数）。
+    调用方把耗时随 token 一起记进账本，这样"这一章跑了多久"才是可查的。
+    只对成功的调用计时；失败的调用本来就不会产生账本行。
+    """
+    start = time.perf_counter()
+    result = fn(*args, **kwargs)
+    return result, time.perf_counter() - start
 
 
 class _Ledger:
@@ -136,6 +149,7 @@ class _Ledger:
         *,
         book_id: str = "",
         chapter: int = 0,
+        elapsed_s: float | None = None,
     ) -> dict:
         """Record one API response's usage. Returns the row that was written.
 
@@ -147,6 +161,8 @@ class _Ledger:
           · input_tokens / output_tokens：输入/输出 token 数，None 表示未读到
           · book_id：书的标识符（可选）
           · chapter：章节号（可选）
+          · elapsed_s：这次调用的墙钟耗时秒数（可选）。
+            旧的账本行没有这个字段，读取时一律用 .get 兼容。
 
         返回：写入的那一行字典，包含 metered（是否计量到）、
         priced（是否能算钱）、cost_cny（人民币成本，算不出则为 None）。
@@ -166,6 +182,7 @@ class _Ledger:
             # 否则汇总表看起来完整，实际漏了一大块成本。
             "priced": metered and model in MODEL_PRICES_CNY_PER_M,
             "cost_cny": cost_cny(model, input_tokens, output_tokens) if metered else None,
+            "elapsed_s": round(float(elapsed_s), 3) if elapsed_s is not None else None,
         }
         with self._lock:
             self._rows.append(row)
@@ -180,6 +197,7 @@ class _Ledger:
         *,
         book_id: str = "",
         chapter: int = 0,
+        elapsed_s: float | None = None,
     ) -> dict:
         """Extract usage from a provider response and record it.
 
@@ -192,7 +210,8 @@ class _Ledger:
         """
         usage_in, usage_out = extract_usage(response)
         return self.record(
-            node, model, usage_in, usage_out, book_id=book_id, chapter=chapter
+            node, model, usage_in, usage_out,
+            book_id=book_id, chapter=chapter, elapsed_s=elapsed_s,
         )
 
     def _append(self, row: dict) -> None:
@@ -271,6 +290,23 @@ class _Ledger:
                     agg["unpriced_calls"] += 1
             if r.get("priced"):
                 total_cny += r["cost_cny"] or 0.0
+
+        # Wall-clock timing. Rows written before the field existed carry
+        # elapsed_s=None and are simply left out, so old ledgers still load.
+        # 【中文】墙钟耗时汇总。旧账本行没有 elapsed_s，直接跳过，不影响读取。
+        per_node_s: dict[str, float] = {}
+        chapter_s: dict[int, float] = {}
+        for r in rows:
+            elapsed = r.get("elapsed_s")
+            if elapsed is None:
+                continue
+            per_node_s[r["node"]] = per_node_s.get(r["node"], 0.0) + elapsed
+            ch = r.get("chapter") or 0
+            if ch:
+                chapter_s[ch] = chapter_s.get(ch, 0.0) + elapsed
+        chapter_values = list(chapter_s.values())
+        slowest = sorted(chapter_s.items(), key=lambda kv: kv[1], reverse=True)[:5]
+
         return {
             "book_id": book_id,
             "calls": len(rows),
@@ -283,7 +319,42 @@ class _Ledger:
             "cost_cny": round(total_cny, 6),
             "per_node": per_node,
             "per_model": per_model,
+            "timing": {
+                "timed_calls": sum(1 for r in rows if r.get("elapsed_s") is not None),
+                "total_s": round(sum(per_node_s.values()), 3),
+                "per_node_s": {k: round(v, 3) for k, v in per_node_s.items()},
+                "chapters_timed": len(chapter_s),
+                "chapter_total_s": round(sum(chapter_values), 3),
+                "chapter_p50_s": _round_opt(_percentile(chapter_values, 0.50)),
+                "chapter_p95_s": _round_opt(_percentile(chapter_values, 0.95)),
+                "slowest_chapters": [
+                    {"chapter": ch, "elapsed_s": round(secs, 3)}
+                    for ch, secs in slowest
+                ],
+            },
         }
+
+
+def _percentile(values: list[float], p: float) -> float | None:
+    """Linear-interpolated percentile. ``None`` for an empty list.
+
+    【中文】线性插值分位数。空列表返回 None（不是 0——"没有数据"和
+    "耗时 0 秒"是两件事，混在一起会给出假的快时间）。
+    """
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    pos = (len(ordered) - 1) * p
+    lo = int(pos)
+    hi = min(lo + 1, len(ordered) - 1)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
+
+
+def _round_opt(value: float | None) -> float | None:
+    """【中文】分位数可能为 None，只在有值时四舍五入。"""
+    return None if value is None else round(value, 3)
 
 
 def cost_cny(model: str, input_tokens: int | None, output_tokens: int | None):
@@ -357,6 +428,39 @@ def record_response(response, node, model, **kw) -> dict:
     【中文】模块级快捷函数，省掉 ``ledger.record_response(...)`` 的前缀。
     """
     return ledger.record_response(response, node, model, **kw)
+
+
+def summary_from_file(book_id: str | None = None, path: Path | None = None) -> dict:
+    """Aggregate the persisted JSONL ledger in a fresh process.
+
+    ``summary()`` only sees rows recorded by *this* process. A report generator
+    run separately from the pipeline would otherwise read zero, which looks
+    identical to "the run cost nothing". This reads the append-only file, and
+    counts unparseable lines as ``corrupt_rows`` rather than dropping them
+    silently.
+
+    【中文】读取磁盘上的 JSONL 账本并汇总。summary() 只看本进程内存里的记录，
+    所以单独运行的报告脚本会读到 0——这和"这次没花钱"看起来一模一样。
+    本函数直接读文件；无法解析的行会被跳过并计入 corrupt_rows，
+    绝不把"读取失败"伪装成"没有数据"。
+    """
+    target = Path(path) if path is not None else ledger.path
+    rows: list[dict] = []
+    corrupt = 0
+    if target.exists():
+        for line in target.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                corrupt += 1
+    snapshot = _Ledger(path=target)
+    snapshot._rows = rows
+    result = snapshot.summary(book_id)
+    result["corrupt_rows"] = corrupt
+    return result
 
 
 def summary(book_id: str | None = None) -> dict:

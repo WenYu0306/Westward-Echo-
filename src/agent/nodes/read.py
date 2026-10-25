@@ -311,7 +311,7 @@ def read_node(
     try:
         # 记录一次 API 调用（不管成功失败都计数）
         TranslationStats.record_api_call(target_lang)
-        response = breaker.call(llm.invoke, messages)
+        response, elapsed = token_ledger.timed_call(breaker.call, llm.invoke, messages)
         # 调用成功，记录成功计数
         TranslationStats.record_api_success(target_lang)
     except CircuitBreakerOpenError:
@@ -346,7 +346,9 @@ def read_node(
             pass
         if not fallback_kwargs["api_key"]:
             raise
-        response = breaker.call(_build_read_client(**fallback_kwargs).invoke, messages)
+        response, elapsed = token_ledger.timed_call(
+            breaker.call, _build_read_client(**fallback_kwargs).invoke, messages
+        )
         TranslationStats.record_api_success(target_lang)
 
     # 记录 token 消耗到明细账本（主 provider 或兜底 provider 的最终结果）
@@ -355,6 +357,7 @@ def read_node(
         model=used_model,
         book_id=state.get("book_id", ""),
         chapter=state.get("chapter_number", 0),
+        elapsed_s=elapsed,
     )
 
     # ── 解析大模型的 JSON 分析结果 ──
@@ -394,7 +397,9 @@ def _build_read_client(**provider_kwargs) -> ChatOpenAI:
     )
 
 
-def _capture_read_tokens(response, model: str, *, book_id: str = "", chapter: int = 0) -> None:
+def _capture_read_tokens(response, model: str, *,
+                         book_id: str = "", chapter: int = 0,
+                         elapsed_s: float | None = None) -> None:
     """Record READ token usage — per node/chapter in the ledger, plus legacy counters.
 
     ``model`` is the model that actually served the chapter, not a constant: the
@@ -435,7 +440,7 @@ def _capture_read_tokens(response, model: str, *, book_id: str = "", chapter: in
     usage_in, usage_out = token_ledger.extract_usage(response)
     # 写入明细账本（即使 usage 是 None 也会记一行 unmetered）
     token_ledger.record("read", model, usage_in, usage_out,
-                        book_id=book_id, chapter=chapter)
+                        book_id=book_id, chapter=chapter, elapsed_s=elapsed_s)
     # Half a usage payload is not a figure worth accumulating into the
     # legacy counters; the ledger row above already carries whatever
     # arrived, plus the fact that it was incomplete.

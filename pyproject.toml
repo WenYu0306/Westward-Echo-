@@ -4,8 +4,9 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP"]
-# UP045 (Optional[X] -> X | None): the runtime is Python 3.9, where PEP 604
-# union syntax is not evaluated — converting would crash at import time.
+# UP045 (Optional[X] -> X | None): the runtime is 3.11 (see mypy below), so the
+# syntax is fine; this rule is off because converting the existing Optional[X]
+# annotations is a mechanical rewrite with no behavioural payoff.
 ignore = ["UP045"]
 
 [tool.ruff.lint.isort]

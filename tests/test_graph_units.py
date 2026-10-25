@@ -315,7 +315,31 @@ class TestBuildColdReadContext:
         a = bare_agent(exact=FakeExact(terms={"聋婆婆": "Deaf Granny"}), memo=memo)
         ctx = a._build_cold_read_context(chapter_number=1)
         assert "## ESTABLISHED TERMINOLOGY" in ctx
-        assert "- [聋婆婆] → Deaf Granny" in ctx
+        assert "- **Deaf Granny**" in ctx
+
+    def test_terminology_section_omits_the_chinese_source_term(self):
+        """Clause 10: the whole briefing must be blind.
+
+        The memo line is ``[chN] <Chinese source> → <rendering> // <reason>``.
+        Reprinting the whole line briefed the cold reader with the Chinese
+        source term — measured on 58/58 chapters before this fix.
+        """
+        memo = FakeMemo(all_text="[ch7] 因果 → karma // Buddhist causality\n")
+        a = bare_agent(memo=memo)
+        ctx = a._build_cold_read_context(chapter_number=1)
+        assert "因果" not in ctx
+        assert "**karma**" in ctx
+        assert "Buddhist causality" not in ctx   # the reason is not a rendering
+
+    def test_briefing_contains_no_cjk_at_all(self):
+        """The blind reader's briefing must carry zero Chinese characters —
+        from the summaries, the roster, or the terminology section."""
+        memo = FakeMemo(all_text="[ch7] 阴兵过境 → Underworld soldiers\n")
+        a = bare_agent(exact=FakeExact(terms={"聋婆婆": "Deaf Granny"}),
+                       memo=memo, context=["[Ch1] Chen woke up."])
+        ctx = a._build_cold_read_context(chapter_number=2)
+        assert "Underworld soldiers" in ctx
+        assert not any('一' <= c <= '鿿' for c in ctx)
 
     def test_non_term_memo_lines_are_skipped(self):
         memo = FakeMemo(all_text="just prose\n[聋婆婆] → Deaf Granny\n")
@@ -332,14 +356,17 @@ class TestBuildColdReadContext:
         memo = FakeMemo(all_text="\n".join(f"[词{i}] → Term{i}" for i in range(12)))
         a = bare_agent(memo=memo)
         ctx = a._build_cold_read_context(chapter_number=1)
-        assert ctx.count("- [词") == 8
+        assert ctx.count("- **Term") == 8
 
-    def test_memo_line_truncated_to_120_chars(self):
-        memo = FakeMemo(all_text="[" + "长" * 200 + "] → " + "x" * 50 + "\n")
+    def test_memo_rendering_truncated_to_120_chars(self):
+        """Only the English rendering is briefed, and it is still length-capped
+        so one verbose rendering cannot bloat the prompt."""
+        memo = FakeMemo(all_text="[" + "长" * 200 + "] → " + "x" * 200 + "\n")
         a = bare_agent(memo=memo)
         ctx = a._build_cold_read_context(chapter_number=1)
-        line = [ln for ln in ctx.split("\n") if ln.startswith("- [")][0]
-        assert len(line) == len("- ") + 120
+        line = [ln for ln in ctx.split("\n") if ln.startswith("- **")][0]
+        assert "x" * 120 in line
+        assert "x" * 121 not in line
 
     def test_briefing_is_a_string(self):
         a = bare_agent(exact=FakeExact(terms={"聋婆婆": "Deaf Granny"}))

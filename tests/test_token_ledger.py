@@ -270,3 +270,97 @@ class TestSummary:
         self._seed()
         tl.reset()
         assert tl.summary("difu")["calls"] == 0
+
+
+# ── wall-clock timing ───────────────────────────────────────────────
+
+class TestTiming:
+    """The ledger also answers "how long did this take?".
+
+    Before this field, nothing in the pipeline recorded duration: the node
+    code only counted tokens, and the delivery logs carried no timestamps.
+    "The build is too slow" was therefore unfalsifiable.
+    """
+
+    def test_elapsed_is_persisted_on_the_row(self):
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=1,
+                  elapsed_s=1.23456)
+        row = tl.ledger.rows("b")[0]
+        assert row["elapsed_s"] == 1.235          # rounded to milliseconds
+        assert json.loads((tl.ledger.path).read_text().strip())["elapsed_s"] == 1.235
+
+    def test_summary_aggregates_per_node_and_per_chapter(self):
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=1, elapsed_s=2.0)
+        tl.record("write", "glm-5.3-flash", 10, 20, book_id="b", chapter=1, elapsed_s=3.0)
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=2, elapsed_s=4.0)
+        s = tl.summary("b")["timing"]
+        assert s["timed_calls"] == 3
+        assert s["total_s"] == pytest.approx(9.0)
+        assert s["per_node_s"] == {
+            "read": pytest.approx(6.0), "write": pytest.approx(3.0),
+        }
+        assert s["chapters_timed"] == 2
+        assert s["chapter_total_s"] == pytest.approx(9.0)
+
+    def test_old_rows_without_elapsed_are_skipped_not_zeroed(self):
+        """A pre-timing row is *unknown*, not instant.
+
+        Counting it as 0 s would make a slow run look fast as soon as the
+        ledger mixes old and new rows.
+        """
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=1)
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=2, elapsed_s=5.0)
+        s = tl.summary("b")["timing"]
+        assert s["timed_calls"] == 1
+        assert s["total_s"] == pytest.approx(5.0)
+        assert s["chapters_timed"] == 1
+
+    def test_no_timing_data_yields_none_percentiles_not_zero(self):
+        """Distinguishes "no data" from "took no time"."""
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=1)
+        s = tl.summary("b")["timing"]
+        assert s["timed_calls"] == 0
+        assert s["total_s"] == 0
+        assert s["chapter_p50_s"] is None
+        assert s["chapter_p95_s"] is None
+        assert s["slowest_chapters"] == []
+
+    def test_chapter_percentiles_and_slowest(self):
+        for ch, secs in ((1, 1.0), (2, 2.0), (3, 3.0), (4, 4.0)):
+            tl.record("read", "qwen3.8-max", 10, 20, book_id="b",
+                      chapter=ch, elapsed_s=secs)
+        s = tl.summary("b")["timing"]
+        assert s["chapter_p50_s"] == pytest.approx(2.5)
+        assert s["chapter_p95_s"] == pytest.approx(3.85)
+        assert [x["chapter"] for x in s["slowest_chapters"]] == [4, 3, 2, 1]
+        assert s["slowest_chapters"][0]["elapsed_s"] == 4.0
+
+    def test_timed_call_returns_result_and_elapsed(self):
+        result, elapsed = tl.timed_call(lambda x: x * 2, 21)
+        assert result == 42
+        assert elapsed >= 0
+
+
+class TestSummaryFromFile:
+    """A separately-run report must read the file, not this process's memory."""
+
+    def test_reads_rows_written_earlier(self):
+        tl.record("read", "qwen3.8-max", 100, 200, book_id="b", chapter=1, elapsed_s=2.0)
+        tl.reset()                              # simulate a fresh process
+        s = tl.summary_from_file("b")
+        assert s["calls"] == 1
+        assert s["input_tokens"] == 100
+        assert s["timing"]["total_s"] == 2.0
+
+    def test_corrupt_lines_are_counted_not_silently_dropped(self):
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b", chapter=1)
+        tl.ledger.path.write_text(
+            tl.ledger.path.read_text() + "{not json}\n", encoding="utf-8")
+        s = tl.summary_from_file("b")
+        assert s["calls"] == 1
+        assert s["corrupt_rows"] == 1
+
+    def test_missing_file_is_zero_not_error(self, tmp_path):
+        s = tl.summary_from_file("b", path=tmp_path / "absent.jsonl")
+        assert s["calls"] == 0
+        assert s["corrupt_rows"] == 0

@@ -431,6 +431,7 @@ def main():
         "unpriced_calls": cost["unpriced_calls"],
         "per_node": cost["per_node"],
         "per_model": cost["per_model"],
+        "timing": cost["timing"],
         "minutes": round(total_min, 1),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }, open(cost_path, "w"), ensure_ascii=False, indent=2)

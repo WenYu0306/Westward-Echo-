@@ -152,13 +152,14 @@ def fix_node(state: TranslatorState) -> dict:
 
     try:
         TranslationStats.record_api_call(target_lang)
-        response = breaker.call(llm.invoke, messages)
+        response, elapsed = token_ledger.timed_call(breaker.call, llm.invoke, messages)
         TranslationStats.record_api_success(target_lang)
         _capture_fix_tokens(
             response,
             model=used_model,
             book_id=state.get("book_id", ""),
             chapter=state.get("chapter_number", 0),
+            elapsed_s=elapsed,
         )
     except CircuitBreakerOpenError:
         # 熔断器跳闸了，向上抛异常
@@ -302,6 +303,7 @@ def _format_readback_feedback(feedback: dict) -> str:
 
 def _capture_fix_tokens(
     response, model: str, *, book_id: str = "", chapter: int = 0,
+    elapsed_s: float | None = None,
 ) -> None:
     """Record FIX token usage — per node/chapter in the ledger.
 
@@ -324,7 +326,7 @@ def _capture_fix_tokens(
     usage_in, usage_out = token_ledger.extract_usage(response)
     token_ledger.record(
         "fix", model, usage_in, usage_out,
-        book_id=book_id, chapter=chapter,
+        book_id=book_id, chapter=chapter, elapsed_s=elapsed_s,
     )
     # Half a usage payload is not a figure worth accumulating into the
     # legacy counters; the ledger row above already carries whatever
