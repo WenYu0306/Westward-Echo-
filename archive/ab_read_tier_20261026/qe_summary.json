@@ -1,0 +1,23 @@
+{
+  "segments": {
+    "A": 36,
+    "B": 36
+  },
+  "mean": {
+    "A": 15.556,
+    "B": 15.167
+  },
+  "median": {
+    "A": 15.25,
+    "B": 15.188
+  },
+  "mean_delta_B_minus_A": -0.389,
+  "bootstrap_95ci": [
+    -1.175,
+    0.347
+  ],
+  "A_better_segments": 16,
+  "B_better_segments": 20,
+  "tied_segments": 0,
+  "paired_segments": 36
+}
