@@ -54,20 +54,19 @@ app = FastAPI(title="Westward Echo CMS API", version=VERSION)
 
 @app.post("/import")
 def import_from_cms(
-    source_type: str = Form("file"),
     source_id: str = Form(...),
     job_title: str = Form(""),
 ):
     """Pull a novel from the configured CMS source and create a translation job.
 
-    ``source_type`` must match the configured ``CMS_SOURCE_TYPE`` (``"file"`` or
-    ``"webhook"``).  ``source_id`` is the filename (without ``.txt``) for the file
-    connector, or the CMS identifier for the webhook connector.
+    The connector (``"file"`` or ``"webhook"``) is chosen by the
+    ``CMS_SOURCE_TYPE`` env var, not by the request.  ``source_id`` is the
+    filename (without ``.txt``) for the file connector, or the CMS identifier
+    for the webhook connector.
 
     【中文】从 CMS 拉取一本小说的原文，并创建一个翻译任务。
+    用哪种连接器（file / webhook）由 .env 里的 CMS_SOURCE_TYPE 决定，不由本接口参数决定。
     参数：
-      · source_type —— 来源类型，必须和 .env 里 CMS_SOURCE_TYPE 一致。
-        "file" = 本地文件；"webhook" = 远程服务器。默认 "file"。
       · source_id   —— 小说标识。本地文件模式下是不带 .txt 后缀的文件名；
         webhook 模式下是 CMS 那边的唯一 ID。必填。
       · job_title   —— 任务标题（可选）。不填就用 source_id 作为文件名。

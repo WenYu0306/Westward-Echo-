@@ -404,15 +404,17 @@ total_chapters, status)
 
     # ── project / multi-language ────────────────────────────
 
-    def create_project(self, source_filename: str) -> str:
+    def create_project(self) -> str:
         """Create a project grouping for multi-language translations.
 
-        Returns a project_id that all language variants share.
+        Returns a project_id that all language variants share. The project's
+        filename is not stored here — it is derived from the jobs that join it
+        (see ``list_projects``).
 
         【中文】创建一个多语言翻译项目。
-        · 参数 source_filename：源文件名
         · 返回：8 位 UUID 作为项目 ID
         · 同一本书翻成多种语言时，各语言任务共享这个 project_id
+        · 文件名不在这里存，由加入该项目的任务提供（见 list_projects）
         """
         return str(uuid.uuid4())[:8]
 

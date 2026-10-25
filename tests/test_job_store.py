@@ -218,18 +218,18 @@ class TestGlossaryPresets:
 
 class TestProjects:
     def test_create_project(self, store):
-        pid = store.create_project("novel.txt")
+        pid = store.create_project()
         assert len(pid) == 8
 
     def test_add_language_job(self, store):
-        pid = store.create_project("novel.txt")
+        pid = store.create_project()
         jid = store.add_language_job(pid, "es-ES", "novel.txt", 100)
         job = store.get_job(jid)
         assert job["project_id"] == pid
         assert job["target_lang"] == "es-ES"
 
     def test_get_project_jobs(self, store):
-        pid = store.create_project("novel.txt")
+        pid = store.create_project()
         store.add_language_job(pid, "en-US", "novel.txt", 100)
         store.add_language_job(pid, "es-ES", "novel.txt", 100)
         jobs = store.get_project_jobs(pid)
@@ -238,7 +238,7 @@ class TestProjects:
         assert langs == {"en-US", "es-ES"}
 
     def test_list_projects(self, store):
-        pid = store.create_project("novel.txt")
+        pid = store.create_project()
         store.add_language_job(pid, "en-US", "novel.txt", 10)
         projects = store.list_projects(limit=10)
         assert any(p["project_id"] == pid for p in projects)
@@ -292,7 +292,7 @@ class TestDefaultListingLimits:
     def test_list_projects_defaults_to_twenty(self, store):
         # A project only appears once it has a language job.
         for i in range(21):
-            pid = store.create_project(f"p{i}.txt")
+            pid = store.create_project()
             store.add_language_job(pid, "en-US", f"p{i}.txt", 1)
         assert len(store.list_projects()) == 20
 

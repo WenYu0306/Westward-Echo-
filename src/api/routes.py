@@ -661,7 +661,7 @@ async def translate_multi(
 
         # Create a project to group all language variants
         # 【中文】创建一个项目来关联所有语种任务。
-        project_id = job_store.create_project(filename)
+        project_id = job_store.create_project()
 
         # ── Pre-load glossary preset if requested ──
         # 【中文】加载术语预设（如果有的话），所有语种共用同一份预设。
