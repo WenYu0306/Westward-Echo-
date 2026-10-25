@@ -561,8 +561,11 @@ def _print_human(report: dict) -> None:
         print("\n  ✓ 无逐章缺陷")
 
     print("\n章号映射:")
-    print(f"  主导偏移 EN-CN = {n['dominant_offset']}"
-          f"（{n['dominant_offset_count']}/{n['chapters_total']} 章，属正常）")
+    if n["dominant_offset"] is None and n["chapters_total"]:
+        print("  主导偏移 EN-CN = 无参照（标题已全部英文化）")
+    else:
+        print(f"  主导偏移 EN-CN = {n['dominant_offset']}"
+              f"（{n['dominant_offset_count']}/{n['chapters_total']} 章，属正常）")
     print(f"  分布: {n['offset_distribution']}")
     if n["duplicate_en_chapters"]:
         print(f"  ✗ 重复 EN 章号: {n['duplicate_en_chapters']}")
@@ -574,7 +577,13 @@ def _print_human(report: dict) -> None:
     if n["offset_outliers"]:
         print(f"  ⚠ 偏移异常章（前 {len(n['offset_outliers'])}）: "
               f"{[o['en'] for o in n['offset_outliers']]}")
-    if n["headings_without_cn_number"]:
+    if n["headings_without_cn_number"] and n["dominant_offset"] is None:
+        # Every title is English now, so there is no CN number to cross-check
+        # against. Listing 2301 chapter numbers as a warning would drown the
+        # real findings, so say what happened once.
+        print(f"  说明: {n['chapters_total']} 章标题均不含中文章号"
+              f"（英文标题模式），跳过中英章号交叉核对")
+    elif n["headings_without_cn_number"]:
         print(f"  ⚠ 标题无中文章号: {n['headings_without_cn_number']}")
 
     _print_quotes(report["quotes"])
