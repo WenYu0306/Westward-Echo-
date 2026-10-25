@@ -69,6 +69,19 @@ jobs:
           pip install vulture
           vulture src/ --min-confidence 100
 
+      # ChromaDB's default embedding function downloads the ONNX MiniLM model
+      # (~83 MB) from chroma-onnx-models.s3.amazonaws.com on first use.
+      # conftest.py blocks every outbound connection inside a test, so on a
+      # fresh runner each test that builds a SemanticGlossary failed at teardown
+      # with "test made N outbound connection attempt(s)". Warm the cache here,
+      # outside pytest where network is allowed, into the directory
+      # semantic_store.py pins (data/onnx_cache/all-MiniLM-L6-v2).
+      - name: Warm Chroma ONNX embedding model
+        env:
+          ANONYMIZED_TELEMETRY: "False"
+        run: |
+          python -c "from src.glossary.semantic_store import ONNXMiniLM_L6_V2; ONNXMiniLM_L6_V2()(['warmup'])"
+
       - name: Run tests
         run: |
           pip install pytest
