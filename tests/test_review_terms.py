@@ -127,3 +127,71 @@ class TestReviewTerms:
         user_msg = [m for m in captured["messages"] if m.type == "human"][0]
         assert "South Mao, North Ma" in user_msg.content
         assert "two worlds split" not in user_msg.content
+
+
+class TestReviewTermsAccounting:
+    """The review node runs on qwen3.8-max; its spend must reach the ledger.
+
+    Before this, review_terms recorded nothing at all, so every chapter's
+    review cost was invisible in every cost figure the project produced.
+    """
+
+    def test_successful_call_is_recorded_with_model_and_elapsed(self, monkeypatch):
+        from src.config import NODE_MODELS
+
+        state = _state_with_decisions(
+            _decision("聋婆婆", "Deaf Granny", category="character"))
+        _mock_review(monkeypatch, {"reviews": []})
+        recorded = MagicMock()
+        monkeypatch.setattr(
+            "src.agent.nodes.review_terms.token_ledger.record_response", recorded)
+
+        review_terms_node(state)
+
+        assert recorded.call_count == 1
+        args, kwargs = recorded.call_args
+        assert args[1] == "review_terms"
+        assert args[2] == NODE_MODELS["review_terms"]
+        assert kwargs["elapsed_s"] is not None
+
+    def test_content_filter_fallback_is_booked_against_the_fallback_model(self, monkeypatch):
+        from src.config import NODE_MODELS
+
+        state = _state_with_decisions(
+            _decision("南茅北马", "Southern Mao, Northern Ma", category="culture"))
+        primary = MagicMock()
+        primary.invoke.side_effect = Exception("1301 contentFilter rejected")
+        fallback = MagicMock()
+        fallback.invoke.return_value = MagicMock(
+            content=json.dumps({"reviews": []}))
+        clients = iter([primary, fallback])
+        monkeypatch.setattr(
+            "src.agent.nodes.review_terms.ChatOpenAI",
+            lambda **kwargs: next(clients),
+        )
+        monkeypatch.setattr("src.config.LLM_API_KEY", "fake-key")
+        monkeypatch.setattr("src.config.GLM_API_KEY", "fake-key")
+        recorded = MagicMock()
+        monkeypatch.setattr(
+            "src.agent.nodes.review_terms.token_ledger.record_response", recorded)
+
+        review_terms_node(state)
+
+        assert recorded.call_count == 1
+        assert recorded.call_args.args[2] == NODE_MODELS["review_terms_fallback"]
+
+    def test_failed_call_records_nothing(self, monkeypatch):
+        """No successful response → no phantom zero in the ledger."""
+        state = _state_with_decisions(
+            _decision("南茅北马", "Southern Mao, Northern Ma", category="culture"))
+        mock_llm = MagicMock()
+        mock_llm.invoke.side_effect = Exception("plain network failure")
+        monkeypatch.setattr(
+            "src.agent.nodes.review_terms.ChatOpenAI", lambda **kwargs: mock_llm)
+        monkeypatch.setattr("src.config.LLM_API_KEY", "fake-key")
+        recorded = MagicMock()
+        monkeypatch.setattr(
+            "src.agent.nodes.review_terms.token_ledger.record_response", recorded)
+
+        assert review_terms_node(state) == {}
+        recorded.assert_not_called()

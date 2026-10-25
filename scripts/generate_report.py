@@ -162,16 +162,32 @@ def generate_report(novel_key: str) -> dict:
     # see scan_deliverable.py's calibration note (TRUNCATED_BODY ~18% FP).
     structure = scan_file(md_path)
 
-    # Cost and wall-clock time. Prefer the run's own _cost.json (written by
-    # run_novel.py in the translating process); otherwise read the persisted
-    # ledger, because this process did not make the calls and would see zero.
+    # Cost and wall-clock time. The ledger file is cumulative across runs; the
+    # run's own _cost.json is written from ONE process's in-memory rows and is
+    # overwritten when a book is resumed, so it must not be the primary source.
+    # It still supplies the wall-clock minutes.
     cost_path = out_dir / "_cost.json"
+    run_meta: dict = {}
     if cost_path.exists():
-        cost = json.loads(cost_path.read_text(encoding="utf-8"))
+        try:
+            loaded = json.loads(cost_path.read_text(encoding="utf-8"))
+            run_meta = loaded if isinstance(loaded, dict) else {}
+        except json.JSONDecodeError:
+            run_meta = {}
+
+    ledger_cost = token_ledger.summary_from_file(cfg.get("book_id", novel_key))
+    if ledger_cost.get("calls"):
+        cost = ledger_cost
+        cost_source = "token_ledger.jsonl"
+    elif run_meta.get("calls"):
+        cost = run_meta
         cost_source = "_cost.json"
     else:
-        cost = token_ledger.summary_from_file(cfg.get("book_id", novel_key))
+        cost = ledger_cost
         cost_source = "token_ledger.jsonl"
+    if run_meta.get("minutes") is not None:
+        cost = {**cost, "minutes": run_meta["minutes"]}
+    cost_available = bool(cost.get("calls"))
 
     # ── Checks ──
     passed = []
@@ -319,11 +335,12 @@ def generate_report(novel_key: str) -> dict:
             "cold_read_is_quality_evidence": False,
             "structure_findings": structure["findings_total"],
             "structure_chapters_affected": structure["chapters_with_findings"],
-            "cost_cny": cost.get("cost_cny"),
+            "cost_cny": cost.get("cost_cny") if cost_available else None,
             "wall_clock_minutes": cost.get("minutes"),
+            "cost_data_available": cost_available,
         },
         "structure": structure,
-        "cost": {**cost, "source": cost_source},
+        "cost": {**cost, "source": cost_source, "available": cost_available},
         "term_details": {
             "verbatim_all_count": len(t_all),            "verbatim_partial_count": len(t_partial),
             "verbatim_none_count": len(t_none),
@@ -489,7 +506,7 @@ def _write_report_md(report: dict, path: Path):
 
     cost = report.get("cost") or {}
     lines += ["---", "", "## 编译成本与耗时", ""]
-    if cost.get("calls"):
+    if cost.get("available"):
         lines += [
             f"- 数据来源：{cost.get('source', '?')}",
             f"- API 调用：{cost['calls']} 次（未计量 {cost.get('unmetered_calls', 0)}，"

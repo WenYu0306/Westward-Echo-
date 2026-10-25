@@ -134,5 +134,6 @@ class TestEstimate:
         large = tt.estimate_cny(4000, "glm-5.3-flash")
         assert 0 < small < large
 
-    def test_unknown_model_is_zero_not_an_exception(self):
-        assert tt.estimate_cny(40, "mystery-model") == 0.0
+    def test_unknown_model_is_none_not_zero(self):
+        """An unpriced model is "cannot estimate", not "free"."""
+        assert tt.estimate_cny(40, "mystery-model") is None

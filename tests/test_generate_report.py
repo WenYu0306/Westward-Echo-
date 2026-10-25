@@ -275,3 +275,67 @@ class TestReportHonesty:
         text = md.read_text(encoding="utf-8")
         # The report references name_en for the book, not the Chinese title.
         assert "Synthetic Test Book" in text or "合成测试书" in text
+
+
+class TestCostProvenance:
+    """Cost is cumulative for the book, and "no data" is never written as 0.
+
+    `_cost.json` is produced from ONE run's in-memory ledger and is overwritten
+    when a book is resumed, so it cannot be the primary source. The append-only
+    ledger file is cumulative. Separately, a book that predates the ledger must
+    report "no data", not a complete-looking ¥0.0000.
+    """
+
+    def _ledger(self, monkeypatch, report_mod, **summary):
+        base = {"calls": 0, "cost_cny": 0.0, "timing": {}, "file_present": False}
+        base.update(summary)
+        monkeypatch.setattr(report_mod.token_ledger, "summary_from_file",
+                            lambda book_id=None: dict(base))
+
+    def test_no_data_is_none_not_zero(self, report_mod, tmp_path, monkeypatch):
+        cfg = _FakeCfg(tmp_path, report_mod, monkeypatch, chapters=3)
+        self._ledger(monkeypatch, report_mod)
+        report = report_mod.generate_report("synthetic_book")
+
+        assert report["cost"]["available"] is False
+        assert report["summary"]["cost_data_available"] is False
+        assert report["summary"]["cost_cny"] is None
+        md = (cfg.out_dir / "_report.md").read_text(encoding="utf-8")
+        assert "无数据" in md
+
+    def test_cumulative_ledger_wins_and_minutes_come_from_cost_json(
+            self, report_mod, tmp_path, monkeypatch):
+        cfg = _FakeCfg(tmp_path, report_mod, monkeypatch, chapters=3)
+        (cfg.out_dir / "_cost.json").write_text(json.dumps(
+            {"calls": 3, "cost_cny": 9.99, "minutes": 7}), encoding="utf-8")
+        self._ledger(monkeypatch, report_mod, calls=10, cost_cny=2.0,
+                     file_present=True)
+        report = report_mod.generate_report("synthetic_book")
+
+        assert report["cost"]["source"] == "token_ledger.jsonl"
+        assert report["cost"]["cost_cny"] == 2.0      # not the last run's 9.99
+        assert report["cost"]["minutes"] == 7          # run metadata is kept
+        assert report["summary"]["cost_cny"] == 2.0
+
+    def test_cost_json_is_used_when_the_ledger_has_no_rows(
+            self, report_mod, tmp_path, monkeypatch):
+        cfg = _FakeCfg(tmp_path, report_mod, monkeypatch, chapters=3)
+        (cfg.out_dir / "_cost.json").write_text(json.dumps(
+            {"calls": 3, "cost_cny": 0.5, "minutes": 7}), encoding="utf-8")
+        self._ledger(monkeypatch, report_mod)
+        report = report_mod.generate_report("synthetic_book")
+
+        assert report["cost"]["source"] == "_cost.json"
+        assert report["cost"]["available"] is True
+        assert report["cost"]["cost_cny"] == 0.5
+
+    def test_corrupt_cost_json_does_not_suppress_the_ledger(
+            self, report_mod, tmp_path, monkeypatch):
+        cfg = _FakeCfg(tmp_path, report_mod, monkeypatch, chapters=3)
+        (cfg.out_dir / "_cost.json").write_text("{not json", encoding="utf-8")
+        self._ledger(monkeypatch, report_mod, calls=2, cost_cny=1.0,
+                     file_present=True)
+        report = report_mod.generate_report("synthetic_book")
+
+        assert report["cost"]["source"] == "token_ledger.jsonl"
+        assert report["cost"]["cost_cny"] == 1.0

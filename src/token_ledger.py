@@ -295,17 +295,27 @@ class _Ledger:
         # elapsed_s=None and are simply left out, so old ledgers still load.
         # 【中文】墙钟耗时汇总。旧账本行没有 elapsed_s，直接跳过，不影响读取。
         per_node_s: dict[str, float] = {}
-        chapter_s: dict[int, float] = {}
+        # When aggregating across books, a bare chapter number would merge
+        # chapter 1 of every book into one bucket and distort the percentiles.
+        # 【中文】跨书汇总时用 (book_id, chapter) 做键，否则各书的"第 1 章"
+        # 会被合并成一章，p50/p95 和"最慢章节"都会失真。
+        chapter_s: dict[object, float] = {}
         for r in rows:
             elapsed = r.get("elapsed_s")
             if elapsed is None:
                 continue
             per_node_s[r["node"]] = per_node_s.get(r["node"], 0.0) + elapsed
             ch = r.get("chapter") or 0
-            if ch:
-                chapter_s[ch] = chapter_s.get(ch, 0.0) + elapsed
+            if not ch:
+                continue
+            key = (r.get("book_id", ""), ch) if book_id is None else ch
+            chapter_s[key] = chapter_s.get(key, 0.0) + elapsed
         chapter_values = list(chapter_s.values())
-        slowest = sorted(chapter_s.items(), key=lambda kv: kv[1], reverse=True)[:5]
+        slowest = [
+            _chapter_entry(key, secs)
+            for key, secs in sorted(chapter_s.items(), key=lambda kv: kv[1],
+                                     reverse=True)[:5]
+        ]
 
         return {
             "book_id": book_id,
@@ -327,12 +337,17 @@ class _Ledger:
                 "chapter_total_s": round(sum(chapter_values), 3),
                 "chapter_p50_s": _round_opt(_percentile(chapter_values, 0.50)),
                 "chapter_p95_s": _round_opt(_percentile(chapter_values, 0.95)),
-                "slowest_chapters": [
-                    {"chapter": ch, "elapsed_s": round(secs, 3)}
-                    for ch, secs in slowest
-                ],
+                "slowest_chapters": slowest,
             },
         }
+
+
+def _chapter_entry(key, seconds: float) -> dict:
+    """Format a chapter-timing key, which is a tuple when aggregating books."""
+    if isinstance(key, tuple):
+        return {"book_id": key[0], "chapter": key[1],
+                "elapsed_s": round(seconds, 3)}
+    return {"chapter": key, "elapsed_s": round(seconds, 3)}
 
 
 def _percentile(values: list[float], p: float) -> float | None:
@@ -445,9 +460,10 @@ def summary_from_file(book_id: str | None = None, path: Path | None = None) -> d
     绝不把"读取失败"伪装成"没有数据"。
     """
     target = Path(path) if path is not None else ledger.path
+    file_present = target.exists()
     rows: list[dict] = []
     corrupt = 0
-    if target.exists():
+    if file_present:
         for line in target.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
@@ -460,6 +476,11 @@ def summary_from_file(book_id: str | None = None, path: Path | None = None) -> d
     snapshot._rows = rows
     result = snapshot.summary(book_id)
     result["corrupt_rows"] = corrupt
+    # A missing ledger and an empty one both aggregate to zero; callers must be
+    # able to tell "no data" from "cost nothing".
+    # 【中文】文件不存在与空账本都会汇总成 0；调用方必须能区分
+    # "没有数据"和"没有花钱"。
+    result["file_present"] = file_present
     return result
 
 

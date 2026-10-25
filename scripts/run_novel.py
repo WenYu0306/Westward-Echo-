@@ -415,7 +415,9 @@ def main():
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
 
     # ── 成本台账：本次运行的真实 token 与花费（此前生产路径完全无记录）──
-    cost = token_ledger.summary(cfg["book_id"])
+    # Cumulative for the book, not just this process: a book translated across
+    # several sessions must not have its earlier spend erased by the last run.
+    cost = token_ledger.summary_from_file(cfg["book_id"])
     cost_path = os.path.join(cfg["output_dir"], "_cost.json")
     json.dump({
         "book_id": cfg["book_id"],

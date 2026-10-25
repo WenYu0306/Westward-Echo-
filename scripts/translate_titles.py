@@ -155,11 +155,14 @@ def invalid_titles(mapping: dict[str, str], keys: list[str]) -> tuple[list[str],
     return missing, leaks
 
 
-def estimate_cny(count: int, model: str, batch_size: int = 40) -> float:
-    """Rough upper-bound cost for translating ``count`` unique titles."""
+def estimate_cny(count: int, model: str, batch_size: int = 40) -> float | None:
+    """Rough upper-bound cost, or ``None`` when the model has no price entry.
+
+    ``None`` rather than 0: an unknown model is "cannot estimate", not "free".
+    """
     price = MODEL_PRICES_CNY_PER_M.get(model)
     if price is None:
-        return 0.0
+        return None
     price_in, price_out = price
     batches = (count + batch_size - 1) // batch_size
     input_tokens = count * 25 + batches * 400
@@ -269,7 +272,10 @@ def main(argv=None) -> int:
 
     print(f"{cfg['name']}: {len(entries)} headings to rewrite, "
           f"{len(keys)} unique titles (mode={mode}, model={model})")
-    print(f"estimated cost upper bound: ¥{estimate_cny(len(keys), model, args.batch_size):.4f}")
+    estimate = estimate_cny(len(keys), model, args.batch_size)
+    print("estimated cost upper bound: "
+          + (f"¥{estimate:.4f}" if estimate is not None
+             else f"UNKNOWN — {model} has no price entry"))
     if not args.apply:
         for key in keys[:10]:
             print(f"  e.g. {key!r}")

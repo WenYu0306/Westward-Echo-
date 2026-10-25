@@ -335,10 +335,28 @@ class TestTiming:
         assert [x["chapter"] for x in s["slowest_chapters"]] == [4, 3, 2, 1]
         assert s["slowest_chapters"][0]["elapsed_s"] == 4.0
 
-    def test_timed_call_returns_result_and_elapsed(self):
-        result, elapsed = tl.timed_call(lambda x: x * 2, 21)
+    def test_cross_book_chapter_timing_is_not_merged(self):
+        """Chapter 1 of book A and chapter 1 of book B are two chapters.
+
+        Keying only on the integer merged them, so summary() (the documented
+        all-books path) reported one chapter where there were two and summed
+        their durations into a bogus single-chapter time.
+        """
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="a",
+                  chapter=1, elapsed_s=2.0)
+        tl.record("read", "qwen3.8-max", 10, 20, book_id="b",
+                  chapter=1, elapsed_s=4.0)
+        timing = tl.summary()["timing"]
+        assert timing["chapters_timed"] == 2
+        assert timing["chapter_p50_s"] == pytest.approx(3.0)
+        assert timing["slowest_chapters"][0]["book_id"] == "b"
+
+    def test_timed_call_measures_a_real_delay(self):
+        """A helper that returned a constant would pass assert elapsed >= 0."""
+        import time
+        result, elapsed = tl.timed_call(lambda: time.sleep(0.01) or 42)
         assert result == 42
-        assert elapsed >= 0
+        assert elapsed >= 0.005
 
 
 class TestSummaryFromFile:
@@ -364,3 +382,15 @@ class TestSummaryFromFile:
         s = tl.summary_from_file("b", path=tmp_path / "absent.jsonl")
         assert s["calls"] == 0
         assert s["corrupt_rows"] == 0
+
+    def test_missing_file_is_flagged(self, tmp_path):
+        """A missing ledger and a real empty one both aggregate to zero; the
+        file_present flag is what lets a caller tell them apart."""
+        assert tl.summary_from_file("b", path=tmp_path / "absent.jsonl")["file_present"] is False
+
+    def test_existing_empty_file_is_present(self, tmp_path):
+        path = tmp_path / "empty.jsonl"
+        path.write_text("")
+        s = tl.summary_from_file("b", path=path)
+        assert s["file_present"] is True
+        assert s["calls"] == 0

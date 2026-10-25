@@ -105,6 +105,72 @@ class TestWriteUsesGlmFlash:
         assert captured["kwargs"]["max_tokens"] == 16384
 
 
+class TestNodesMeasureWallClock:
+    """Each node must hand the ledger a real elapsed_s.
+
+    The helper that forwards elapsed_s has its own test; these pin that the
+    nodes actually measure. Reverting one to ``breaker.call(llm.invoke, …)``
+    must fail here — otherwise the timing baseline would silently go to zero.
+    """
+
+    def test_read_records_elapsed(self, monkeypatch):
+        from src.agent.nodes import read as rmod
+        from src.glossary.exact_store import ExactGlossary
+        from src.glossary.semantic_store import SemanticGlossary
+
+        monkeypatch.setattr("src.agent.nodes.read.ChatOpenAI",
+                            _capture_factory({}, "{}"))
+        recorded = MagicMock()
+        monkeypatch.setattr(rmod.token_ledger, "record", recorded)
+        rmod.read_node(_minimal_state(), ExactGlossary(), SemanticGlossary())
+        assert recorded.call_args.kwargs["elapsed_s"] is not None
+
+    def test_write_records_elapsed(self, monkeypatch):
+        from src.agent.nodes import write as wmod
+
+        content = json.dumps({
+            "translated_text": "x", "chapter_title_en": "c",
+            "new_terms_found": [], "adaptation_notes": [], "chapter_summary": "s",
+        })
+        monkeypatch.setattr("src.agent.nodes.write.ChatOpenAI",
+                            _capture_factory({}, content))
+        recorded = MagicMock()
+        monkeypatch.setattr(wmod.token_ledger, "record", recorded)
+        wmod.write_node(_minimal_state())
+        assert recorded.call_args.kwargs["elapsed_s"] is not None
+
+    def test_readback_records_elapsed(self, monkeypatch):
+        from src.agent.nodes import readback as rbmod
+
+        content = json.dumps({
+            "verdict": "PASS", "comprehension_issues": [],
+            "engagement_gaps": [], "overall_impression": "ok",
+        })
+        monkeypatch.setattr("src.agent.nodes.readback.ChatOpenAI",
+                            _capture_factory({}, content))
+        recorded = MagicMock()
+        monkeypatch.setattr(rbmod.token_ledger, "record", recorded)
+        state = _minimal_state()
+        state["translated_text"] = "Long enough text " * 20
+        rbmod.readback_node(state)
+        assert recorded.call_args.kwargs["elapsed_s"] is not None
+
+    def test_fix_records_elapsed(self, monkeypatch):
+        from src.agent.nodes import fix as fmod
+
+        content = json.dumps({"polished_text": "fixed text", "changes_made": []})
+        monkeypatch.setattr("src.agent.nodes.fix.ChatOpenAI",
+                            _capture_factory({}, content))
+        recorded = MagicMock()
+        monkeypatch.setattr(fmod.token_ledger, "record", recorded)
+        state = _minimal_state()
+        state["translated_text"] = "current text"
+        state["readback_feedback"] = {"verdict": "NEEDS_FIX",
+                                      "comprehension_issues": []}
+        fmod.fix_node(state)
+        assert recorded.call_args.kwargs["elapsed_s"] is not None
+
+
 class TestReadbackUsesQwen:
     def test_readback_node_model_and_base_url(self, monkeypatch):
         from src.agent.nodes.readback import readback_node

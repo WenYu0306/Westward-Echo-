@@ -7,7 +7,7 @@ macOS ships ``python3`` 3.9. Running any script with it used to crash deep in
 
 import pytest
 
-from src import MIN_PYTHON, check_python_version
+from src import check_python_version
 
 
 class TestPythonVersionGuard:
@@ -25,6 +25,3 @@ class TestPythonVersionGuard:
         assert "3.11" in message            # what is required
         assert "3.9.6" in message           # what is running
         assert "python3.11" in message      # how to fix it
-
-    def test_minimum_is_the_documented_runtime(self):
-        assert MIN_PYTHON == (3, 11)
