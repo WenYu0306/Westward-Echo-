@@ -10,6 +10,7 @@ Examples:
     python3 scripts/run_novel.py difu
 """
 import sys, os, time, json, re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src import delivery
@@ -98,6 +99,59 @@ NOVELS = {
 
 SEGMENT = 15  # chapters per checkpoint segment
 
+EXCERPT_CHARS = 800
+
+
+def _is_timeout(exc: Exception) -> bool:
+    err = str(exc).lower()
+    return "timed out" in err or "timeout" in err
+
+
+def translate_batch(items: list, agent, cfg, batch_size: int,
+                    glossary_snapshot: str) -> list[dict]:
+    """Translate one batch; the only place that decides sequential vs concurrent.
+
+    ``batch_size == 1`` is exactly today's behaviour: one agent, contexts taken
+    from the rolling summary, glossary accumulating chapter by chapter.
+    ``batch_size > 1`` runs the chapters concurrently, each with its own agent
+    seeded from the same snapshot (no in-batch term propagation) and a frozen
+    context supplied by the caller.
+
+    Returns one outcome per item: ``{"result": ...}`` or an error marker.
+    """
+    def work(item):
+        chapter = item["ch"]
+        # One agent per concurrent worker keeps glossary writes isolated; the
+        # sequential path reuses the main agent so terms accumulate as before.
+        worker = agent
+        if batch_size > 1:
+            worker = TranslationAgent(
+                book_id=f"{cfg['book_id']}_w{chapter.index}", target_lang="en-US")
+            worker.load_glossary_snapshot(glossary_snapshot, target_lang="en-US")
+        kwargs = dict(chapter_title=chapter.title,
+                      chapter_content=chapter.content,
+                      chapter_number=chapter.index,
+                      previous_summary=item["context"],
+                      target_lang="en-US", genre=cfg["genre"],
+                      skip_readback=item["fast"])
+        try:
+            return {"result": worker.translate_chapter(**kwargs)}
+        except CircuitBreakerOpenError:
+            return {"circuit": True}
+        except Exception as exc:
+            if _is_timeout(exc):
+                try:
+                    return {"result": worker.translate_chapter(
+                        **{**kwargs, "skip_readback": True})}
+                except Exception as exc2:
+                    return {"error": exc2, "timeout": True}
+            return {"error": exc}
+
+    if batch_size <= 1 or len(items) <= 1:
+        return [work(item) for item in items]
+    with ThreadPoolExecutor(max_workers=batch_size) as pool:
+        return list(pool.map(work, items))
+
 # Delivery (chapter block formatting, truncation floor, append/replace/reorder)
 # lives in src/delivery.py so the CLI, the API and Celery cannot drift apart.
 # This module used to carry its own copies of all three.
@@ -123,18 +177,31 @@ def main():
     for i, a in enumerate(sys.argv):
         if a == "--limit" and i + 1 < len(sys.argv):
             limit = int(sys.argv[i + 1])
+    # --batch N: translate N chapters concurrently. 1 = today's behaviour
+    # (rolling summary, glossary accumulates). Above 1, the batch shares a
+    # frozen context and its own glossary snapshot.
+    batch_size = 1
+    batch_raw = None
+    for i, a in enumerate(sys.argv):
+        if a == "--batch" and i + 1 < len(sys.argv):
+            batch_raw = sys.argv[i + 1]
+            batch_size = max(1, int(batch_raw))
     args = [a for a in sys.argv[1:]
-            if not a.startswith("--") and a not in (str(limit), retranslate_raw)]
+            if not a.startswith("--")
+            and a not in (str(limit), retranslate_raw, batch_raw)]
 
     if len(args) < 1:
         print("Usage: python3 scripts/run_novel.py <novel_key> "
-              "[--seed] [--limit N] [--repair-missing] [--retranslate N,M]")
+              "[--seed] [--limit N] [--repair-missing] [--retranslate N,M] [--batch N]")
         print("  --seed  Pre-fill glossary and style memo from Analyze Echo before translating")
         print("  --limit N  Compile only the first N chapters (validation)")
         print("  --repair-missing  Ignore the checkpoint, scan from chapter 1, and")
         print("                    translate only chapters absent from the deliverable")
         print("  --retranslate N,M  Redo these chapters and replace their blocks in place")
         print("                    (for corrupt bodies; works with --repair-missing)")
+        print("  --batch N  Translate N chapters concurrently (default 1 = serial).")
+        print("             N>1 freezes each chapter's context at the batch start")
+        print("             and gives every worker its own glossary snapshot.")
         print("Available novels:")
         for key, cfg in NOVELS.items():
             print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
@@ -278,9 +345,16 @@ def main():
     run_cny = 0.0
     run_unmetered = 0
 
-    def _chapter_usage(before: int):
-        """Tokens/cost of the calls made since row index ``before``."""
+    def _chapter_usage(before: int, chapter: int | None = None):
+        """Tokens/cost of the calls made since row index ``before``.
+
+        ``chapter`` filters to one chapter. Concurrent workers interleave their
+        ledger rows, so a plain positional slice would attribute one chapter's
+        cost to another.
+        """
         rows = token_ledger.ledger.rows_since(cfg["book_id"], before)
+        if chapter is not None:
+            rows = [r for r in rows if r.get("chapter") == chapter]
         metered = [r for r in rows if r.get("metered")]
         return (len(rows),
                 sum(r["input_tokens"] for r in metered),
@@ -297,80 +371,33 @@ def main():
         t0 = time.monotonic()
         last_written = start  # track array position of last successfully written chapter
 
-        for i in range(start, batch_end):
-            ch = chapters[i]
+        pending: list[dict] = []
+
+        def _finish(item, outcome):
+            nonlocal prev, last_written
+            nonlocal run_calls, run_in, run_out, run_cny, run_unmetered
+            i = item["i"]
+            ch = item["ch"]
             ch_num = ch.index
-            pos = i + 1
-            is_sample = pos in sample_points
+            pos = item["pos"]
+            is_sample = item["is_sample"]
 
-            if ch_num in written_chapters and ch_num not in retranslate:
-                # Already delivered — never call the API for it. This is what
-                # makes filling a gap cost one chapter instead of a whole book.
-                # Feed the next translated chapter a continuity excerpt, since
-                # per-chapter summaries were never persisted.
-                tail = delivered_bodies.get(ch_num, "").strip()
-                if tail:
-                    prev = ("(excerpt of the preceding chapter's closing "
-                            "paragraphs)\n" + tail[-1200:])
-                continue
-
-            rows_before = token_ledger.ledger.count(cfg["book_id"])
-
-            allowed, blocked_reason = chapter_budget.should_attempt(ch_num)
-            if not allowed:
-                print(f"  [{pos}/{len(chapters)} Ch{ch_num}] 跳过：{blocked_reason}")
-                budget_skipped.append(ch_num)
-                continue
-
-            # A retry never re-runs the cold reader: the first attempt may, every
-            # later one is a repair of something already attempted.
-            fast = (not is_sample) or chapter_budget.needs_fast_mode(ch_num)
-
-            try:
-                result = agent.translate_chapter(
-                    chapter_title=ch.title,
-                    chapter_content=ch.content,
-                    chapter_number=ch_num,
-                    previous_summary=prev,
-                    target_lang="en-US",
-                    genre=cfg["genre"],
-                    skip_readback=fast,
-                )
-            except CircuitBreakerOpenError:
+            if outcome.get("circuit"):
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] CIRCUIT OPEN - sleep 30s")
                 failed_positions.append(pos)
                 chapter_budget.record(ch_num, outcome="circuit_open")
                 time.sleep(30)
-                continue
-            except Exception as e:
-                err_msg = str(e).lower()
-                is_timeout = "timed out" in err_msg or "timeout" in err_msg
-                if is_timeout:
-                    print(f"  [{pos}/{len(chapters)} Ch{ch_num}] TIMEOUT (attempt 1) - retrying in fast mode...")
-                    time.sleep(3)
-                    try:
-                        result = agent.translate_chapter(
-                            chapter_title=ch.title,
-                            chapter_content=ch.content,
-                            chapter_number=ch_num,
-                            previous_summary=prev,
-                            target_lang="en-US",
-                            genre=cfg["genre"],
-                            skip_readback=True,
-                        )
-                    except Exception as e2:
-                        print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e2} (after retry)")
-                        failed_positions.append(pos)
-                        chapter_budget.record(
-                            ch_num, cost=_chapter_usage(rows_before)[3],
-                            outcome="timeout")
-                        continue
-                else:
-                    print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e}")
-                    failed_positions.append(pos)
-                    chapter_budget.record(ch_num, outcome="error")
-                    continue
+                return
+            if "error" in outcome:
+                tag = "ERROR (after retry)" if outcome.get("timeout") else "ERROR"
+                print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {tag}: {outcome['error']}")
+                failed_positions.append(pos)
+                chapter_budget.record(
+                    ch_num, cost=_chapter_usage(item["rows_before"], ch_num)[3],
+                    outcome="timeout" if outcome.get("timeout") else "error")
+                return
 
+            result = outcome["result"]
             tt = result.get("translated_text", "")
             title_en = result.get("chapter_title_en", "")
             prev = result.get("chapter_summary", "")
@@ -405,7 +432,9 @@ def main():
             else:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {len(tt)}c [F] {ok_flag}")
 
-            _calls, _in, _out, _cny, _unm = _chapter_usage(rows_before)
+            # Attribute cost by chapter: with concurrent workers the ledger rows
+            # of other chapters interleave, so a positional slice would mix them.
+            _calls, _in, _out, _cny, _unm = _chapter_usage(item["rows_before"], ch_num)
             chapter_budget.record(
                 ch_num, cost=_cny,
                 outcome="ok" if usable else "not_deliverable")
@@ -431,6 +460,60 @@ def main():
                 delivered_bodies[ch_num] = tt
                 newly_written.append(ch_num)
                 last_written = i
+
+        def _flush(items):
+            if not items:
+                return
+            snapshot = agent.exact_store.snapshot()
+            outcomes = translate_batch(items, agent, cfg, batch_size, snapshot)
+            for item, outcome in zip(items, outcomes):
+                _finish(item, outcome)
+            items.clear()
+
+        for i in range(start, batch_end):
+            ch = chapters[i]
+            ch_num = ch.index
+            pos = i + 1
+            is_sample = pos in sample_points
+
+            if ch_num in written_chapters and ch_num not in retranslate:
+                # Already delivered — never call the API for it. This is what
+                # makes filling a gap cost one chapter instead of a whole book.
+                # Feed the next translated chapter a continuity excerpt, since
+                # per-chapter summaries were never persisted.
+                tail = delivered_bodies.get(ch_num, "").strip()
+                if tail:
+                    prev = ("(excerpt of the preceding chapter's closing "
+                            "paragraphs)\n" + tail[-1200:])
+                continue
+
+            allowed, blocked_reason = chapter_budget.should_attempt(ch_num)
+            if not allowed:
+                print(f"  [{pos}/{len(chapters)} Ch{ch_num}] 跳过：{blocked_reason}")
+                budget_skipped.append(ch_num)
+                continue
+
+            # A retry never re-runs the cold reader: the first attempt may, every
+            # later one is a repair of something already attempted.
+            fast = (not is_sample) or chapter_budget.needs_fast_mode(ch_num)
+            if batch_size > 1:
+                # Frozen context: chapters in a batch cannot see each other's
+                # summaries, so each gets the batch-start summary plus an excerpt
+                # of the chapter before it.
+                excerpt = (chapters[i - 1].content[-EXCERPT_CHARS:] if i > 0
+                           else "(this is the beginning of the book)")
+                context = f"{prev}\n\n(excerpt of the preceding chapter)\n{excerpt}"
+            else:
+                context = prev
+
+            pending.append({
+                "i": i, "ch": ch, "pos": pos, "is_sample": is_sample,
+                "fast": fast, "context": context,
+                "rows_before": token_ledger.ledger.count(cfg["book_id"]),
+            })
+            if len(pending) >= batch_size:
+                _flush(pending)
+        _flush(pending)
         json.dump({
             # Never move the checkpoint backwards: a repair run translates early
             # gaps and would otherwise rewind progress that already exists.

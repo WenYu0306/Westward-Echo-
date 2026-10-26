@@ -83,7 +83,7 @@ def runner(monkeypatch, tmp_path):
                 self.book_id = book_id
                 self.exact_store = _FakeStore()
 
-            def load_glossary_snapshot(self, snapshot):
+            def load_glossary_snapshot(self, snapshot, target_lang="en-US"):
                 pass
 
             def translate_chapter(self, **kwargs):
@@ -591,3 +591,102 @@ class TestChapterBudgetIntegration:
                            .read_text(encoding="utf-8"))
         assert data["1"]["attempts"] == 1
         assert data["1"]["outcome"] == "ok"
+
+
+class TestTranslateBatch:
+    """One code path: batch_size=1 is today's behaviour, >1 runs concurrently."""
+
+    def _items(self, n):
+        return [{"i": i, "ch": _FakeChapter(i + 1, f"第{i+1}章", "源文"),
+                 "pos": i + 1, "is_sample": False, "fast": True,
+                 "context": f"ctx{i}", "rows_before": 0} for i in range(n)]
+
+    def test_sequential_batch_reuses_the_main_agent(self, runner, monkeypatch):
+        mod = runner["mod"]
+        created = []
+
+        class FakeAgent:
+            def __init__(self, **kw):
+                created.append(kw)
+
+            def translate_chapter(self, **kw):
+                return {"translated_text": "x"}
+
+        main_agent = FakeAgent()
+        created.clear()          # ignore the agent the test itself constructed
+        outcomes = mod.translate_batch(self._items(2), main_agent,
+                                       {"book_id": "b", "genre": "g"}, 1, "{}")
+        assert created == [], "batch_size=1 must not spawn worker agents"
+        assert all("result" in o for o in outcomes)
+
+    def test_concurrent_batch_uses_one_agent_per_chapter(self, runner, monkeypatch):
+        mod = runner["mod"]
+        created = []
+
+        class FakeAgent:
+            def __init__(self, **kw):
+                created.append(kw.get("book_id"))
+
+            def load_glossary_snapshot(self, *a, **k):
+                pass
+
+            def translate_chapter(self, **kw):
+                return {"translated_text": f"ch{kw['chapter_number']}"}
+
+        monkeypatch.setattr(mod, "TranslationAgent", FakeAgent)
+        outcomes = mod.translate_batch(self._items(3), object(),
+                                       {"book_id": "bk", "genre": "g"}, 3, "{}")
+        assert len(created) == 3
+        assert all(b.startswith("bk_w") for b in created)
+        assert [o["result"]["translated_text"] for o in outcomes] == ["ch1", "ch2", "ch3"]
+
+    def test_context_is_passed_through(self, runner, monkeypatch):
+        mod = runner["mod"]
+        seen = []
+
+        class FakeAgent:
+            def translate_chapter(self, **kw):
+                seen.append(kw["previous_summary"])
+                return {"translated_text": "x"}
+
+        mod.translate_batch(self._items(2), FakeAgent(),
+                            {"book_id": "b", "genre": "g"}, 1, "{}")
+        assert seen == ["ctx0", "ctx1"]
+
+    def test_circuit_open_on_one_chapter_does_not_sink_the_others(
+            self, runner, monkeypatch):
+        from src.circuit_breaker import CircuitBreakerOpenError
+        mod = runner["mod"]
+
+        class FakeAgent:
+            def __init__(self, **kw):
+                pass
+
+            def load_glossary_snapshot(self, *a, **k):
+                pass
+
+            def translate_chapter(self, **kw):
+                if kw["chapter_number"] == 2:
+                    raise CircuitBreakerOpenError("open")
+                return {"translated_text": "ok"}
+
+        monkeypatch.setattr(mod, "TranslationAgent", FakeAgent)
+        outcomes = mod.translate_batch(self._items(3), object(),
+                                       {"book_id": "bk", "genre": "g"}, 3, "{}")
+        assert outcomes[1] == {"circuit": True}
+        assert outcomes[0]["result"]["translated_text"] == "ok"
+        assert outcomes[2]["result"]["translated_text"] == "ok"
+
+    def test_batch_run_still_delivers_every_chapter(self, runner, monkeypatch):
+        mod = runner["mod"]
+        chapters = [_FakeChapter(i, f"第{i}章", "源文内容") for i in (1, 2, 3)]
+        results = [{"translated_text": GOOD, "chapter_title_en": f"Ch{n}",
+                    "chapter_summary": "s"} for n in (1, 2, 3)]
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=3), chapters, results)
+
+        # The fixture's fake agent ignores batch_size, so this exercises the
+        # collection/flush wiring rather than real concurrency.
+        runner["run"](["unit_test_book", "--batch", "3"])
+
+        text = _deliverable(runner["out_dir"])
+        assert [n for n in (1, 2, 3) if f"## Chapter {n}:" in text] == [1, 2, 3]
