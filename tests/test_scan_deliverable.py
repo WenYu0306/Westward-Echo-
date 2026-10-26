@@ -715,7 +715,8 @@ class TestGlossaryConflicts:
     def test_empty_glossary_reports_zero(self, scan):
         g = self._g(scan, {})
         assert g == {"terms_total": 0, "one_en_many_cn": 0,
-                     "conflicts": [], "legitimate_variants": []}
+                     "conflicts": [], "near_duplicates": [],
+                     "legitimate_variants": []}
 
     def test_one_to_one_mapping_is_clean(self, scan):
         g = self._g(scan, {"八爷": "Eighth Master", "七爷": "Seventh Master"})
@@ -723,13 +724,19 @@ class TestGlossaryConflicts:
         assert g["one_en_many_cn"] == 0
         assert g["conflicts"] == []
 
-    def test_homophone_clash_is_a_conflict(self, scan):
-        """实测形态：白无畏/白无谓 同音异形字，必有一个是错的。"""
+    def test_homophone_pair_is_a_source_variant_not_a_conflict(self, scan):
+        """白无畏/白无谓 occur in the source 151 and 95 times respectively.
+
+        Both spellings map to one English rendering, so a reader never sees an
+        inconsistency. Counting this as a defect produced 10 false alarms on
+        《地府》 — it is reported separately as a source variant.
+        """
         g = self._g(scan, {"白无畏": "Bai Wuwei", "白无谓": "Bai Wuwei"})
         assert g["one_en_many_cn"] == 1
-        assert len(g["conflicts"]) == 1
-        c = g["conflicts"][0]
-        assert c["kind"] == "HOMOPHONE_CLASH"
+        assert g["conflicts"] == []
+        assert len(g["near_duplicates"]) == 1
+        c = g["near_duplicates"][0]
+        assert c["kind"] == "SOURCE_VARIANT_SPELLING"
         assert c["en"] == "Bai Wuwei"
         assert c["variants"] == ["白无畏", "白无谓"]
 
@@ -788,19 +795,19 @@ class TestGlossaryConflicts:
         assert [c["kind"] for c in g["conflicts"]] == ["DIRTY_TERM"]
 
     def test_many_conflicts_are_all_reported(self, scan):
-        """实测 difu 有 13 组真冲突；判据必须全列，不得只报第一组。"""
+        """Real conflicts are malformed keys; the judge must list all of them."""
         glossary = {}
         for i in range(13):
             glossary[f"白无{i}畏"] = f"Term{i}"
-            glossary[f"白无{i}谓"] = f"Term{i}"
+            glossary[f"白无{i}畏/x"] = f"Term{i}"
         g = self._g(scan, glossary)
         assert g["one_en_many_cn"] == 13
         assert len(g["conflicts"]) == 13
-        assert all(c["kind"] == "HOMOPHONE_CLASH" for c in g["conflicts"])
+        assert all(c["kind"] == "DIRTY_TERM" for c in g["conflicts"])
 
     def test_conflicts_sorted_by_english_rendering(self, scan):
-        glossary = {"白无畏": "Zeta", "白无谓": "Zeta",
-                    "常怀元": "Alpha", "常怀远": "Alpha"}
+        glossary = {"白无畏/x": "Zeta", "白无畏": "Zeta",
+                    "常怀元/y": "Alpha", "常怀元": "Alpha"}
         g = self._g(scan, glossary)
         assert [c["en"] for c in g["conflicts"]] == ["Alpha", "Zeta"]
 
@@ -846,7 +853,8 @@ class TestLoadGlossary:
         }), encoding="utf-8")
         report = scan.scan_file(path)
         assert report["glossary"]["terms_total"] == 2
-        assert len(report["glossary"]["conflicts"]) == 1
+        assert report["glossary"]["conflicts"] == []
+        assert len(report["glossary"]["near_duplicates"]) == 1
 
 
 class TestQuoteStyleInScanFile:
@@ -877,7 +885,7 @@ class TestQuoteStyleInScanFile:
         import json
         path = _write(tmp_path, '## Chapter 1: 第1章 A\n\nHe said "a".\n')
         (tmp_path / "_glossary.json").write_text(json.dumps({
-            "白无畏": "Bai Wuwei", "白无谓": "Bai Wuwei",
+            "白无畏": "Bai Wuwei", "白无畏/x": "Bai Wuwei",
         }), encoding="utf-8")
         report = scan.scan_file(path)
         assert report["findings_total"] == 0
@@ -934,12 +942,12 @@ class TestQuoteReportLayout:
         assert "同章混用两套引号: 30 章（前 20）" in out
 
     def test_glossary_conflicts_are_all_printed(self, scan, tmp_path, capsys):
-        """13 组真冲突必须全印——这是给人修的动作清单，不是分布诊断。"""
+        """Real conflicts must all be printed — this is a fix-it list."""
         import json
         glossary = {}
         for i in range(13):
             glossary[f"白无{i}畏"] = f"Term{i}"
-            glossary[f"白无{i}谓"] = f"Term{i}"
+            glossary[f"白无{i}畏/x"] = f"Term{i}"
         path = _write(tmp_path, '## Chapter 1: 第1章 A\n\nHe said "a".\n')
         (tmp_path / "_glossary.json").write_text(
             json.dumps(glossary), encoding="utf-8")
@@ -958,7 +966,7 @@ class TestQuoteReportLayout:
         text = _chap(1, 'He said "a".') + _chap(2, f"Only {_CURLY}c{_CURLY_R}.")
         path = _write(tmp_path, text)
         (tmp_path / "_glossary.json").write_text(json.dumps({
-            "白无畏": "Bai Wuwei", "白无谓": "Bai Wuwei",
+            "白无畏": "Bai Wuwei", "白无畏/x": "Bai Wuwei",
         }), encoding="utf-8")
         scan.main([str(path)])
         out = capsys.readouterr().out
@@ -1040,21 +1048,21 @@ class TestGlossaryReportLabels:
         assert "[脏标记] Dog Ni" in out
         assert "[同音/形近字] Dog Ni" not in out
 
-    def test_homophone_clash_is_labelled_homophone(self, scan, tmp_path, capsys):
+    def test_source_variants_are_not_labelled_as_conflicts(self, scan, tmp_path, capsys):
         self._report(scan, tmp_path,
                      {"白无畏": "Bai Wuwei", "白无谓": "Bai Wuwei"})
         out = capsys.readouterr().out
-        assert "[同音/形近字] Bai Wuwei" in out
+        assert "源文异写 1 组" in out
         assert "[脏标记] Bai Wuwei" not in out
 
-    def test_both_labels_appear_when_both_kinds_present(self, scan, tmp_path, capsys):
+    def test_dirty_and_source_variant_are_reported_separately(self, scan, tmp_path, capsys):
         self._report(scan, tmp_path, {
             "犬尼": "Dog Ni", "犬封恶鬼/犬尼": "Dog Ni",
             "白无畏": "Bai Wuwei", "白无谓": "Bai Wuwei",
         })
         out = capsys.readouterr().out
         assert "[脏标记] Dog Ni" in out
-        assert "[同音/形近字] Bai Wuwei" in out
+        assert "源文异写 1 组" in out
 
 
 class TestDominantStyleLabelInReport:

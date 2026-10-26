@@ -16,6 +16,7 @@ readers. Locked down here:
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -340,3 +341,132 @@ class TestLimitModeStillColdReads:
         mod = runner["mod"]
         positions = self._positions(mod, monkeypatch, runner, n_chapters=12, limit=12)
         assert positions == [10], "configured sampling changed for a long run"
+
+
+class TestScanDelivered:
+    def test_splits_numbers_and_bodies(self, runner):
+        text = ("## Chapter 1: One\n\nbody one\n\n---\n\n"
+                "## Chapter 2: Two\n\nbody two\n\n---\n\n")
+        written, bodies = runner["mod"].scan_delivered(text)
+        assert written == {1, 2}
+        assert "body one" in bodies[1]
+        assert "body two" in bodies[2]
+        assert "body two" not in bodies[1]
+
+    def test_empty_deliverable(self, runner):
+        assert runner["mod"].scan_delivered("") == (set(), {})
+
+
+class TestRepairMissing:
+    """--repair-missing exists so a gap costs one chapter, not a whole book.
+
+    Before this, the only way to fill a missing chapter was to delete the
+    checkpoint, and the loop called translate_chapter for every already-written
+    chapter too — a full re-translation at full price.
+    """
+
+    def _seed_deliverable(self, out_dir, present):
+        out = Path(out_dir) / "unit_test_en.md"
+        blocks = [f"## Chapter {n}: Chapter {n}\n\n"
+                  + ("Existing body. " * 20) + "\n\n---\n\n" for n in present]
+        out.write_text("# Unit Test — English Translation\n\n" + "".join(blocks),
+                       encoding="utf-8")
+        return out
+
+    def test_only_the_gap_is_translated(self, runner, monkeypatch):
+        mod = runner["mod"]
+        chapters = [_FakeChapter(i, f"第{i}章", "源文内容") for i in (1, 2, 3)]
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=3), chapters, [])
+
+        calls = []
+
+        def fake_translate(self, **kwargs):
+            calls.append(kwargs["chapter_number"])
+            return {"translated_text": GOOD, "chapter_title_en": "Filled",
+                    "chapter_summary": "summary"}
+
+        monkeypatch.setattr(mod.TranslationAgent, "translate_chapter", fake_translate)
+        self._seed_deliverable(runner["out_dir"], [1, 3])
+        (Path(runner["out_dir"]) / "_checkpoint.json").write_text(
+            json.dumps({"last_idx": 2, "glossary_snapshot": "{}",
+                        "previous_summary": "old summary"}), encoding="utf-8")
+
+        code = runner["run"](["unit_test_book", "--repair-missing"])
+
+        assert calls == [2], f"only the gap should hit the API, got {calls}"
+        text = _deliverable(runner["out_dir"])
+        for n in (1, 2, 3):
+            assert text.count(f"## Chapter {n}:") == 1
+        assert code == 0
+
+        # The checkpoint must not rewind past what the interrupted run reached.
+        ckpt = json.loads((Path(runner["out_dir"]) / "_checkpoint.json")
+                          .read_text(encoding="utf-8"))
+        assert ckpt["last_idx"] == 2
+
+    def test_skipped_chapters_seed_continuity(self, runner, monkeypatch):
+        """A gap chapter must still get a before-context, taken from the
+        delivered chapter that precedes it (per-chapter summaries are not
+        persisted anywhere)."""
+        mod = runner["mod"]
+        chapters = [_FakeChapter(i, f"第{i}章", "源文内容") for i in (1, 2)]
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=2), chapters, [])
+        seen = {}
+
+        def fake_translate(self, **kwargs):
+            seen["previous_summary"] = kwargs["previous_summary"]
+            return {"translated_text": GOOD, "chapter_title_en": "Two",
+                    "chapter_summary": "s"}
+        monkeypatch.setattr(mod.TranslationAgent, "translate_chapter", fake_translate)
+        self._seed_deliverable(runner["out_dir"], [1])
+        (Path(runner["out_dir"]) / "_checkpoint.json").write_text(
+            json.dumps({"last_idx": 1, "glossary_snapshot": "{}",
+                        "previous_summary": "stale"}), encoding="utf-8")
+
+        runner["run"](["unit_test_book", "--repair-missing"])
+
+        assert "Existing body." in seen["previous_summary"]
+        assert "stale" not in seen["previous_summary"]
+
+
+class TestDeliveryScanWired:
+    def test_cost_json_carries_the_structural_scan(self, runner, monkeypatch):
+        mod = runner["mod"]
+        chapters = [_FakeChapter(1, "第1章", "源文内容")]
+        result = {"translated_text": GOOD, "chapter_title_en": "One",
+                  "chapter_summary": "s"}
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=1), chapters, [result])
+
+        runner["run"](["unit_test_book"])
+
+        cost = json.loads((Path(runner["out_dir"]) / "_cost.json")
+                          .read_text(encoding="utf-8"))
+        assert isinstance(cost["scan"], dict)
+        assert "numbering_defects" in cost["scan"]
+        assert cost["scan"]["glossary_conflicts"] == 0
+
+
+class TestReorderDeliverable:
+    def test_out_of_order_block_moves_into_place(self, runner, tmp_path):
+        """A repair run appends, so the filled gap lands last; the book must
+        still read in chapter order."""
+        p = tmp_path / "book.md"
+        p.write_text("# Title\n\n"
+                     "## Chapter 1: One\n\nA.\n\n---\n\n"
+                     "## Chapter 3: Three\n\nC.\n\n---\n\n"
+                     "## Chapter 2: Two\n\nB.\n\n---\n\n", encoding="utf-8")
+
+        moved = runner["mod"].reorder_deliverable(p)
+
+        text = p.read_text(encoding="utf-8")
+        assert moved > 0
+        assert [int(x) for x in re.findall(r"^## Chapter (\d+):", text, re.M)] == [1, 2, 3]
+        assert text.startswith("# Title")
+
+    def test_already_ordered_file_is_not_rewritten(self, runner, tmp_path):
+        p = tmp_path / "book.md"
+        p.write_text("## Chapter 1: One\n\nA.\n\n---\n\n"
+                     "## Chapter 2: Two\n\nB.\n\n---\n\n", encoding="utf-8")
+        before = p.read_text(encoding="utf-8")
+        assert runner["mod"].reorder_deliverable(p) == 0
+        assert p.read_text(encoding="utf-8") == before

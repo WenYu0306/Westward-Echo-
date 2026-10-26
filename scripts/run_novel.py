@@ -9,7 +9,7 @@ Examples:
     python3 scripts/run_novel.py limitless_horror
     python3 scripts/run_novel.py difu
 """
-import sys, os, time, json
+import sys, os, time, json, re
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
@@ -95,9 +95,57 @@ NOVELS = {
 
 SEGMENT = 15  # chapters per checkpoint segment
 
+_CHAPTER_HEAD_RE = re.compile(r"^## Chapter (\d+):.*$", re.MULTILINE)
+
+
+def scan_delivered(text: str) -> tuple[set[int], dict[int, str]]:
+    """Chapter numbers and bodies already present in the deliverable.
+
+    Both are needed: numbers prevent a duplicate write, bodies give a repair run
+    a continuity excerpt for the chapter after a gap without re-translating what
+    already exists.
+    """
+    heads = list(_CHAPTER_HEAD_RE.finditer(text))
+    written: set[int] = set()
+    bodies: dict[int, str] = {}
+    for i, match in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        number = int(match.group(1))
+        written.add(number)
+        bodies[number] = text[match.end():end]
+    return written, bodies
+
+
+def reorder_deliverable(path) -> int:
+    """Rewrite the deliverable with chapter blocks in ascending order.
+
+    The runner appends, so a repair run writes a filled gap at the end of the
+    file. Without this the book would read 1…775, 243. Returns the number of
+    blocks moved.
+    """
+    text = open(path, encoding="utf-8").read()
+    heads = list(_CHAPTER_HEAD_RE.finditer(text))
+    if not heads:
+        return 0
+    preamble = text[:heads[0].start()]
+    blocks = []
+    for i, head in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        blocks.append((int(head.group(1)), text[head.start():end]))
+    ordered = sorted(blocks, key=lambda b: b[0])
+    moved = sum(1 for (n1, _), (n2, _) in zip(blocks, ordered) if n1 != n2)
+    if moved:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(preamble + "".join(block for _, block in ordered))
+    return moved
+
 
 def main():
     do_seed = "--seed" in sys.argv
+    # --repair-missing: scan from chapter 1 and translate only what is absent
+    # from the deliverable. Cheap because already-delivered chapters are skipped
+    # before any API call.
+    repair_missing = "--repair-missing" in sys.argv
     # --limit N: compile only the first N chapters (for quick validation runs)
     limit = None
     for i, a in enumerate(sys.argv):
@@ -106,9 +154,11 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--") and a != str(limit)]
 
     if len(args) < 1:
-        print("Usage: python3 scripts/run_novel.py <novel_key> [--seed] [--limit N]")
+        print("Usage: python3 scripts/run_novel.py <novel_key> [--seed] [--limit N] [--repair-missing]")
         print("  --seed  Pre-fill glossary and style memo from Analyze Echo before translating")
         print("  --limit N  Compile only the first N chapters (validation)")
+        print("  --repair-missing  Ignore the checkpoint, scan from chapter 1, and")
+        print("                    translate only chapters absent from the deliverable")
         print("Available novels:")
         for key, cfg in NOVELS.items():
             print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
@@ -195,13 +245,14 @@ def main():
     if os.path.exists(quality_file):
         quality_log = json.load(open(quality_file))
 
-    # Load set of already-written chapters to prevent duplicates on resume
+    # Load what is already delivered: chapter numbers (so a resume never writes
+    # a duplicate) and bodies (so a repair run can hand the next chapter a
+    # continuity excerpt without paying to re-translate what already exists).
     written_chapters: set[int] = set()
+    delivered_bodies: dict[int, str] = {}
     if os.path.exists(out_file):
-        import re as _re
         with open(out_file, encoding="utf-8") as _f:
-            for _m in _re.finditer(r"^## Chapter (\d+):", _f.read(), _re.MULTILINE):
-                written_chapters.add(int(_m.group(1)))
+            written_chapters, delivered_bodies = scan_delivered(_f.read())
 
     agent = TranslationAgent(book_id=cfg["book_id"])
 
@@ -210,6 +261,7 @@ def main():
     # far the loop got — a run that delivered 1 of 2 chapters used to print
     # "100%" and "ALL DONE".
     failed_positions: list[int] = []
+    newly_written: list[int] = []
 
     # Must be bound before the loop: on a fully-checkpointed resume the `while`
     # body never executes, and the summary print below dereferences `glossary`.
@@ -218,12 +270,21 @@ def main():
 
     start = 0
     prev = ""
+    prev_last_idx = -1
     if os.path.exists(ckpt_file):
         ckpt = json.load(open(ckpt_file))
-        start = ckpt.get("last_idx", -1) + 1
+        prev_last_idx = ckpt.get("last_idx", -1)
+        start = prev_last_idx + 1
         agent.load_glossary_snapshot(ckpt.get("glossary_snapshot", "{}"))
         prev = ckpt.get("previous_summary", "")
-        print(f"Resuming from chapter {start + 1}/{len(chapters)}")
+        if repair_missing:
+            print(f"--repair-missing: 从头扫描，跳过已交付章节"
+                  f"（checkpoint 原本指向 {start}/{len(chapters)}）")
+            start = 0
+        else:
+            print(f"Resuming from chapter {start + 1}/{len(chapters)}")
+    elif repair_missing:
+        print("--repair-missing: 无 checkpoint，按常规从头编译")
 
     segment_num = 1
     overall_t0 = time.monotonic()
@@ -255,6 +316,18 @@ def main():
             ch_num = ch.index
             pos = i + 1
             is_sample = pos in sample_points
+
+            if ch_num in written_chapters:
+                # Already delivered — never call the API for it. This is what
+                # makes filling a gap cost one chapter instead of a whole book.
+                # Feed the next translated chapter a continuity excerpt, since
+                # per-chapter summaries were never persisted.
+                tail = delivered_bodies.get(ch_num, "").strip()
+                if tail:
+                    prev = ("(excerpt of the preceding chapter's closing "
+                            "paragraphs)\n" + tail[-1200:])
+                continue
+
             rows_before = len(token_ledger.ledger.rows(cfg["book_id"]))
 
             try:
@@ -359,9 +432,12 @@ def main():
                     display_title = title_en or f"Chapter {ch_num}"
                     f.write(f"## Chapter {ch_num}: {display_title}\n\n{tt}\n\n---\n\n")
                 written_chapters.add(ch_num)
+                newly_written.append(ch_num)
                 last_written = i
         json.dump({
-            "last_idx": last_written,
+            # Never move the checkpoint backwards: a repair run translates early
+            # gaps and would otherwise rewind progress that already exists.
+            "last_idx": max(prev_last_idx, last_written),
             "glossary_snapshot": agent.exact_store.snapshot(),
             "previous_summary": prev,
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -414,6 +490,50 @@ def main():
         print(f"ALL DONE: {delivered}/{scanned} chapters in {total_min:.0f}m")
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
 
+    # A repair run appends, so a filled gap lands after the last chapter.
+    if repair_missing and newly_written and os.path.exists(out_file):
+        moved = reorder_deliverable(out_file)
+        if moved:
+            print(f"Reorder: {moved} 个章节块按章号归位（补译章原在文件末尾）")
+
+    # ── 交付结构扫描：100% 章节、纯文本、零 API ──
+    # 此前只有手动跑 scan_deliverable.py 才能发现章号异常/JSON 残留/截断，
+    # 而实际交付时没人会记得跑。挂在这里，每次编译结束都留一份分诊清单。
+    scan_summary = None
+    hard_defects = 0
+    if not os.path.exists(out_file):
+        # Nothing was written, so there is nothing to scan. A run that failed to
+        # deliver anything is already caught by `incomplete`, not here.
+        print("Delivery scan: skipped (no deliverable written)")
+    else:
+        try:
+            from pathlib import Path
+            from scripts.scan_deliverable import scan_file
+            scan = scan_file(Path(out_file))
+            scan_summary = {
+                "findings_total": scan["findings_total"],
+                "findings_by_check": scan["findings_by_check"],
+                "chapters_with_findings": scan["chapters_with_findings"],
+                "numbering_defects": scan["numbering_defects"],
+                "quotes_off_dominant": len(scan["quotes"]["off_dominant_chapters"]),
+                "glossary_conflicts": len(scan["glossary"]["conflicts"]),
+            }
+            # Only defects the scan is confident about drive the exit code.
+            # TRUNCATED_BODY has a calibrated ~18% false-positive rate.
+            hard_defects = (scan["numbering_defects"]
+                            + scan["findings_by_check"].get("JSON_RESIDUE", 0))
+            print(f"Delivery scan: {scan['findings_total']} per-chapter finding(s) "
+                  f"in {scan['chapters_with_findings']}/{scan['chapters_total']} "
+                  f"chapters | numbering defects {scan['numbering_defects']}"
+                  f" | glossary conflicts {scan_summary['glossary_conflicts']}"
+                  f" | quote drift {scan_summary['quotes_off_dominant']} chapters")
+            print("  TRUNCATED_BODY 约 18% 误报（诗词署名/干支纪年），完整清单："
+                  "python3.11 scripts/scan_deliverable.py <交付文件>")
+        except Exception as exc:
+            # "not verified" must never read as "clean".
+            print(f"  WARNING: delivery scan failed ({exc}) — deliverable NOT verified")
+            hard_defects = 1
+
     # ── 成本台账：本次运行的真实 token 与花费（此前生产路径完全无记录）──
     # Cumulative for the book, not just this process: a book translated across
     # several sessions must not have its earlier spend erased by the last run.
@@ -434,6 +554,7 @@ def main():
         "per_node": cost["per_node"],
         "per_model": cost["per_model"],
         "timing": cost["timing"],
+        "scan": scan_summary,
         "minutes": round(total_min, 1),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }, open(cost_path, "w"), ensure_ascii=False, indent=2)
@@ -453,7 +574,7 @@ def main():
 
     # Non-zero exit lets a caller (CI, a wrapper, cron) detect the gap instead
     # of trusting the word "DONE" in stdout.
-    return 1 if incomplete else 0
+    return 1 if (incomplete or hard_defects) else 0
 
 
 if __name__ == "__main__":

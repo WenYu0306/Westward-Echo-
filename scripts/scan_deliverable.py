@@ -412,22 +412,26 @@ def check_quote_style(chapters: list[dict], dominant: str) -> dict:
 
 # ── Check 8: 术语表内部冲突（条款16）───────────────────────────────────
 # 实测标定（difu _glossary.json，1467 条）：同一英文渲染对应多个中文源词
-# 共 29 组，实测分成三类，**只有前两类是缺陷**：
+# 共 29 组，实测分成三类，**只有第一类是缺陷**：
 #
 #   A 值含脏标记（斜杠/括号）3 组 —— 术语表自身脏数据：
 #       'Dog Ni'            <- ['犬封恶鬼/犬尼', '犬尼']
 #       'County Chief Hong' <- ['洪贤长', '洪贤（避嫌，通县）长']
 #       'Young General'     <- ['少将军', '少将军 (addressing Chen Daji)', ...]
-#   B 等长且恰好一个字不同 10 组 —— 同音字/形近字，必有一个是错的：
-#       '白无畏'/'白无谓'、'常怀元'/'常怀远'、'法庆'/'法清'、
-#       '空禅'/'空蝉'、'幽荧'/'幽莹'、'女妭'/'女魃' …
-#   C 其余 16 组是**合法变体**（简称/全称、敬称、限定语），不报：
-#       '容慧'/'容慧禅师'、'鬼母'/'鬼母邪神'、'常二爷'/'常家二爷'、
-#       '大将军庙'/'将军庙' …
+#     其中两条（'犬封恶鬼/犬尼' 与两条 '少将军 (...)'）在源文里一次都不出现，
+#     是模型臆造的键。清洗见 scripts/clean_glossary.py。
 #
-# C 类与 B 类判据不重叠：实测 16 组无一满足"等长且仅一字不同"（最短的
-# '灰家仙'/'灰老六'、'绝圣女帝'/'绝圣帝君' 都差 2 个字）。故 A+B 合计
-# 13 组全部为真缺陷、零误报。C 类作为度量另报，供人工核对而不判缺陷。
+#   B 等长且恰好一个字不同 10 组 —— **不是缺陷**。回查源文后发现全都是原文
+#     本身就有两种写法（白无畏 151 次 / 白无谓 95 次；法庆 188 / 法清 13；
+#     空禅 208 / 空蝉 10）。两种中文映射到同一个英文，读者看到的是统一译名，
+#     不会感到不一致。逐个当成冲突报，只会制造 10 条假警报。
+#     现在单列为 near_duplicates，只作度量，不计入缺陷。
+#
+#   C 其余 16 组是简称/全称/敬称变体（容慧/容慧禅师、鬼母/鬼母邪神），
+#     同样只作度量。
+#
+# 真正的读者可见不一致是反方向：同一个中文源词对应多个英文渲染。实测两本书
+# 该方向均为 0 组；一旦出现就是硬缺陷，由 exact_store 的单值映射保证不会发生。
 #
 # ⚠️ 这里不做"术语在源文出现却没在译文出现"的判据：completeness.py:187-194
 # 已实测否决该判据（11 个截断章缺 8-24 术语、8 个健康对照缺 5-16，区间重叠，
@@ -436,12 +440,17 @@ _GLOSSARY_DIRTY = re.compile(r"[/()（）]")
 
 
 def check_glossary_conflicts(glossary: dict) -> dict:
-    """术语表内部一致性：同一英文渲染不得对应互相矛盾的中文源词。"""
+    """术语表内部一致性：只把畸形键判为冲突。
+
+    同一英文对应多个**合法的**中文写法不算冲突——那是原文自身的异写，
+    英文渲染一致，读者无从感知。见本节顶部的实测标定。
+    """
     by_en: dict[str, set] = defaultdict(set)
     for cn, en in glossary.items():
         by_en[en].add(cn)
 
     conflicts: list[dict] = []
+    near_duplicates: list[dict] = []
     variants_only: list[dict] = []
     for en, cns in sorted(by_en.items()):
         if len(cns) < 2:
@@ -458,9 +467,9 @@ def check_glossary_conflicts(glossary: dict) -> dict:
                 if len(a) == len(b)
                 and sum(1 for x, y in zip(a, b) if x != y) == 1]
         if near:
-            conflicts.append({
-                "kind": "HOMOPHONE_CLASH", "en": en, "variants": forms,
-                "detail": "等长且仅一字不同（同音/形近字）: "
+            near_duplicates.append({
+                "kind": "SOURCE_VARIANT_SPELLING", "en": en, "variants": forms,
+                "detail": "等长且仅一字不同，均为源文写法: "
                           + ", ".join(f"{a}/{b}" for a, b in near),
             })
             continue
@@ -471,6 +480,7 @@ def check_glossary_conflicts(glossary: dict) -> dict:
         "terms_total": len(glossary),
         "one_en_many_cn": sum(1 for cns in by_en.values() if len(cns) > 1),
         "conflicts": conflicts,
+        "near_duplicates": near_duplicates,
         "legitimate_variants": variants_only,
     }
 
@@ -636,8 +646,10 @@ def _print_glossary(g: dict) -> None:
         return
     print(f"  条目 {g['terms_total']} | 同一英文对应多个中文 {g['one_en_many_cn']} 组")
     for c in g["conflicts"]:
-        kind = "脏标记" if c["kind"] == "DIRTY_TERM" else "同音/形近字"
-        print(f"  ✗ [{kind}] {c['en']} <- {c['variants']}")
+        print(f"  ✗ [脏标记] {c['en']} <- {c['variants']}")
+    if g.get("near_duplicates"):
+        print(f"  ✓ 源文异写 {len(g['near_duplicates'])} 组"
+              f"（同一英文、两种原文写法，读者无感，不判缺陷）")
     if g["legitimate_variants"]:
         print(f"  ⚠ 简称/全称/敬称变体 {len(g['legitimate_variants'])} 组"
               f"（合法，不判缺陷，供人工核对）")
