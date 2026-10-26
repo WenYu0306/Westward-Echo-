@@ -39,7 +39,7 @@ class TestChapterMd:
         result = _chapter_md(5, "第五章 测试", "She walked in.", "The Test")
         assert result.startswith("## Chapter 5: The Test")
         assert "She walked in." in result
-        assert result.endswith("---")
+        assert result.rstrip().endswith("---")
 
     def test_fallback_title_is_ascii_never_chinese(self):
         """The zero-Chinese rule applies on this path too.

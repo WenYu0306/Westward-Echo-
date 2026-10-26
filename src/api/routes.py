@@ -72,6 +72,7 @@ from .. import token_ledger
 from ..api.logging import logger
 from ..backpressure import backpressure
 from ..chapter_splitter import ParagraphTag, split_chapters
+from .. import delivery
 from ..config import (
     CHECKPOINT_DB_PATH,
     DEFAULT_TARGET_LANG,
@@ -475,48 +476,25 @@ async def _translate_accepted(
                 tt = result.get("translated_text", "")
                 title_en = result.get("chapter_title_en", "")
                 prev_summary = result.get("chapter_summary", "")
-                # Truncation guard judges the UNFILTERED text: dialogue-mode
-                # deliverables are legitimately much shorter than the source.
+                # Truncation floor and chapter formatting are shared with the CLI
+                # and Celery (src/delivery.py). It judges the UNFILTERED text:
+                # dialogue-mode deliverables are legitimately much shorter.
                 #
-                # 【中文·截断检测】检查翻译结果是否太短。
-                # 用 pre_filter_text（过滤前的原文）而不是最终译文来判断，
-                # 因为对话模式的译文经过精简后确实会比原文短很多，那是正常的。
-                # min_words = max(50, 源文去空白字符数/10)，取两者较大值作为下限。
+                # 【中文·截断检测】判定逻辑统一在 src/delivery.py，
+                # 用 pre_filter_text（过滤前原文）而不是最终译文来判断。
                 guard_text = result.get("pre_filter_text", tt)
-                word_count = len(guard_text.split())
-                src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
-                min_words = max(50, src_chars / 10)
-                if word_count < min_words:
-                    logger.warning(
-                        "Sync chapter %d: TRUNCATED (%dw < %.0fw min) — skipping write",
-                        ch.index, word_count, min_words,
-                    )
+                deliverable, why = delivery.is_deliverable(guard_text, ch.content)
+                if not deliverable:
+                    logger.warning("Sync chapter %d: %s — skipping write",
+                                   ch.index, why)
                     failed_indexes.append(ch.index)
                     continue
                 # 【中文】更新任务进度（已完成章数/总章数/当前章标题）。
                 job_store.update_progress(job_id, i + 1, len(chapters_list), ch.title)
-                # ZERO-CHINESE RULE: ch.title is the Chinese heading, so it must
-                # not be the fallback. Fall back to a plain number instead.
-                #
-                # 【中文】显示用的章节标题必须是英文。ch.title 是中文原标题，
-                # 不能作为兜底值（否则英文成品里会出现中文标题）。
-                # 没有英文标题就用 "Chapter N" 代替。
-                display_title = title_en or f"Chapter {ch.index}"
-                exists = os.path.exists(output_path)
-                # 【中文】把译文追加写入输出文件。每章之间用 --- 分隔。
-                # flush + fsync 确保数据真正写到磁盘上，而不是还在操作系统缓冲区里。
-                # 这样即使进程突然崩溃，已写的章节也不会丢。
-                with open(output_path, "a" if exists else "w", encoding="utf-8") as f:
-                    if not exists:
-                        # Was hard-coded "English Translation" even for es-ES
-                        # jobs, which mislabels a Spanish deliverable.
-                        #
-                        # 【中文】文件头标注语种。以前写死了 "English Translation"，
-                        # 翻译成西班牙语时也标"English"，现在改成动态的 target_lang。
-                        f.write(f"# {job_id} — {target_lang} Translation\n\n")
-                    f.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
-                    f.flush()
-                    os.fsync(f.fileno())
+                # Zero-Chinese rule and the block format live in delivery.
+                delivery.append_chapter(
+                    output_path, ch.index, title_en, tt,
+                    header=f"{job_id} — {target_lang} Translation")
                 delivered_count += 1
                 # ── Save checkpoint after every chapter ──
                 # 【中文·每翻完一章就存档】保存当前位置、术语库快照、上一章摘要。
@@ -853,40 +831,20 @@ async def translate_multi(
                         #
                         # 【中文】截断检测：用过滤前的文本判断，避免误判对话模式的正常精简。
                         guard_text = result.get("pre_filter_text", tt)
-                        word_count = len(guard_text.split())
-                        src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
-                        min_words = max(50, src_chars / 10)
-                        if word_count < min_words:
-                            logger.warning(
-                                "Multi-lang chapter %d: TRUNCATED (%dw < %.0fw min) "
-                                "— skipping write",
-                                ch.index, word_count, min_words,
-                            )
+                        deliverable, why = delivery.is_deliverable(
+                            guard_text, ch.content)
+                        if not deliverable:
+                            logger.warning("Multi-lang chapter %d: %s — skipping write",
+                                           ch.index, why)
                             TranslationStats.record_chapter_failed(lang)
                             failed_indexes.append(ch.index)
                             continue
                         job_store.update_progress(jid, i + 1, len(chapters_list), ch.title)
                         TranslationStats.record_chapter_complete(lang)
-                        # ZERO-CHINESE RULE: ch.title is the Chinese heading and
-                        # must not be the fallback. Note the field is named
-                        # title_en even though this path serves any target
-                        # language — see the generalisation work in 第11条.
-                        #
-                        # 【中文】显示标题必须是非中文的。注意字段名叫 title_en
-                        # 但实际上对所有语种都适用（历史遗留命名）。
-                        display_title = title_en or f"Chapter {ch.index}"
-                        exists = os.path.exists(output_path)
-                        with open(output_path, "a" if exists else "w", encoding="utf-8") as fh:
-                            if not exists:
-                                # Was hard-coded "English Translation" on the
-                                # MULTI-LANGUAGE path, so an es-ES deliverable
-                                # was mislabelled as English.
-                                #
-                                # 【中文】文件头用动态语种标签，不再写死 "English"。
-                                fh.write(f"# {jid} — {lang} Translation\n\n")
-                            fh.write(f"## Chapter {ch.index}: {display_title}\n\n{tt}\n\n---\n\n")
-                            fh.flush()
-                            os.fsync(fh.fileno())
+                        # Block format and zero-Chinese fallback: src/delivery.py.
+                        delivery.append_chapter(
+                            output_path, ch.index, title_en, tt,
+                            header=f"{jid} — {lang} Translation")
                         delivered_count += 1
                         # ── Save checkpoint after every chapter ──
                         # 【中文】每章存档，和 _run_sync 相同逻辑。

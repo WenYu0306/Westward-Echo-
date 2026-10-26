@@ -11,6 +11,7 @@ Examples:
 """
 import sys, os, time, json, re
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src import delivery
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
 from src.text_io import detect_and_read
@@ -95,78 +96,10 @@ NOVELS = {
 
 SEGMENT = 15  # chapters per checkpoint segment
 
-_CHAPTER_HEAD_RE = re.compile(r"^## Chapter (\d+):.*$", re.MULTILINE)
+# Delivery (chapter block formatting, truncation floor, append/replace/reorder)
+# lives in src/delivery.py so the CLI, the API and Celery cannot drift apart.
+# This module used to carry its own copies of all three.
 
-
-def scan_delivered(text: str) -> tuple[set[int], dict[int, str]]:
-    """Chapter numbers and bodies already present in the deliverable.
-
-    Both are needed: numbers prevent a duplicate write, bodies give a repair run
-    a continuity excerpt for the chapter after a gap without re-translating what
-    already exists.
-    """
-    heads = list(_CHAPTER_HEAD_RE.finditer(text))
-    written: set[int] = set()
-    bodies: dict[int, str] = {}
-    for i, match in enumerate(heads):
-        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
-        number = int(match.group(1))
-        written.add(number)
-        bodies[number] = text[match.end():end]
-    return written, bodies
-
-
-def reorder_deliverable(path) -> int:
-    """Rewrite the deliverable with chapter blocks in ascending order.
-
-    The runner appends, so a repair run writes a filled gap at the end of the
-    file. Without this the book would read 1…775, 243. Returns the number of
-    blocks moved.
-    """
-    text = open(path, encoding="utf-8").read()
-    heads = list(_CHAPTER_HEAD_RE.finditer(text))
-    if not heads:
-        return 0
-    preamble = text[:heads[0].start()]
-    blocks = []
-    for i, head in enumerate(heads):
-        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
-        blocks.append((int(head.group(1)), text[head.start():end]))
-    ordered = sorted(blocks, key=lambda b: b[0])
-    moved = sum(1 for (n1, _), (n2, _) in zip(blocks, ordered) if n1 != n2)
-    if moved:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(preamble + "".join(block for _, block in ordered))
-    return moved
-
-
-def replace_chapters(path, replacements: dict[int, str]) -> int:
-    """Rewrite the given chapters' bodies in place, keeping everything else.
-
-    Used to repair a chapter that exists but is corrupt (truncated, leaked JSON
-    envelope). Unlike a normal run this must not append: the block already has a
-    position in the book.
-    """
-    text = open(path, encoding="utf-8").read()
-    heads = list(_CHAPTER_HEAD_RE.finditer(text))
-    if not heads:
-        return 0
-    preamble = text[:heads[0].start()]
-    out = [preamble]
-    replaced = 0
-    for i, head in enumerate(heads):
-        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
-        number = int(head.group(1))
-        if number in replacements:
-            heading = head.group(0).rstrip("\n")
-            out.append(f"{heading}\n\n{replacements[number].strip()}\n\n---\n\n")
-            replaced += 1
-        else:
-            out.append(text[head.start():end])
-    if replaced:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("".join(out))
-    return replaced
 
 
 def main():
@@ -293,7 +226,7 @@ def main():
     delivered_bodies: dict[int, str] = {}
     if os.path.exists(out_file):
         with open(out_file, encoding="utf-8") as _f:
-            written_chapters, delivered_bodies = scan_delivered(_f.read())
+            written_chapters, delivered_bodies = delivery.scan_written(_f.read())
 
     agent = TranslationAgent(book_id=cfg["book_id"])
 
@@ -419,18 +352,11 @@ def main():
             tt = result.get("translated_text", "")
             title_en = result.get("chapter_title_en", "")
             prev = result.get("chapter_summary", "")
-            word_count = len(tt.split())
-            src_chars = len(ch.content.replace("\n", "").replace(" ", ""))
-            min_words = max(50, src_chars / 10)
-
-            ok_flag = "OK"
-            # min_words is max(50, src/10), so it is always >= 50: any output
-            # shorter than 50 words is already caught by the TRUNCATED branch
-            # below. The old `elif word_count < 50: ok_flag = "EMPTY"` was
-            # therefore unreachable dead code — collapsed into one judgement.
-            if word_count < min_words:
-                kind = "EMPTY" if word_count == 0 else "TRUNCATED"
-                ok_flag = f"{kind} ({word_count}w < {min_words:.0f}w)"
+            # The truncation floor lives in src/delivery.py so the CLI, the API
+            # and Celery cannot disagree about what "too short" means.
+            usable, why = delivery.is_deliverable(tt, ch.content)
+            ok_flag = "OK" if usable else why.upper()
+            if not usable:
                 # Not written to the deliverable (see the guard below), but it
                 # must still count as a failure so the summary is honest.
                 failed_positions.append(pos)
@@ -465,24 +391,17 @@ def main():
                 print(f"     tokens {_in:,} in + {_out:,} out = {_in+_out:,}"
                       f" | \u00a5{_cny:.4f}{warn}")
 
-            exists = os.path.exists(out_file)
-            usable = "TRUNCATED" not in ok_flag and "EMPTY" not in ok_flag
             if usable and ch_num in retranslate:
                 # Replace in place later; appending would move it to the end.
                 replacements[ch_num] = tt
                 delivered_bodies[ch_num] = tt
                 print(f"     RETRANSLATE Ch{ch_num}: 待原位替换（{len(tt)} 字符）")
             elif usable and ch_num not in written_chapters:
-                with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
-                    if not exists:
-                        f.write(f"# {deliverable_title} — English Translation\n\n")
-                    # ZERO-CHINESE RULE. `ch.title` is the Chinese chapter
-                    # heading, so it must never be the fallback: real
-                    # deliverables shipped with "## Chapter 0: Prologue（楔子）"
-                    # and "# 地府叫我小先生 — English Translation". Fall back to a
-                    # plain ASCII number instead of inventing a translation.
-                    display_title = title_en or f"Chapter {ch_num}"
-                    f.write(f"## Chapter {ch_num}: {display_title}\n\n{tt}\n\n---\n\n")
+                # Chapter block format and the zero-Chinese title fallback are
+                # defined once, in src/delivery.py.
+                delivery.append_chapter(
+                    out_file, ch_num, title_en, tt,
+                    header=f"{deliverable_title} — English Translation")
                 written_chapters.add(ch_num)
                 delivered_bodies[ch_num] = tt
                 newly_written.append(ch_num)
@@ -544,12 +463,12 @@ def main():
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
 
     if replacements and os.path.exists(out_file):
-        replaced = replace_chapters(out_file, replacements)
+        replaced = delivery.replace_chapters(out_file, replacements)
         print(f"Retranslate: 原位替换 {replaced} 章（{sorted(replacements)}）")
 
     # A repair run appends, so a filled gap lands after the last chapter.
     if repair_missing and newly_written and os.path.exists(out_file):
-        moved = reorder_deliverable(out_file)
+        moved = delivery.reorder(out_file)
         if moved:
             print(f"Reorder: {moved} 个章节块按章号归位（补译章原在文件末尾）")
 

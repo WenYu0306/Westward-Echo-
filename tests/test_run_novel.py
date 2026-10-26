@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from src import delivery
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO_ROOT / "scripts" / "run_novel.py"
 
@@ -347,14 +349,14 @@ class TestScanDelivered:
     def test_splits_numbers_and_bodies(self, runner):
         text = ("## Chapter 1: One\n\nbody one\n\n---\n\n"
                 "## Chapter 2: Two\n\nbody two\n\n---\n\n")
-        written, bodies = runner["mod"].scan_delivered(text)
+        written, bodies = delivery.scan_written(text)
         assert written == {1, 2}
         assert "body one" in bodies[1]
         assert "body two" in bodies[2]
         assert "body two" not in bodies[1]
 
     def test_empty_deliverable(self, runner):
-        assert runner["mod"].scan_delivered("") == (set(), {})
+        assert delivery.scan_written("") == (set(), {})
 
 
 class TestRepairMissing:
@@ -456,7 +458,7 @@ class TestReorderDeliverable:
                      "## Chapter 3: Three\n\nC.\n\n---\n\n"
                      "## Chapter 2: Two\n\nB.\n\n---\n\n", encoding="utf-8")
 
-        moved = runner["mod"].reorder_deliverable(p)
+        moved = delivery.reorder(p)
 
         text = p.read_text(encoding="utf-8")
         assert moved > 0
@@ -468,7 +470,7 @@ class TestReorderDeliverable:
         p.write_text("## Chapter 1: One\n\nA.\n\n---\n\n"
                      "## Chapter 2: Two\n\nB.\n\n---\n\n", encoding="utf-8")
         before = p.read_text(encoding="utf-8")
-        assert runner["mod"].reorder_deliverable(p) == 0
+        assert delivery.reorder(p) == 0
         assert p.read_text(encoding="utf-8") == before
 
 
@@ -479,7 +481,7 @@ class TestReplaceChapters:
                      "## Chapter 1: One\n\nOLD ONE\n\n---\n\n"
                      "## Chapter 2: Two\n\nKEEP ME\n\n---\n\n", encoding="utf-8")
 
-        replaced = runner["mod"].replace_chapters(p, {1: "NEW ONE"})
+        replaced = delivery.replace_chapters(p, {1: "NEW ONE"})
 
         text = p.read_text(encoding="utf-8")
         assert replaced == 1
@@ -490,7 +492,7 @@ class TestReplaceChapters:
         p = tmp_path / "book.md"
         p.write_text("## Chapter 1: One\n\nA.\n\n---\n\n", encoding="utf-8")
         before = p.read_text(encoding="utf-8")
-        assert runner["mod"].replace_chapters(p, {9: "X"}) == 0
+        assert delivery.replace_chapters(p, {9: "X"}) == 0
         assert p.read_text(encoding="utf-8") == before
 
 

@@ -35,6 +35,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+from . import delivery
 from .agent.graph import TranslationAgent
 from .backpressure import backpressure
 from .chapter_splitter import ParagraphTag, merge_chapters, split_chapters
@@ -221,7 +222,7 @@ if _celery_ok:
             prefetcher.shutdown()
             # 【中文】按章节顺序合并（blocks 可能包含续跑补入的章节）。
             ordered = [blocks[c.index] for c in translatable if c.index in blocks]
-            full_text = merge_chapters(ordered)
+            full_text = merge_chapters([b.rstrip() for b in ordered])
             Path(output_path).write_text(full_text, encoding="utf-8")
             # 【中文】导出最终术语表为 JSON 文件。
             glossary = agent.exact_store.to_dict()
@@ -401,7 +402,7 @@ if _celery_ok:
                 time.sleep(CHAPTER_COOLDOWN_SECONDS)
 
             prefetcher.shutdown()
-            full_text = merge_chapters(all_translations)
+            full_text = merge_chapters([b.rstrip() for b in all_translations])
             Path(output_path).write_text(full_text, encoding="utf-8")
             glossary = agent.exact_store.to_dict()
             glossary_path = str(OUTPUT_DIR / f"{job_id}_glossary.json")
@@ -453,39 +454,19 @@ def _chapter_md(chapter_num: int, chapter_title: str, translated_text: str,
                 title_en: str = "") -> str:
     """Format one chapter as a Markdown block with a parseable header.
 
-    The EPUB endpoint (_parse_markdown_chapters in routes.py) requires
-    '## Chapter N:' headers — merging raw translations without headers
-    makes EPUB generation return 422 for every Celery job. Format matches
-    the sync path in routes.py.
+    Kept as a one-line delegate: the format is defined once in
+    ``src/delivery.py`` so this path cannot drift from the CLI and the API.
+    ``chapter_title`` is accepted for call-site compatibility and never used —
+    the zero-Chinese rule forbids falling back to the Chinese heading.
 
-    【中文】把一章译文格式化为 Markdown 块。
-    标题格式必须是 ``## Chapter N: xxx``，因为 EPUB 生成接口靠这个格式
-    来识别章节边界。没有这个标题头，EPUB 生成会返回 422 错误。
-    display 优先用英文标题，没有就用中文标题的前 60 个字符。
+    【中文】章节块格式现在只有一处定义（src/delivery.py），这里只做转发。
     """
-    # Zero-Chinese rule: `chapter_title` is the Chinese heading and must not be
-    # the fallback — resumed chapters ship without an English title and used to
-    # land "## Chapter 37: 第三十七章" in an English deliverable.
-    display = title_en or f"Chapter {chapter_num}"
-    return f"## Chapter {chapter_num}: {display}\n\n{translated_text}\n\n---"
+    return delivery.chapter_block(chapter_num, title_en, translated_text)
 
 
 def _chapter_is_deliverable(translated: str, source: str) -> tuple[bool, str]:
-    """Same floor as the CLI runner: max(50, source_chars/10) words.
-
-    Without this, a 0-character or half-truncated translation was appended to
-    the deliverable verbatim (``merge_chapters`` is a plain join) and the EPUB
-    builder emitted an empty chapter.
-    """
-    text = (translated or "").strip()
-    if not text:
-        return False, "empty output"
-    words = len(text.split())
-    src_chars = len(source.replace("\n", "").replace(" ", ""))
-    floor = max(50, src_chars / 10)
-    if words < floor:
-        return False, f"truncated ({words}w < {floor:.0f}w)"
-    return True, ""
+    """Delegate to the single truncation floor in ``src/delivery.py``."""
+    return delivery.is_deliverable(translated, source)
 
 
 class TranslationProgress:

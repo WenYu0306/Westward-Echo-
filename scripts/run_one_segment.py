@@ -50,6 +50,7 @@ import sys, os, time, json
 # 【中文】把项目根目录加到 Python 搜索路径里，
 # 这样下面的 import src.xxx 才能找到。
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src import delivery
 from src.agent.graph import TranslationAgent
 from src.chapter_splitter import split_chapters, ParagraphTag
 from src.text_io import detect_and_read
@@ -230,7 +231,6 @@ def main():
                 failed_positions.append(pos)
                 continue
 
-            exists = os.path.exists(out_file)
             # ZERO-CHINESE RULE: the deliverable is for English readers, so a
             # Chinese chapter title must never land in it. Use the translated
             # title the pipeline produced and fall back to a plain number, not
@@ -238,11 +238,11 @@ def main():
             # 【中文】零中文规则：成品是给英文读者看的，章节标题必须用英文。
             # 优先用流水线翻译出的英文标题，没有就用 "Chapter N" 兜底，
             # 绝不用 ch.title（那是中文原标题）。
-            title_en = result.get("chapter_title_en") or f"Chapter {ch_num}"
-            with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
-                if not exists:
-                    f.write("# 无限恐怖 — English Translation\n\n")
-                f.write(f"## Chapter {ch_num}: {title_en}\n\n{tt}\n\n---\n\n")
+            # Block format + zero-Chinese fallback: src/delivery.py, shared with
+            # run_novel, the API and Celery so this copy cannot drift again.
+            delivery.append_chapter(
+                out_file, ch_num, result.get("chapter_title_en", ""), tt,
+                header="无限恐怖 — English Translation")
 
         # --- Checkpoint ---
         # 【中文·段末存档】每跑完一段（15 章），把进度、术语库快照、
