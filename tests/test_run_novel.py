@@ -531,3 +531,63 @@ class TestRetranslateMode:
         assert "Old body." not in text
         assert "Keep body." in text
         assert [int(x) for x in re.findall(r"^## Chapter (\d+):", text, re.M)] == [1, 2]
+
+
+class TestChapterBudgetIntegration:
+    """A chapter that already burned its budget must not be retried again."""
+
+    def _seed_attempts(self, out_dir, chapter, attempts, cost):
+        import json as _json
+        (Path(out_dir) / "_attempts.json").write_text(_json.dumps(
+            {str(chapter): {"attempts": attempts, "cost_cny": cost,
+                            "outcome": "not_deliverable"}}), encoding="utf-8")
+
+    def test_over_budget_chapter_is_skipped_without_an_api_call(
+            self, runner, monkeypatch):
+        mod = runner["mod"]
+        chapters = [_FakeChapter(1, "第1章", "源文内容")]
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=1), chapters, [])
+        calls = []
+        monkeypatch.setattr(mod.TranslationAgent, "translate_chapter",
+                            lambda self, **kw: calls.append(kw) or {
+                                "translated_text": GOOD, "chapter_title_en": "One",
+                                "chapter_summary": "s"})
+        self._seed_attempts(runner["out_dir"], 1, attempts=3, cost=4.0)
+
+        runner["run"](["unit_test_book"])
+
+        assert calls == [], "over-budget chapter must not reach the provider"
+        assert _deliverable(runner["out_dir"]) == ""
+
+    def test_retry_uses_fast_mode(self, runner, monkeypatch):
+        """A chapter with a prior attempt must not re-run the cold reader."""
+        mod = runner["mod"]
+        chapters = [_FakeChapter(1, "第1章", "源文内容")]
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=1), chapters, [])
+        seen = {}
+        monkeypatch.setattr(mod.TranslationAgent, "translate_chapter",
+                            lambda self, **kw: seen.update(kw) or {
+                                "translated_text": GOOD, "chapter_title_en": "One",
+                                "chapter_summary": "s"})
+        self._seed_attempts(runner["out_dir"], 1, attempts=1, cost=0.3)
+
+        runner["run"](["unit_test_book"])
+
+        assert seen["skip_readback"] is True
+
+    def test_attempts_are_recorded_for_the_next_run(self, runner, monkeypatch):
+        mod = runner["mod"]
+        chapters = [_FakeChapter(1, "第1章", "源文内容")]
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=1), chapters, [])
+        monkeypatch.setattr(mod.TranslationAgent, "translate_chapter",
+                            lambda self, **kw: {
+                                "translated_text": GOOD, "chapter_title_en": "One",
+                                "chapter_summary": "s"})
+
+        runner["run"](["unit_test_book"])
+
+        import json as _json
+        data = _json.loads((Path(runner["out_dir"]) / "_attempts.json")
+                           .read_text(encoding="utf-8"))
+        assert data["1"]["attempts"] == 1
+        assert data["1"]["outcome"] == "ok"

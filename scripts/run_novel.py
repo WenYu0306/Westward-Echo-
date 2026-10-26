@@ -10,9 +10,11 @@ Examples:
     python3 scripts/run_novel.py difu
 """
 import sys, os, time, json, re
+from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src import delivery
 from src.agent.graph import TranslationAgent
+from src.chapter_budget import ChapterBudget
 from src.chapter_splitter import split_chapters, ParagraphTag
 from src.text_io import detect_and_read
 from src.circuit_breaker import CircuitBreakerOpenError
@@ -237,6 +239,11 @@ def main():
     failed_positions: list[int] = []
     newly_written: list[int] = []
     replacements: dict[int, str] = {}
+    budget_skipped: list[int] = []
+    # Remembers attempts and spend per chapter across runs: without it, a
+    # chapter that times out is retried from scratch by every later repair run.
+    chapter_budget = ChapterBudget(
+        Path(cfg["output_dir"]) / "_attempts.json")
 
     # Must be bound before the loop: on a fully-checkpointed resume the `while`
     # body never executes, and the summary print below dereferences `glossary`.
@@ -309,6 +316,16 @@ def main():
 
             rows_before = len(token_ledger.ledger.rows(cfg["book_id"]))
 
+            allowed, blocked_reason = chapter_budget.should_attempt(ch_num)
+            if not allowed:
+                print(f"  [{pos}/{len(chapters)} Ch{ch_num}] 跳过：{blocked_reason}")
+                budget_skipped.append(ch_num)
+                continue
+
+            # A retry never re-runs the cold reader: the first attempt may, every
+            # later one is a repair of something already attempted.
+            fast = (not is_sample) or chapter_budget.needs_fast_mode(ch_num)
+
             try:
                 result = agent.translate_chapter(
                     chapter_title=ch.title,
@@ -317,18 +334,19 @@ def main():
                     previous_summary=prev,
                     target_lang="en-US",
                     genre=cfg["genre"],
-                    skip_readback=not is_sample,
+                    skip_readback=fast,
                 )
             except CircuitBreakerOpenError:
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] CIRCUIT OPEN - sleep 30s")
                 failed_positions.append(pos)
+                chapter_budget.record(ch_num, outcome="circuit_open")
                 time.sleep(30)
                 continue
             except Exception as e:
                 err_msg = str(e).lower()
                 is_timeout = "timed out" in err_msg or "timeout" in err_msg
                 if is_timeout:
-                    print(f"  [{pos}/{len(chapters)} Ch{ch_num}] TIMEOUT (attempt 1) - retrying...")
+                    print(f"  [{pos}/{len(chapters)} Ch{ch_num}] TIMEOUT (attempt 1) - retrying in fast mode...")
                     time.sleep(3)
                     try:
                         result = agent.translate_chapter(
@@ -338,15 +356,19 @@ def main():
                             previous_summary=prev,
                             target_lang="en-US",
                             genre=cfg["genre"],
-                            skip_readback=not is_sample,
+                            skip_readback=True,
                         )
                     except Exception as e2:
                         print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e2} (after retry)")
                         failed_positions.append(pos)
+                        chapter_budget.record(
+                            ch_num, cost=_chapter_usage(rows_before)[3],
+                            outcome="timeout")
                         continue
                 else:
                     print(f"  [{pos}/{len(chapters)} Ch{ch_num}] ERROR: {e}")
                     failed_positions.append(pos)
+                    chapter_budget.record(ch_num, outcome="error")
                     continue
 
             tt = result.get("translated_text", "")
@@ -384,6 +406,9 @@ def main():
                 print(f"  [{pos}/{len(chapters)} Ch{ch_num}] {len(tt)}c [F] {ok_flag}")
 
             _calls, _in, _out, _cny, _unm = _chapter_usage(rows_before)
+            chapter_budget.record(
+                ch_num, cost=_cny,
+                outcome="ok" if usable else "not_deliverable")
             run_calls += _calls; run_in += _in; run_out += _out
             run_cny += _cny; run_unmetered += _unm
             if _calls:
@@ -461,6 +486,9 @@ def main():
     else:
         print(f"ALL DONE: {delivered}/{scanned} chapters in {total_min:.0f}m")
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
+    if budget_skipped:
+        print(f"Budget: 本轮跳过 {len(budget_skipped)} 章（累计尝试/花费超限）："
+              f"{budget_skipped[:20]}")
 
     if replacements and os.path.exists(out_file):
         replaced = delivery.replace_chapters(out_file, replacements)
@@ -483,7 +511,6 @@ def main():
         print("Delivery scan: skipped (no deliverable written)")
     else:
         try:
-            from pathlib import Path
             from scripts.scan_deliverable import scan_file
             scan = scan_file(Path(out_file))
             scan_summary = {
@@ -531,6 +558,8 @@ def main():
         "per_model": cost["per_model"],
         "timing": cost["timing"],
         "scan": scan_summary,
+        "budget": {**chapter_budget.summary(),
+                   "skipped_this_run": budget_skipped},
         "minutes": round(total_min, 1),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }, open(cost_path, "w"), ensure_ascii=False, indent=2)
