@@ -42,18 +42,19 @@ sys.path.insert(0, str(ROOT))
 MEAS = ROOT / "scripts" / "cost" / "measurements"
 CJK = re.compile(r"[\u4e00-\u9fff]")
 
-# 现抓单价（元/百万 token）：脚本头改这 6 个数即可跟随定价页变动
-#
-# 【中文】各节点使用的模型及其单价（输入价, 输出价），单位：元/百万 token。
-# 这些数字来自 config.py MODEL_PRICES_CNY_PER_M（抓取于 2026-09-22）：
-#   read/readback → qwen3.8-max: (12.0, 36.0)
-#   write → glm-5.3-flash: (0.8, 2.8)
-#   fix → glm-5.3: (8.0, 28.0)
-# ⚠️ 如果厂商调价了，需要同步更新这里和 config.py。
-PRICE = {"read": (12.0, 36.0),       # qwen3.8-max
-         "write": (0.8, 2.8),        # glm-5.3-flash
-         "readback": (12.0, 36.0),   # qwen3.8-max
-         "fix": (8.0, 28.0)}         # glm-5.3
+# 单价从 config 派生，不再手抄。手抄表会随档位调整悄悄失真——READ 从
+# qwen3.8-max 降到 flash 那次，手抄的 (12,36) 会让 READ 高估 15 倍。
+# 唯一权威来源是 config.MODEL_PRICES_CNY_PER_M（抓取于 2026-09-22）。
+from src.config import MODEL_PRICES_CNY_PER_M, NODE_MODELS  # noqa: E402
+
+_PRICE_NODES = ("read", "write", "readback", "fix")
+try:
+    PRICE = {node: MODEL_PRICES_CNY_PER_M[NODE_MODELS[node]]
+             for node in _PRICE_NODES}
+except KeyError as exc:
+    raise SystemExit(
+        f"node model {exc.args[0]} has no entry in MODEL_PRICES_CNY_PER_M; "
+        f"add it to src/config.py before estimating cost") from exc
 
 # 【中文】已交付的两本书的配置信息。
 # src = 原文路径，out = 英文译文路径，genre = 类型标签。

@@ -83,6 +83,14 @@ VERSION = "0.17.0"
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
 QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3.8-max")
+# 【中文】Qwen 的廉价档，给 READ 用。
+# 2026-10-26 的 6 章 A/B（qwen3.8-max vs qwen3.8-flash，同日、同流水线、同章）：
+# 成本 ¥0.550→¥0.129 每章（−76.5%），耗时 313s→242s（−22.7%）；MetricX-24
+# 得分 B−A = −0.389（0–25，越低越好），95% CI [−1.175, +0.347]——点估计偏向
+# flash，但区间跨 0，**不构成等价证明**。双顺序盲评 6 章里 3 章翻转，不可用。
+# 决策与护栏见 docs/decisions/read-tier-downshift.md。回退：.env 写
+# XIDU_NODE_MODEL_READ=qwen3.8-max，或把 DEFAULT_NODE_MODELS["read"] 改回 QWEN_MODEL。
+QWEN_FLASH_MODEL = os.getenv("QWEN_FLASH_MODEL", "qwen3.8-flash")
 # 【中文】Qwen 的"思考预算"（thinking_budget），单位是 token 数。
 # Qwen 模型会先"想"一段再回答，这个值限制它最多想多少 token。
 # 2048 是默认值，够用于判断类任务（READBACK/REVIEW_TERMS）。
@@ -266,7 +274,8 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 # --- Per-node model routing ---
 # 按节点角色分 provider（2026-09 定案，全面弃 DeepSeek）：
-#   - READ / READBACK / REVIEW_TERMS：Qwen 3.8 max — 读取判断
+#   - READ：Qwen 3.8 flash — 读取判断（2026-10-26 A/B 定档，见上方 QWEN_FLASH_MODEL）
+#   - READBACK / REVIEW_TERMS：Qwen 3.8 max — 读取判断
 #     （READ 从 GLM 移开是因为智谱内容过滤会以 1301 拒付真实网文）
 #   - WRITE：GLM 5.3 flash — 文字输出（忠实编译，便宜10倍）
 #   - WRITE_FALLBACK：Qwen 3.8 max — GLM 1301 时的换 provider 兜底
@@ -287,7 +296,7 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # provider（base_url / api_key / 思考参数形态）由**模型名**派生，不由节点写死，
 # 所以跨 provider 降档（READBACK → glm-5.3-flash）也能正确路由。
 DEFAULT_NODE_MODELS = {
-    "read":           QWEN_MODEL,      # Qwen 3.8 max（GLM 的 1301 内容过滤会拦真实网文）
+    "read":           QWEN_FLASH_MODEL,  # Qwen 3.8 flash（A/B 定档；同 provider，无 1301 风险）
     "read_fallback":  GLM_MODEL,       # Qwen 内容过滤/审查时的 GLM 兜底
     "write":          GLM_MODEL,       # GLM 5.3 flash 文字输出
     "write_fallback": QWEN_MODEL,      # GLM 1301 时的 Qwen 兜底

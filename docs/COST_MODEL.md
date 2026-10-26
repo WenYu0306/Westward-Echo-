@@ -30,6 +30,13 @@
 
 同一批 token（本估算器的语料级用量），只换模型档位：
 
+> **⚠️ 下表是 2026-09 的分析，① 已不是现状。** 2026-10-26 起 READ 默认降到
+> qwen3.8-flash，READBACK / REVIEW_TERMS 仍是 qwen3.8-max。依据是实测 A/B
+> （6 章：每章 ¥0.550→¥0.129，MetricX-24 无显著退化）。同一估算口径
+> （`estimate_offline.py`，零 API，FIX 50% 触发）重算：地府全书 **¥1,441 →
+> ¥625**，其中 READ 一项 ¥879 → ¥64。决策、证据边界和交付护栏见
+> `docs/decisions/read-tier-downshift.md`。下表保留原样作为推导记录。
+
 | 档位配置 | 地府 | 无限恐怖 | 合计 | 相对现状 | 每千英文词 |
 |---|---|---|---|---|---|
 | ① 现状：READ/READBACK = **qwen3.8-max**(12/36) | ¥1,441 | ¥534 | **¥1,974** | 100% | ¥0.552 |
@@ -56,7 +63,7 @@
 | 场景 | 档位 | 全书成本 |
 |---|---|---|
 | 试验 / 探针 / A-B / 回归测试 | ③ 全 flash 或 ④ 最便宜档 | ¥117 – 198 |
-| 品质定稿生产 | 待定（READ 档位影响成稿文风，需 A/B 定） | ¥198 – 1,974 |
+| 品质定稿生产 | READ=qwen3.8-flash（2026-10-26 A/B 定档）+ READBACK/REVIEW_TERMS=qwen3.8-max | 地府约 ¥625（estimate_offline，FIX 50%） |
 
 `scripts/cost/probe_nodes*.py` 已加**成本闸门**：`QWEN_MODEL` 含 `max`/`prime` 时直接退出码 2，
 并打印 flash 档替代命令；要跑必须显式 `--allow-expensive`。
@@ -74,8 +81,8 @@ curl -sS -A "Mozilla/5.0" https://help.aliyun.com/zh/model-studio/model-pricing 
 
 | 模型 | 用途 | 输入 元/M | 输出 元/M | 缓存命中输入 | 来源 |
 |---|---|---|---|---|---|
-| **qwen3.8-max** | READ / READBACK / REVIEW_TERMS | **12** | **36** | 1.2（标准价 10%） | 阿里云百炼定价页，全球/中国内地，单请求 0<Token≤1M |
-| qwen3.8-flash | （未使用，候选降本） | 0.8 | 2.7 | 0.08 | 同上 |
+| **qwen3.8-max** | READBACK / REVIEW_TERMS | **12** | **36** | 1.2（标准价 10%） | 阿里云百炼定价页，全球/中国内地，单请求 0<Token≤1M |
+| qwen3.8-flash | READ（2026-10-26 起） | 0.8 | 2.7 | 0.08 | 同上 |
 | **glm-5.3-flash** | WRITE | **0.8** | **2.8** | 0.23（28.75%） | 智谱定价页 |
 | **glm-5.3** | FIX | **8** | **28** | 2.0（25%） | 智谱定价页 |
 | glm-5.3 | — | 8 | 28 | — | 百炼页也列 glm-5.3 = 8/28 ✅ 交叉验证一致 |

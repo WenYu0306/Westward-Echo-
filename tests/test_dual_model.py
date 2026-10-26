@@ -57,6 +57,7 @@ def _minimal_state():
 
 class TestReadUsesQwen:
     def test_read_node_model_and_base_url(self, monkeypatch):
+        from src import config
         from src.agent.nodes.read import read_node
         from src.glossary.exact_store import ExactGlossary
         from src.glossary.semantic_store import SemanticGlossary
@@ -68,7 +69,10 @@ class TestReadUsesQwen:
         )
         read_node(_minimal_state(), ExactGlossary(), SemanticGlossary())
 
-        assert captured["kwargs"]["model"] == "qwen3.8-max"
+        # 2026-10-26: READ moved to the cheap tier (docs/decisions/
+        # read-tier-downshift.md). Same provider, so no GLM 1301 exposure.
+        assert captured["kwargs"]["model"] == config.QWEN_FLASH_MODEL
+        assert captured["kwargs"]["model"] != config.QWEN_MODEL
         assert captured["kwargs"]["base_url"] == LLM_BASE_URL
         assert captured["kwargs"]["api_key"] == LLM_API_KEY
         assert captured["kwargs"]["extra_body"] == {"thinking_budget": 2048}
@@ -259,6 +263,20 @@ class TestReviewTermsUsesQwen:
 
 
 class TestRoutingTableDrivesNodes:
+    def test_read_defaults_to_the_cheap_tier(self):
+        """Pins the 2026-10-26 downshift (docs/decisions/read-tier-downshift.md).
+
+        READBACK/REVIEW_TERMS deliberately stay on qwen3.8-max — only READ was
+        measured. Asserting against the constants keeps this test alive if the
+        flash model is renamed.
+        """
+        from src import config
+
+        assert config.DEFAULT_NODE_MODELS["read"] == config.QWEN_FLASH_MODEL
+        assert config.DEFAULT_NODE_MODELS["read"] != config.QWEN_MODEL
+        assert config.DEFAULT_NODE_MODELS["readback"] == config.QWEN_MODEL
+        assert config.DEFAULT_NODE_MODELS["review_terms"] == config.QWEN_MODEL
+
     def test_readback_follows_the_routed_model(self, monkeypatch):
         """Re-tiering READBACK via the routing table must change what it builds.
 

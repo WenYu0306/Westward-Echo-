@@ -92,3 +92,8 @@ archive/designs-html/
 # archive/ab_readback_tier_20260926/ holds the ¥9.37 run: per-chapter READBACK
 # verdicts for both tiers, the same-tier baseline run, the token ledgers that
 # back the spend reconciliation, and the checksum manifest.
+
+# Delivery-check scratch: qe_input/qe_output JSONL carry whole chapter texts
+# (~1–2 MB per run) and are regenerable from the corpus at zero API cost.
+# archive/qe_baseline/*.json — the baselines themselves — stay tracked.
+archive/qe_baseline/_work/
