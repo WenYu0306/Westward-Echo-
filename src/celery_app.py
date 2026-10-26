@@ -117,7 +117,8 @@ if _celery_ok:
             translatable = [c for c in chunks if c.action != ParagraphTag.SKIP]
             total = len(translatable)
             agent = TranslationAgent(book_id=job_id, target_lang=target_lang, api_key=api_key)
-            all_translations = []
+            blocks: dict[int, str] = {}
+            failed_indexes: list[int] = []
 
             # ── Pre-load glossary from preset (warm start) ──
             # 【中文】如果提交了预设术语表，先把它加载到术语库里。
@@ -135,7 +136,17 @@ if _celery_ok:
                     )
                 except (json.JSONDecodeError, Exception) as exc:
                     logger.warning("Failed to pre-load glossary preset for job %s: %s", job_id, exc)
+            # Rebuild from per-chapter checkpoints before starting. An automatic
+            # retry used to restart at chapter 1 and re-pay for every chapter
+            # already in the checkpoint table.
+            completed = _load_checkpoint_translations(job_id)
             prev_summary = ""
+            for chapter in translatable:
+                if chapter.index in completed:
+                    blocks[chapter.index] = _chapter_md(
+                        chapter.index, chapter.title, completed[chapter.index])
+                    prev_summary = (_load_checkpoint_summary(job_id, chapter.index)
+                                    or prev_summary)
             output_path = str(OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md")
 
             # ── Chapter prefetch: submit chapter 1's glossary fetch before the loop ──
@@ -146,6 +157,8 @@ if _celery_ok:
                 prefetcher.submit_next(translatable[1].content, target_lang)
 
             for i, chapter in enumerate(translatable):
+                if chapter.index in blocks:
+                    continue  # delivered by an earlier attempt (checkpoint)
                 # Check if prefetch already completed for this chapter
                 # 【中文】检查这一章的术语预取是否已经完成。
                 cached = prefetcher.get_if_ready(chapter.content)
@@ -162,22 +175,33 @@ if _celery_ok:
                         content_type=content_type,
                     )
                 except CircuitBreakerOpenError:
-                    # Circuit is open for this language — skip remaining chapters
-                    # 【中文】该语言的熔断器跳闸了，API 暂时不可用。
-                    # 不再继续翻译剩余章节，直接退出循环。
-                    # 已翻译的章节不受影响（它们已经存档了）。
+                    # 【中文】熔断器跳闸：把**剩余所有章节**记为未交付，然后退出。
+                    # 只记一个统计计数会让残书被后面的 progress.complete 标成完成。
+                    remaining = [c.index for c in translatable[i:]]
                     logger.warning(
                         "Circuit breaker OPEN for language '%s' at chapter %d/%d — "
-                        "skipping remaining chapters for this language.",
-                        target_lang, chapter.index, total,
+                        "%d chapters not translated: %s",
+                        target_lang, chapter.index, total, len(remaining), remaining[:20],
                     )
                     TranslationStats.record_chapter_failed(target_lang)
+                    failed_indexes.extend(remaining)
                     break
 
-                all_translations.append(_chapter_md(
+                deliverable, why = _chapter_is_deliverable(
+                    result["translated_text"], chapter.content)
+                if not deliverable:
+                    logger.warning(
+                        "Chapter %d %s — not written to the deliverable",
+                        chapter.index, why,
+                    )
+                    TranslationStats.record_chapter_failed(target_lang)
+                    failed_indexes.append(chapter.index)
+                    continue
+
+                blocks[chapter.index] = _chapter_md(
                     chapter.index, chapter.title, result["translated_text"],
                     result.get("chapter_title_en", ""),
-                ))
+                )
                 prev_summary = result.get("chapter_summary", "")
                 TranslationStats.record_chapter_complete(target_lang)
                 # 【中文】每章翻译完立刻存档（checkpoint）。这就是"游戏存档"机制：
@@ -195,8 +219,9 @@ if _celery_ok:
                 time.sleep(CHAPTER_COOLDOWN_SECONDS)
 
             prefetcher.shutdown()
-            # 【中文】所有章节翻译完成，合并成完整的 Markdown 文件。
-            full_text = merge_chapters(all_translations)
+            # 【中文】按章节顺序合并（blocks 可能包含续跑补入的章节）。
+            ordered = [blocks[c.index] for c in translatable if c.index in blocks]
+            full_text = merge_chapters(ordered)
             Path(output_path).write_text(full_text, encoding="utf-8")
             # 【中文】导出最终术语表为 JSON 文件。
             glossary = agent.exact_store.to_dict()
@@ -204,6 +229,20 @@ if _celery_ok:
             Path(glossary_path).write_text(
                 json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8"
             )
+            if failed_indexes:
+                # A partial book must never be reported "complete" with the full
+                # chapter total — that is how a broken run looked successful.
+                message = (f"Incomplete: {len(blocks)}/{total} chapters delivered; "
+                           f"missing chapter indexes: {failed_indexes[:20]}")
+                logger.error("Job %s: %s", job_id, message)
+                progress.error(message)
+                backpressure.release()
+                return {
+                    "status": "incomplete", "output_path": output_path,
+                    "total_chapters": total, "delivered_chapters": len(blocks),
+                    "failed_chapters": failed_indexes[:20],
+                    "glossary_count": len(glossary),
+                }
             progress.complete(output_path, len(glossary))
             # 【中文】释放背压名额，让新任务可以进来。
             backpressure.release()
@@ -272,6 +311,7 @@ if _celery_ok:
             # Load previously-translated chapters from checkpoints
             # 【中文】从 checkpoint 数据库加载之前已经翻译好的章节。
             all_translations = []
+            failed_indexes: list[int] = []
             prev_summary = ""
             if start_chapter > 0:
                 completed = _load_checkpoint_translations(job_id)
@@ -318,13 +358,28 @@ if _celery_ok:
                         content_type=content_type,
                     )
                 except CircuitBreakerOpenError:
+                    # 【中文】熔断器跳闸：剩余章节全部记为未交付，
+                    # 否则合并出来的残书会被标成"完成"。
+                    rest = [c.index for c in translatable[i:]]
                     logger.warning(
                         "Circuit breaker OPEN for language '%s' at chapter %d — "
-                        "skipping remaining chapters for this language.",
-                        target_lang, chapter.index,
+                        "%d chapters not translated: %s",
+                        target_lang, chapter.index, len(rest), rest[:20],
                     )
                     TranslationStats.record_chapter_failed(target_lang)
+                    failed_indexes.extend(rest)
                     break
+
+                deliverable, why = _chapter_is_deliverable(
+                    result["translated_text"], chapter.content)
+                if not deliverable:
+                    logger.warning(
+                        "Chapter %d %s — not written to the deliverable",
+                        chapter.index, why,
+                    )
+                    TranslationStats.record_chapter_failed(target_lang)
+                    failed_indexes.append(chapter.index)
+                    continue
 
                 all_translations.append(_chapter_md(
                     chapter.index, chapter.title, result["translated_text"],
@@ -353,6 +408,19 @@ if _celery_ok:
             Path(glossary_path).write_text(
                 json.dumps(glossary, ensure_ascii=False, indent=2), encoding="utf-8"
             )
+            if failed_indexes:
+                message = (f"Incomplete: {len(all_translations)}/{total} chapters "
+                           f"delivered; missing chapter indexes: {failed_indexes[:20]}")
+                logger.error("Resume job %s: %s", job_id, message)
+                progress.error(message)
+                backpressure.release()
+                return {
+                    "status": "incomplete", "output_path": output_path,
+                    "total_chapters": total,
+                    "delivered_chapters": len(all_translations),
+                    "failed_chapters": failed_indexes[:20],
+                    "glossary_count": len(glossary),
+                }
             progress.complete(output_path, len(glossary))
             backpressure.release()
             return {
@@ -395,8 +463,29 @@ def _chapter_md(chapter_num: int, chapter_title: str, translated_text: str,
     来识别章节边界。没有这个标题头，EPUB 生成会返回 422 错误。
     display 优先用英文标题，没有就用中文标题的前 60 个字符。
     """
-    display = title_en or chapter_title[:60]
+    # Zero-Chinese rule: `chapter_title` is the Chinese heading and must not be
+    # the fallback — resumed chapters ship without an English title and used to
+    # land "## Chapter 37: 第三十七章" in an English deliverable.
+    display = title_en or f"Chapter {chapter_num}"
     return f"## Chapter {chapter_num}: {display}\n\n{translated_text}\n\n---"
+
+
+def _chapter_is_deliverable(translated: str, source: str) -> tuple[bool, str]:
+    """Same floor as the CLI runner: max(50, source_chars/10) words.
+
+    Without this, a 0-character or half-truncated translation was appended to
+    the deliverable verbatim (``merge_chapters`` is a plain join) and the EPUB
+    builder emitted an empty chapter.
+    """
+    text = (translated or "").strip()
+    if not text:
+        return False, "empty output"
+    words = len(text.split())
+    src_chars = len(source.replace("\n", "").replace(" ", ""))
+    floor = max(50, src_chars / 10)
+    if words < floor:
+        return False, f"truncated ({words}w < {floor:.0f}w)"
+    return True, ""
 
 
 class TranslationProgress:

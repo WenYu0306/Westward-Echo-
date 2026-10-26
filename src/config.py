@@ -199,6 +199,21 @@ RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 # ⚠️ 曾有过阿拉伯语(ar-SA)，已在 commit 5bba508 移除。
 SUPPORTED_LANGUAGES: tuple[str, ...] = ("en-US", "es-ES", "de", "fr")
 
+
+def validate_language(lang: str) -> str:
+    """Return ``lang`` if supported, else raise ``ValueError``.
+
+    The language code reaches filesystem paths (``{job_id}_..._{target_lang}.md``)
+    and glossary namespaces, so an unvalidated value from a request is both a
+    path-traversal vector and a way to write terms into a bucket nobody reads.
+    Callers in the API layer catch this and return HTTP 400.
+    """
+    if lang not in SUPPORTED_LANGUAGES:
+        raise ValueError(
+            f"unsupported target language {lang!r}; "
+            f"expected one of {list(SUPPORTED_LANGUAGES)}")
+    return lang
+
 # 【中文】默认目标语言，取列表第一个（英语）。
 DEFAULT_TARGET_LANG = SUPPORTED_LANGUAGES[0]
 

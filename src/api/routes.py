@@ -80,6 +80,7 @@ from ..config import (
     OUTPUT_DIR,
     SUPPORTED_LANGUAGES,
     VERSION,
+    validate_language,
 )
 from ..job_store import job_store
 from ..stats import TranslationStats
@@ -279,6 +280,14 @@ async def translate_novel(
                 content={"error": "请提供 LLM API Key，或配置服务器环境变量"},
             )
         api_key = LLM_API_KEY
+
+    # Validate before anything else: this value becomes part of the output
+    # filename (``{job_id}_full_novel_{target_lang}.md``) and a glossary
+    # namespace. Unvalidated, "../../../tmp/x" writes outside OUTPUT_DIR.
+    try:
+        target_lang = validate_language(target_lang)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
 
     # ── Backpressure: reject new work if queue is full ──
     # 【中文·背压机制】如果当前正在翻译的任务太多（队列满了），
@@ -627,6 +636,13 @@ async def translate_multi(
         return JSONResponse(
             status_code=400, content={"error": "target_langs 不能为空"},
         )
+    # Every entry becomes a billable job and part of an output filename, so an
+    # unvalidated list let one request fan out to N paid jobs (and carry a
+    # traversal payload). Validation also caps the list at the supported set.
+    try:
+        langs = list(dict.fromkeys(validate_language(lang) for lang in langs))
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
 
     # ── Backpressure: each language job takes one queue slot.
     #    All-or-nothing: roll back if we cannot slot every language. ──
@@ -785,8 +801,17 @@ async def translate_multi(
                                 content_type=content_type,
                             )
                         except CircuitBreakerOpenError:
-                            # 【中文】熔断器打开 → 记录该语种有一章失败，停止翻译。
+                            # 【中文】熔断器打开 → 记录失败并停止该语种。
+                            # 必须写进 failed_indexes：下面按"有没有失败"决定
+                            # complete_job 还是 fail_job，只加统计计数会让残书
+                            # 被标记成"完成"（单语种路径 :449 就是正确地 fail_job）。
                             TranslationStats.record_chapter_failed(lang)
+                            failed_indexes.append(ch.index)
+                            logger.warning(
+                                "Circuit breaker OPEN for %s at chapter %d — "
+                                "remaining chapters were not translated",
+                                lang, ch.index,
+                            )
                             break
                         except Exception as exc:
                             err_msg = str(exc).lower()

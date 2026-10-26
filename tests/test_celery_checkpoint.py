@@ -41,13 +41,20 @@ class TestChapterMd:
         assert "She walked in." in result
         assert result.endswith("---")
 
-    def test_format_falls_back_to_chinese_title_truncated(self):
+    def test_fallback_title_is_ascii_never_chinese(self):
+        """The zero-Chinese rule applies on this path too.
+
+        This used to fall back to the first 60 chars of the Chinese heading, so
+        a resumed async job shipped "## Chapter 234: 第两百三十四章 …" into an
+        English deliverable. Resumed chapters have no stored English title, so
+        the only safe fallback is the chapter number.
+        """
         from src.celery_app import _chapter_md
         long_title = "第两百三十四章 这是一个非常长的标题超过了六十个字符的限制" + "x" * 20
         result = _chapter_md(234, long_title, "content", "")
-        # Should use first 60 chars of Chinese title
-        assert "## Chapter 234: " in result
-        assert len(result.split("\n")[0]) <= 60 + len("## Chapter 234: ")
+        heading = result.split("\n")[0]
+        assert heading == "## Chapter 234: Chapter 234"
+        assert not any("一" <= ch <= "鿿" for ch in heading)
 
     def test_format_is_parseable_by_epub_regex(self):
         """The exact regex used by _parse_markdown_chapters in routes.py."""
@@ -62,10 +69,40 @@ class TestChapterMd:
         assert int(m.group(1)) == 42
         assert "Answer" in m.group(2)
 
-    def test_format_no_title_en_uses_cn_title(self):
+    def test_no_title_en_produces_an_ascii_heading(self):
         from src.celery_app import _chapter_md
         result = _chapter_md(1, "第一章 楔子", "Once upon a time.", "")
-        assert "## Chapter 1: 第一章 楔子" in result
+        assert result.startswith("## Chapter 1: Chapter 1")
+        assert "第一章" not in result
+
+
+class TestChapterIsDeliverable:
+    """The async path must not append empty or truncated chapters.
+
+    Before this, `merge_chapters` (a plain join) accepted whatever came back,
+    so a 0-character result became an empty chapter in the deliverable and in
+    the EPUB.
+    """
+
+    def test_empty_output_is_rejected(self):
+        from src.celery_app import _chapter_is_deliverable
+        ok, why = _chapter_is_deliverable("", "源文" * 100)
+        assert ok is False and "empty" in why
+
+    def test_whitespace_only_is_rejected(self):
+        from src.celery_app import _chapter_is_deliverable
+        assert _chapter_is_deliverable("   \n\n ", "源文" * 100)[0] is False
+
+    def test_truncated_output_is_rejected(self):
+        from src.celery_app import _chapter_is_deliverable
+        source = "源文" * 500                     # 1000 chars → floor 100 words
+        ok, why = _chapter_is_deliverable("Far too short.", source)
+        assert ok is False and "truncated" in why
+
+    def test_adequate_output_passes(self):
+        from src.celery_app import _chapter_is_deliverable
+        source = "源文" * 100                     # 200 chars → floor 50 words
+        assert _chapter_is_deliverable("word " * 60, source)[0] is True
 
 
 # ═══════════════════════════════════════════════════════════════════

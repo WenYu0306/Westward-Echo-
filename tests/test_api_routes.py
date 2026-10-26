@@ -452,3 +452,45 @@ class TestPages:
     def test_editor_page(self, client):
         r = client.get("/editor/test_job_123")
         assert r.status_code == 200
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Target language validation (path-traversal + billable-fan-out guard)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestTargetLanguageValidated:
+    """`target_lang` becomes part of the output filename.
+
+    It was taken straight from the form and interpolated into
+    ``OUTPUT_DIR / f"{job_id}_full_novel_{target_lang}.md"``, so
+    ``../../../../tmp/evil`` wrote outside OUTPUT_DIR; on /translate/multi the
+    same field also multiplied the number of billable jobs.
+    """
+
+    @pytest.mark.parametrize("bad", ["../../../../tmp/evil", "en", "EN-US", "es"])
+    def test_translate_rejects_unsupported_language(self, client, bad):
+        text = "第一章 测试\n\n天空是灰色的。\n"
+        r = client.post(
+            "/api/translate",
+            files={"file": ("test.txt", _make_txt(text), "text/plain")},
+            data={"target_lang": bad},
+        )
+        assert r.status_code == 400, r.text
+
+    def test_multi_rejects_unsupported_language(self, client):
+        text = "第一章 测试\n\n天空是灰色的。\n"
+        r = client.post(
+            "/api/translate/multi",
+            files={"file": ("test.txt", _make_txt(text), "text/plain")},
+            data={"target_langs": "en-US,../../../../tmp/evil"},
+        )
+        assert r.status_code == 400, r.text
+
+    def test_multi_accepts_the_supported_set(self, client):
+        text = "第一章 测试\n\n天空是灰色的。\n"
+        r = client.post(
+            "/api/translate/multi",
+            files={"file": ("test.txt", _make_txt(text), "text/plain")},
+            data={"target_langs": "en-US,es-ES"},
+        )
+        assert r.status_code in (200, 202), r.text

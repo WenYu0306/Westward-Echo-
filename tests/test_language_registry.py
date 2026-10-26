@@ -298,3 +298,29 @@ class TestCulturalRulesLanguages:
             langs |= set(book_block)
         assert not {lang for lang in langs if lang.startswith("ar")}, \
             f"ar-SA config reappeared: {langs}"
+
+
+class TestValidateLanguage:
+    """The request-level gate: reject unknown codes instead of passing them on.
+
+    An unknown code used to reach the output path
+    (``{job_id}_full_novel_{target_lang}.md``) and the glossary namespace.
+    """
+
+    def test_every_supported_language_passes(self):
+        from src.config import SUPPORTED_LANGUAGES, validate_language
+        for lang in SUPPORTED_LANGUAGES:
+            assert validate_language(lang) == lang
+
+    def test_path_traversal_payload_is_rejected(self):
+        import pytest
+        from src.config import validate_language
+        with pytest.raises(ValueError):
+            validate_language("../../../../tmp/evil")
+
+    def test_unknown_and_mis_cased_codes_are_rejected(self):
+        import pytest
+        from src.config import validate_language
+        for bad in ("en", "EN-US", "ja", ""):
+            with pytest.raises(ValueError):
+                validate_language(bad)
