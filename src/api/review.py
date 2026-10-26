@@ -220,37 +220,40 @@ def reject_term(
     book_id: str = Query(default="default", description="Glossary namespace"),
     target_lang: str = Query(default="en-US", description="Target language code"),
 ):
-    """Reject a term — deletes it from the glossary and records the rejected translation.
+    """Reject a term — flags it as rejected and records the rejected translation.
 
-    Before deleting, we look up the current translation to record it as a
+    The row is **not** deleted: it keeps ``status='rejected'`` so the decision is
+    auditable and reversible, and loads skip it so it stops being injected.
+
+    Before flagging, we look up the current translation to record it as a
     rejected term so the Agent knows to avoid it in future translations.
 
     Two distinct outcomes, both reported honestly:
-    * the term existed and was deleted → ``deleted: true``
-    * it was absent, but the caller supplied ``rejected_en`` → ``deleted:
+    * the term existed and was flagged → ``rejected: true``
+    * it was absent, but the caller supplied ``rejected_en`` → ``rejected:
       false``, ``feedback_recorded: true``. That is a real use: blocking a
       rendering that was never cached. Absent *and* nothing supplied → 404.
 
-    【中文】拒绝一个术语——从术语库删除，并把被拒绝的译法记录下来。
+    【中文】拒绝一个术语——标记为 rejected（不删行），并把被拒绝的译法记录下来。
     · 网址：POST /api/review/terms/{中文词}/reject?book_id=xxx&target_lang=en-US
     · 参数 rejected_en：可选，被拒绝的英文译法。如果术语库里已有该词的译文，
       会自动取库里的；如果没有但调用方提供了这个参数，也会记录反馈
-    · 返回：JSON，包含 deleted（是否真的删了）和 feedback_recorded（是否记录了反馈）
+    · 返回：JSON，包含 rejected（是否标记成功）和 feedback_recorded（是否记录了反馈）
     · 为什么记录被拒绝的译法：让 AI 在后续翻译中知道"这个词别这么翻"，
       避免同样的错误反复出现。这就是"人工校正回路"的另一半——
       不光告诉机器什么是对的，也告诉它什么是错的。
     · 三种结果：
-      ① 术语存在并被删除 → deleted=true, feedback_recorded=true
-      ② 术语不存在但提供了 rejected_en → deleted=false, feedback_recorded=true
+      ① 术语存在并被标记 → rejected=true, feedback_recorded=true
+      ② 术语不存在但提供了 rejected_en → rejected=false, feedback_recorded=true
       ③ 术语不存在也没提供 rejected_en → 返回 HTTP 404
     """
     lang = _validated_lang(target_lang)
     store = _get_store(book_id, lang)
 
-    # Look up the current translation before deleting
-    # 【中文】删除前先查出当前的译文，这样即使删了也能把被拒的译法记下来。
+    # Look up the current translation before flagging it
+    # 【中文】标记前先查出当前的译文，把被拒的译法记下来。
     current = store.get(term_cn)
-    deleted = store.reject_term(term_cn, target_lang=lang)
+    rejected_rows = store.reject_term(term_cn, target_lang=lang)
 
     feedback_recorded = False
     if current:
@@ -263,8 +266,8 @@ def reject_term(
         job_store.reject_term_with_feedback(term_cn, rejected_en, lang)
         feedback_recorded = True
 
-    if not deleted and not feedback_recorded:
-        # 【中文】既没删到东西、也没记录反馈 → 彻底找不到，返回 404。
+    if not rejected_rows and not feedback_recorded:
+        # 【中文】既没标到东西、也没记录反馈 → 彻底找不到，返回 404。
         raise HTTPException(
             status_code=404,
             detail=f"no term {term_cn!r} in namespace "
@@ -272,7 +275,9 @@ def reject_term(
         )
     return {"ok": True, "term_cn": term_cn, "status": "rejected",
             "book_id": book_id, "target_lang": lang,
-            "deleted": bool(deleted),
+            # The row is flagged, not deleted: `rejected` replaces the old
+            # `deleted` field, which described an irreversible operation.
+            "rejected": bool(rejected_rows),
             "feedback_recorded": feedback_recorded}
 
 

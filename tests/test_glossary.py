@@ -286,12 +286,15 @@ class TestTermInfoQueries:
         temp_store.confirm_term("聋婆婆")
         assert temp_store.get_status("聋婆婆") == "confirmed"
 
-    def test_rejected_term_is_removed_entirely(self, temp_store):
-        # reject_term deletes the row — it does not store a "rejected" status.
+    def test_rejected_term_is_flagged_not_deleted(self, temp_store):
+        # Rejection used to DELETE the row, which was irreversible and had no
+        # backup behind it. It now keeps the row with status='rejected' and
+        # stops loading it into prompts.
         temp_store.add("聋婆婆", "Deaf Granny")
         temp_store.reject_term("聋婆婆")
-        assert temp_store.get_status("聋婆婆") is None
-        assert temp_store.get_term_info("聋婆婆") is None
+        assert temp_store.get_status("聋婆婆") == "rejected"
+        assert temp_store.get_term_info("聋婆婆") is not None
+        assert "聋婆婆" not in temp_store
 
 
 class TestFindChaptersWithTerm:
@@ -606,3 +609,37 @@ class TestBulkUpsertAndPersistence:
     def test_bulk_upsert_ignores_non_string_values(self, tmp_path):
         store = self._store(tmp_path)
         assert store.bulk_upsert({"甲": "A", "乙": None, "丙": 3}) == 1
+
+
+class TestRejectedTerms:
+    """A rejected rendering must stop being injected.
+
+    Rejecting a term in the review UI used to change only its status column;
+    load_from_db still returned it, so the term kept being written into the
+    prompt as a mandatory constraint.
+    """
+
+    def _store(self, tmp_path, book="b"):
+        return ExactGlossary(db_path=str(tmp_path / "g.db"), book_id=book)
+
+    def test_rejected_term_is_not_loaded(self, tmp_path):
+        store = self._store(tmp_path)
+        store.add("甲", "A")
+        store.add("乙", "B")
+        store.reject_term("甲")
+        fresh = self._store(tmp_path)
+        fresh.load_from_db()
+        assert "甲" not in fresh
+        assert "乙" in fresh
+
+    def test_restore_does_not_resurrect_a_rejected_term(self, tmp_path):
+        store = self._store(tmp_path)
+        store.add("甲", "A")
+        store.reject_term("甲")
+        store.restore_snapshot(json.dumps({"甲": "A", "乙": "B"}),
+                               target_lang="en-US")
+        assert "甲" not in store
+        assert "乙" in store
+        fresh = self._store(tmp_path)
+        fresh.load_from_db()
+        assert "甲" not in fresh

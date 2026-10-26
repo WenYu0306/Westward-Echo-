@@ -45,6 +45,7 @@ import argparse
 import json
 import re
 import shutil
+import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +53,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.run_novel import NOVELS  # noqa: E402
+from src.config import CHECKPOINT_DB_PATH  # noqa: E402
+from src.db_backup import backup_sqlite  # noqa: E402
 from src.text_io import detect_and_read  # noqa: E402
 
 _PARENTHETICAL = re.compile(r"[（(][^）)]*[）)]")
@@ -153,6 +156,21 @@ def main(argv=None) -> int:
                   f"（备份 {ckpt_backup}）")
         else:
             print("checkpoint 快照无需修改")
+
+    # Mirror the removals into SQLite **without deleting rows**: the term is
+    # flagged rejected, so it stops being injected but stays auditable and
+    # reversible. A hard delete would be the one action nobody can undo.
+    dropped = [item["key"] for item in changed]
+    if dropped:
+        backup = backup_sqlite(CHECKPOINT_DB_PATH)
+        with sqlite3.connect(CHECKPOINT_DB_PATH) as conn:
+            conn.executemany(
+                "UPDATE exact_glossary SET status='rejected' "
+                "WHERE book_id=? AND term_cn=?",
+                [(cfg["book_id"], key) for key in dropped])
+            conn.commit()
+        print(f"库内已标记 rejected：{len(dropped)} 条"
+              + (f"（备份 {backup.name}）" if backup else ""))
     return 0
 
 

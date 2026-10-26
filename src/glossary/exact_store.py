@@ -44,6 +44,7 @@ import sqlite3
 import typing
 
 from ..config import CHECKPOINT_DB_PATH, target_language_label
+from ..db_backup import backup_sqlite
 from ..migrations import migrate
 
 
@@ -220,9 +221,13 @@ class ExactGlossary:
         """
         lang = target_lang or self._active_lang
         with sqlite3.connect(self._db_path) as conn:
+            # A term a reviewer rejected must not come back as a constraint.
+            # Before this filter, rejecting a rendering in the review UI changed
+            # only the status column and the term kept being injected.
             rows = conn.execute(
                 "SELECT term_cn, term_en FROM exact_glossary "
-                "WHERE book_id = ? AND target_lang = ?",
+                "WHERE book_id = ? AND target_lang = ? "
+                "AND COALESCE(status, '') != 'rejected'",
                 (self._book_id, lang),
             ).fetchall()
         # Replace this language's bucket wholesale (a term deleted from the DB
@@ -271,7 +276,18 @@ class ExactGlossary:
         pairs = {cn: en for cn, en in terms.items() if isinstance(en, str) and cn}
         if not pairs:
             return 0
+        with sqlite3.connect(self._db_path) as conn:
+            # Never resurrect a rejected rendering: a restore supplies the
+            # snapshot the run used, but a human decision outranks it.
+            rejected = {row[0] for row in conn.execute(
+                "SELECT term_cn FROM exact_glossary "
+                "WHERE book_id = ? AND target_lang = ? AND status = 'rejected'",
+                (self._book_id, lang))}
+        pairs = {cn: en for cn, en in pairs.items() if cn not in rejected}
+        if not pairs:
+            return 0
         self._writable_bucket(lang).update(pairs)
+        backup_sqlite(self._db_path)
         rows = [(self._book_id, cn, en, "culture", "", chapter, "",
                  status or "pending_review", lang) for cn, en in pairs.items()]
         sql = """INSERT INTO exact_glossary
@@ -682,9 +698,10 @@ class ExactGlossary:
         # 判断是否为嵌套格式：所有值都是字典 → 嵌套
         nested = data and all(isinstance(v, dict) for v in data.values())
         if nested:
-            # 嵌套格式：逐个语言恢复
+            # 嵌套格式：逐个语言恢复。先清空该语言的格子，再交给 bulk_upsert，
+            # 这样被 reject 的术语不会被直接写回内存。
             for loaded_lang, terms in data.items():
-                self._by_lang[loaded_lang] = dict(terms)
+                self._by_lang[loaded_lang] = {}
                 self.bulk_upsert(terms, target_lang=loaded_lang)
             # Active lang is honoured as given. If it is not among the restored
             # languages, reads return empty rather than silently falling back to
@@ -692,13 +709,14 @@ class ExactGlossary:
             self._active_lang = lang
         else:
             # 扁平格式：恢复到指定语言，过滤非字符串值
-            self._by_lang[lang] = {
-                cn: en for cn, en in data.items() if isinstance(en, str)
-            }
             self._active_lang = lang
+            self._by_lang[lang] = {}
             # Persist as well: restoring used to fill memory only, so a job's
             # glossary never reached SQLite and the review UI saw an empty table.
-            self.bulk_upsert(self._by_lang[lang], target_lang=lang)
+            # bulk_upsert also drops anything a reviewer rejected.
+            self.bulk_upsert(
+                {cn: en for cn, en in data.items() if isinstance(en, str)},
+                target_lang=lang)
 
     # ------------------------------------------------------------------
     # Review API — human-in-the-loop glossary curation
@@ -802,32 +820,35 @@ class ExactGlossary:
             return cur.rowcount
 
     def reject_term(self, term_cn: str, target_lang: typing.Optional[str] = None) -> int:
-        """Delete a term from the exact_store entirely. Returns the rows deleted.
+        """Flag a term as rejected. Returns the rows updated.
 
-        See confirm_term: a namespace mismatch deletes nothing, and the caller
+        This used to DELETE the row outright: one click in the review UI was an
+        irreversible loss with no backup behind it. The row now stays with
+        ``status='rejected'`` and is excluded from loads, so it stops being
+        injected while remaining auditable and reversible.
+
+        See confirm_term: a namespace mismatch updates nothing, and the caller
         must be able to tell that apart from a successful rejection.
 
-        The in-memory eviction is scoped to the same language as the DELETE.
+        The in-memory eviction is scoped to the same language as the update.
         Against the old flat ``_dict`` it removed the term from whatever language
         the instance happened to hold, so rejecting a Spanish term could evict
         the English rendering of the same Chinese source while leaving the
         Spanish one in memory.
 
-        【中文】从术语库中彻底删除一个术语（否决）。
-        · 参数 term_cn：要删除的中文词
+        【中文】把术语标记为"已拒绝"。
+        · 参数 term_cn：要拒绝的中文词
         · 参数 target_lang：目标语言
-        · 返回：删除的行数（0 = 没找到）
-        · 同时从内存和数据库中删除
-        · ⚠️ 内存删除必须限定在同一语言格子里！
-          旧的扁平字典实现中，删除西班牙语术语会把英语译文也从内存踢掉，
-          而西班牙语的反而还在。
+        · 返回：受影响的行数（0 = 没找到）
+        · 同时从内存踢出（该语言格子），数据库里保留行并标 rejected
+        · ⚠️ 以前这里是 DELETE，一点就永久消失，且没有备份。现在不删行。
         """
         lang = target_lang or self._active_lang
         # 只从对应语言的格子里删除，不影响其他语言
         self._by_lang.get(lang, {}).pop(term_cn, None)
         with sqlite3.connect(self._db_path) as conn:
             cur = conn.execute(
-                "DELETE FROM exact_glossary "
+                "UPDATE exact_glossary SET status = 'rejected' "
                 "WHERE book_id = ? AND term_cn = ? AND target_lang = ?",
                 (self._book_id, term_cn, lang),
             )

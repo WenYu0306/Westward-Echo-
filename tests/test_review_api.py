@@ -323,16 +323,16 @@ class TestRejectIsNamespaced:
         response = client.post("/api/review/terms/地府/reject",
                                params={"book_id": BOOK_B, "target_lang": "es-ES"})
         assert response.status_code == 200
-        assert response.json()["deleted"] is True
+        assert response.json()["rejected"] is True
         statuses = _statuses(BOOK_B, "地府")
-        assert statuses["es-ES"] is None, "rejected term must be gone"
+        assert statuses["es-ES"] == "rejected", "the row is flagged, not deleted"
         assert statuses["en-US"] == "pending_review", (
             "the English rendering must survive rejecting the Spanish one")
 
     def test_reject_does_not_touch_another_book(self, client, seed):
         client.post("/api/review/terms/他/reject",
                     params={"book_id": BOOK_B, "target_lang": "en-US"})
-        assert _statuses(BOOK_B, "他")["en-US"] is None
+        assert _statuses(BOOK_B, "他")["en-US"] == "rejected"
         assert _statuses(BOOK_A, "他")["en-US"] == "pending_review"
 
     def test_reject_records_the_rejected_rendering_for_its_language(self, client, seed):
@@ -368,7 +368,7 @@ class TestRejectIsNamespaced:
                                        "target_lang": "en-US"})
         payload = response.json()
         assert payload["ok"] is True
-        assert payload["deleted"] is True
+        assert payload["rejected"] is True
         assert payload["feedback_recorded"] is True
 
     def test_successful_responses_report_ok_true(self, client, seed):
@@ -406,7 +406,7 @@ class TestRejectIsNamespaced:
                                        "rejected_en": "el Dragón Arrogante"})
         assert response.status_code == 200
         payload = response.json()
-        assert payload["deleted"] is False, "nothing was in the glossary"
+        assert payload["rejected"] is False, "nothing was in the glossary"
         assert payload["feedback_recorded"] is True
         rejected = {r["term_cn"]: r["rejected_en"]
                     for r in job_store.get_rejected_terms("es-ES")}
@@ -477,9 +477,9 @@ class TestDefaultsStayBackwardCompatible:
     def test_reject_defaults_to_the_default_book_and_en_us(self, client, seed):
         response = client.post(f"/api/review/terms/{DEFAULT_MARKER}/reject")
         assert response.status_code == 200
-        assert response.json()["deleted"] is True
+        assert response.json()["rejected"] is True
         store = ExactGlossary(book_id="default")
-        assert store.get_status(DEFAULT_MARKER) is None
+        assert store.get_status(DEFAULT_MARKER) == "rejected"
 
     def test_feedback_defaults_to_the_default_book_and_en_us(self, client, seed):
         payload = client.get("/api/review/feedback").json()
@@ -560,7 +560,7 @@ class TestStoreReportsAffectedRows:
 
     def test_reject_returns_one_for_a_real_term(self, row):
         assert row.reject_term("他", target_lang="en-US") == 1
-        assert row.get_status("他", target_lang="en-US") is None
+        assert row.get_status("他", target_lang="en-US") == "rejected"
 
     def test_reject_returns_zero_for_an_absent_term(self, row):
         assert row.reject_term("不存在的词", target_lang="en-US") == 0

@@ -2064,7 +2064,7 @@ async function rejectTerm(cn){
     if(!r.ok)throw new Error(await r.text());
     const d=await r.json();
     if(!d.ok)throw new Error('未生效');
-    showToast(d.deleted?('已删除: '+cn):('已记录拒绝译法: '+cn));
+    showToast(d.rejected?('已标记拒绝: '+cn):('已记录拒绝译法: '+cn));
     const card=document.getElementById('card-'+encodeURIComponent(cn));
     if(card){card.classList.add('fading');setTimeout(()=>card.remove(),350)}
   }catch(e){showToast('操作失败: '+e.message)}
