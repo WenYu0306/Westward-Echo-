@@ -140,25 +140,66 @@ def reorder_deliverable(path) -> int:
     return moved
 
 
+def replace_chapters(path, replacements: dict[int, str]) -> int:
+    """Rewrite the given chapters' bodies in place, keeping everything else.
+
+    Used to repair a chapter that exists but is corrupt (truncated, leaked JSON
+    envelope). Unlike a normal run this must not append: the block already has a
+    position in the book.
+    """
+    text = open(path, encoding="utf-8").read()
+    heads = list(_CHAPTER_HEAD_RE.finditer(text))
+    if not heads:
+        return 0
+    preamble = text[:heads[0].start()]
+    out = [preamble]
+    replaced = 0
+    for i, head in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        number = int(head.group(1))
+        if number in replacements:
+            heading = head.group(0).rstrip("\n")
+            out.append(f"{heading}\n\n{replacements[number].strip()}\n\n---\n\n")
+            replaced += 1
+        else:
+            out.append(text[head.start():end])
+    if replaced:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("".join(out))
+    return replaced
+
+
 def main():
     do_seed = "--seed" in sys.argv
     # --repair-missing: scan from chapter 1 and translate only what is absent
     # from the deliverable. Cheap because already-delivered chapters are skipped
     # before any API call.
     repair_missing = "--repair-missing" in sys.argv
+    # --retranslate 269,430: redo these chapters even though they are already in
+    # the deliverable, and replace their blocks in place (for corrupt bodies).
+    retranslate_raw = None
+    for i, a in enumerate(sys.argv):
+        if a == "--retranslate" and i + 1 < len(sys.argv):
+            retranslate_raw = sys.argv[i + 1]
+    retranslate = ({int(x) for x in retranslate_raw.split(",") if x.strip()}
+                   if retranslate_raw else set())
     # --limit N: compile only the first N chapters (for quick validation runs)
     limit = None
     for i, a in enumerate(sys.argv):
         if a == "--limit" and i + 1 < len(sys.argv):
             limit = int(sys.argv[i + 1])
-    args = [a for a in sys.argv[1:] if not a.startswith("--") and a != str(limit)]
+    args = [a for a in sys.argv[1:]
+            if not a.startswith("--") and a not in (str(limit), retranslate_raw)]
 
     if len(args) < 1:
-        print("Usage: python3 scripts/run_novel.py <novel_key> [--seed] [--limit N] [--repair-missing]")
+        print("Usage: python3 scripts/run_novel.py <novel_key> "
+              "[--seed] [--limit N] [--repair-missing] [--retranslate N,M]")
         print("  --seed  Pre-fill glossary and style memo from Analyze Echo before translating")
         print("  --limit N  Compile only the first N chapters (validation)")
         print("  --repair-missing  Ignore the checkpoint, scan from chapter 1, and")
         print("                    translate only chapters absent from the deliverable")
+        print("  --retranslate N,M  Redo these chapters and replace their blocks in place")
+        print("                    (for corrupt bodies; works with --repair-missing)")
         print("Available novels:")
         for key, cfg in NOVELS.items():
             print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
@@ -262,6 +303,7 @@ def main():
     # "100%" and "ALL DONE".
     failed_positions: list[int] = []
     newly_written: list[int] = []
+    replacements: dict[int, str] = {}
 
     # Must be bound before the loop: on a fully-checkpointed resume the `while`
     # body never executes, and the summary print below dereferences `glossary`.
@@ -280,6 +322,10 @@ def main():
         if repair_missing:
             print(f"--repair-missing: 从头扫描，跳过已交付章节"
                   f"（checkpoint 原本指向 {start}/{len(chapters)}）")
+            start = 0
+        elif retranslate:
+            print(f"--retranslate: 从头扫描以覆盖第 {sorted(retranslate)} 章"
+                  f"（其余章节不重复翻译）")
             start = 0
         else:
             print(f"Resuming from chapter {start + 1}/{len(chapters)}")
@@ -317,7 +363,7 @@ def main():
             pos = i + 1
             is_sample = pos in sample_points
 
-            if ch_num in written_chapters:
+            if ch_num in written_chapters and ch_num not in retranslate:
                 # Already delivered — never call the API for it. This is what
                 # makes filling a gap cost one chapter instead of a whole book.
                 # Feed the next translated chapter a continuity excerpt, since
@@ -420,7 +466,13 @@ def main():
                       f" | \u00a5{_cny:.4f}{warn}")
 
             exists = os.path.exists(out_file)
-            if ch_num not in written_chapters and "TRUNCATED" not in ok_flag and "EMPTY" not in ok_flag:
+            usable = "TRUNCATED" not in ok_flag and "EMPTY" not in ok_flag
+            if usable and ch_num in retranslate:
+                # Replace in place later; appending would move it to the end.
+                replacements[ch_num] = tt
+                delivered_bodies[ch_num] = tt
+                print(f"     RETRANSLATE Ch{ch_num}: 待原位替换（{len(tt)} 字符）")
+            elif usable and ch_num not in written_chapters:
                 with open(out_file, "a" if exists else "w", encoding="utf-8") as f:
                     if not exists:
                         f.write(f"# {deliverable_title} — English Translation\n\n")
@@ -432,6 +484,7 @@ def main():
                     display_title = title_en or f"Chapter {ch_num}"
                     f.write(f"## Chapter {ch_num}: {display_title}\n\n{tt}\n\n---\n\n")
                 written_chapters.add(ch_num)
+                delivered_bodies[ch_num] = tt
                 newly_written.append(ch_num)
                 last_written = i
         json.dump({
@@ -489,6 +542,10 @@ def main():
     else:
         print(f"ALL DONE: {delivered}/{scanned} chapters in {total_min:.0f}m")
     print(f"Glossary: {len(glossary)} terms | Quality checks: {len(quality_log)}")
+
+    if replacements and os.path.exists(out_file):
+        replaced = replace_chapters(out_file, replacements)
+        print(f"Retranslate: 原位替换 {replaced} 章（{sorted(replacements)}）")
 
     # A repair run appends, so a filled gap lands after the last chapter.
     if repair_missing and newly_written and os.path.exists(out_file):

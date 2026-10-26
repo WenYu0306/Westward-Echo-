@@ -470,3 +470,62 @@ class TestReorderDeliverable:
         before = p.read_text(encoding="utf-8")
         assert runner["mod"].reorder_deliverable(p) == 0
         assert p.read_text(encoding="utf-8") == before
+
+
+class TestReplaceChapters:
+    def test_replaces_only_the_named_block(self, runner, tmp_path):
+        p = tmp_path / "book.md"
+        p.write_text("# Title\n\n"
+                     "## Chapter 1: One\n\nOLD ONE\n\n---\n\n"
+                     "## Chapter 2: Two\n\nKEEP ME\n\n---\n\n", encoding="utf-8")
+
+        replaced = runner["mod"].replace_chapters(p, {1: "NEW ONE"})
+
+        text = p.read_text(encoding="utf-8")
+        assert replaced == 1
+        assert "NEW ONE" in text and "OLD ONE" not in text
+        assert "KEEP ME" in text and text.startswith("# Title")
+
+    def test_unknown_chapter_changes_nothing(self, runner, tmp_path):
+        p = tmp_path / "book.md"
+        p.write_text("## Chapter 1: One\n\nA.\n\n---\n\n", encoding="utf-8")
+        before = p.read_text(encoding="utf-8")
+        assert runner["mod"].replace_chapters(p, {9: "X"}) == 0
+        assert p.read_text(encoding="utf-8") == before
+
+
+class TestRetranslateMode:
+    def test_existing_chapter_is_redone_and_replaced_in_place(self, runner, monkeypatch):
+        mod = runner["mod"]
+        chapters = [_FakeChapter(i, f"第{i}章", "源文内容") for i in (1, 2)]
+        result = {"translated_text": GOOD, "chapter_title_en": "One",
+                  "chapter_summary": "s"}
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=2),
+                          chapters, [result])
+
+        calls = []
+        original = mod.TranslationAgent.translate_chapter
+
+        def spy(self, **kwargs):
+            calls.append(kwargs["chapter_number"])
+            return original(self, **kwargs)
+
+        monkeypatch.setattr(mod.TranslationAgent, "translate_chapter", spy)
+
+        out = Path(runner["out_dir"]) / "unit_test_en.md"
+        out.write_text("# Unit Test — English Translation\n\n"
+                       "## Chapter 1: One\n\n" + ("Old body. " * 20) + "\n\n---\n\n"
+                       "## Chapter 2: Two\n\n" + ("Keep body. " * 20) + "\n\n---\n\n",
+                       encoding="utf-8")
+        (Path(runner["out_dir"]) / "_checkpoint.json").write_text(
+            json.dumps({"last_idx": 1, "glossary_snapshot": "{}",
+                        "previous_summary": ""}), encoding="utf-8")
+
+        runner["run"](["unit_test_book", "--retranslate", "1"])
+
+        assert calls == [1], f"only the named chapter may be redone, got {calls}"
+        text = out.read_text(encoding="utf-8")
+        assert GOOD.strip() in text
+        assert "Old body." not in text
+        assert "Keep body." in text
+        assert [int(x) for x in re.findall(r"^## Chapter (\d+):", text, re.M)] == [1, 2]
