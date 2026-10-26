@@ -118,6 +118,10 @@ class _Ledger:
         self._lock = threading.Lock()
         self._path = path
         self._rows: list[dict] = []
+        # Per-book index. `rows()` used to copy and filter the whole list every
+        # call, and the runner calls it twice per chapter — O(n²) over a book.
+        # These lists hold references, not copies of the row dicts.
+        self._by_book: dict[str, list[dict]] = {}
         self._write_failures = 0
 
     # ── path handling (lazy so tests can repoint via env) ──
@@ -130,6 +134,14 @@ class _Ledger:
         env = os.getenv("XIDU_TOKEN_LEDGER")
         return Path(env) if env else DEFAULT_LEDGER_PATH
 
+    def _reindex(self) -> None:
+        """Rebuild the per-book index from ``_rows`` (after loading a file)."""
+        index: dict[str, list[dict]] = {}
+        for row in self._rows:
+            index.setdefault(row.get("book_id", ""), []).append(row)
+        with self._lock:
+            self._by_book = index
+
     def reset(self) -> None:
         """【中文】清空内存中的记录。**仅供测试用**。
         JSONL 文件是追加式的，不会被这个操作影响——设计意图就是
@@ -137,6 +149,7 @@ class _Ledger:
         """
         with self._lock:
             self._rows = []
+            self._by_book = {}
             self._write_failures = 0
 
     # ── recording ──
@@ -186,6 +199,7 @@ class _Ledger:
         }
         with self._lock:
             self._rows.append(row)
+            self._by_book.setdefault(row.get("book_id", ""), []).append(row)
             self._append(row)
         return row
 
@@ -241,10 +255,23 @@ class _Ledger:
         返回的是副本，改它不会影响内部数据。
         """
         with self._lock:
-            rows = list(self._rows)
-        if book_id is None:
-            return rows
-        return [r for r in rows if r.get("book_id") == book_id]
+            if book_id is not None:
+                # Per-book index: no scan of the whole ledger. The runner reads
+                # this twice per chapter, and a full scan there was O(n²).
+                return list(self._by_book.get(book_id, []))
+            return list(self._rows)
+
+    def count(self, book_id: str | None = None) -> int:
+        """Number of rows for ``book_id`` (or all rows) — O(1)."""
+        with self._lock:
+            if book_id is None:
+                return len(self._rows)
+            return len(self._by_book.get(book_id, []))
+
+    def rows_since(self, book_id: str, start: int) -> list[dict]:
+        """Rows for ``book_id`` added after index ``start`` — O(new rows)."""
+        with self._lock:
+            return list(self._by_book.get(book_id, [])[start:])
 
     def summary(self, book_id: str | None = None) -> dict:
         """Aggregate tokens and cost per node and per model.
@@ -474,6 +501,7 @@ def summary_from_file(book_id: str | None = None, path: Path | None = None) -> d
                 corrupt += 1
     snapshot = _Ledger(path=target)
     snapshot._rows = rows
+    snapshot._reindex()
     result = snapshot.summary(book_id)
     result["corrupt_rows"] = corrupt
     # A missing ledger and an empty one both aggregate to zero; callers must be

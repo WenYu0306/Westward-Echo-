@@ -226,6 +226,8 @@ def main(argv=None) -> int:
                         help="where qe_input/qe_output land (default: temp under baseline dir)")
     parser.add_argument("--write-baseline", action="store_true",
                         help="overwrite the baseline with this run's scores")
+    parser.add_argument("--force", action="store_true",
+                        help="allow --write-baseline to replace an existing baseline")
     parser.add_argument("--aggregate-only", action="store_true",
                         help="reuse an existing qe_output.jsonl in the work dir")
     parser.add_argument("--max-delta", type=float, default=0.5,
@@ -241,6 +243,13 @@ def main(argv=None) -> int:
             "overwrite a baseline. Drop --aggregate-only to re-score.")
 
     baseline_path = args.baseline or BASELINE_DIR / f"{args.book}.json"
+    # The baseline is a reference point, not an output file: silently replacing
+    # it invalidates every future comparison. Replacing one takes --force.
+    if args.write_baseline and baseline_path.exists() and not args.force:
+        raise SystemExit(
+            f"baseline already exists: {baseline_path}\n"
+            f"  Replacing it invalidates every comparison made against it.\n"
+            f"  Pass --force only if the old reference is genuinely obsolete.")
     work_dir = args.work_dir or BASELINE_DIR / "_work" / args.book
     work_dir.mkdir(parents=True, exist_ok=True)
     output_path = work_dir / "qe_output.jsonl"

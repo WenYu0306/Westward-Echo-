@@ -280,7 +280,7 @@ def main():
 
     def _chapter_usage(before: int):
         """Tokens/cost of the calls made since row index ``before``."""
-        rows = token_ledger.ledger.rows(cfg["book_id"])[before:]
+        rows = token_ledger.ledger.rows_since(cfg["book_id"], before)
         metered = [r for r in rows if r.get("metered")]
         return (len(rows),
                 sum(r["input_tokens"] for r in metered),
@@ -314,7 +314,7 @@ def main():
                             "paragraphs)\n" + tail[-1200:])
                 continue
 
-            rows_before = len(token_ledger.ledger.rows(cfg["book_id"]))
+            rows_before = token_ledger.ledger.count(cfg["book_id"])
 
             allowed, blocked_reason = chapter_budget.should_attempt(ch_num)
             if not allowed:

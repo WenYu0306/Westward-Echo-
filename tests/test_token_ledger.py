@@ -394,3 +394,41 @@ class TestSummaryFromFile:
         s = tl.summary_from_file("b", path=path)
         assert s["file_present"] is True
         assert s["calls"] == 0
+
+
+class TestPerBookIndex:
+    """rows() used to copy and filter the whole ledger on every call, and the
+    runner calls it twice per chapter — O(n²) across a book."""
+
+    def _ledger(self, tmp_path, monkeypatch):
+        import src.token_ledger as tl
+        monkeypatch.setenv("XIDU_TOKEN_LEDGER", str(tmp_path / "l.jsonl"))
+        return tl._Ledger(path=tmp_path / "l.jsonl")
+
+    def test_count_is_per_book(self, tmp_path, monkeypatch):
+        led = self._ledger(tmp_path, monkeypatch)
+        led.record("read", "qwen3.8-flash", 10, 20, book_id="a")
+        led.record("read", "qwen3.8-flash", 10, 20, book_id="b")
+        led.record("read", "qwen3.8-flash", 10, 20, book_id="a")
+        assert led.count("a") == 2
+        assert led.count("b") == 1
+        assert led.count() == 3
+
+    def test_rows_since_returns_only_new_rows(self, tmp_path, monkeypatch):
+        led = self._ledger(tmp_path, monkeypatch)
+        led.record("read", "qwen3.8-flash", 1, 1, book_id="a", chapter=1)
+        start = led.count("a")
+        led.record("read", "qwen3.8-flash", 1, 1, book_id="a", chapter=2)
+        led.record("read", "qwen3.8-flash", 1, 1, book_id="b", chapter=9)
+        since = led.rows_since("a", start)
+        assert [r["chapter"] for r in since] == [2]
+
+    def test_rows_for_unknown_book_is_empty(self, tmp_path, monkeypatch):
+        led = self._ledger(tmp_path, monkeypatch)
+        assert led.rows("nope") == []
+
+    def test_reset_clears_the_index(self, tmp_path, monkeypatch):
+        led = self._ledger(tmp_path, monkeypatch)
+        led.record("read", "qwen3.8-flash", 1, 1, book_id="a")
+        led.reset()
+        assert led.count("a") == 0

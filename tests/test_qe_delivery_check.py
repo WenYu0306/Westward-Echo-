@@ -142,3 +142,15 @@ class TestCompareToBaseline:
         result = qdc.compare_to_baseline(
             self._rows({(1, 0): 10.0, (2, 0): 12.0}), self._baseline(base), 0.5)
         assert result["per_chapter_delta"] == {"1": 0.0, "2": 2.0}
+
+
+class TestBaselineOverwriteGuard:
+    """The baseline is a reference point: replacing it silently invalidates
+    every comparison made against it."""
+
+    def test_existing_baseline_requires_force(self, tmp_path):
+        baseline = tmp_path / "difu.json"
+        baseline.write_text("{}", encoding="utf-8")
+        with pytest.raises(SystemExit, match="--force"):
+            qdc.main(["--book", "difu", "--write-baseline",
+                      "--baseline", str(baseline)])
