@@ -107,6 +107,33 @@ def _is_timeout(exc: Exception) -> bool:
     return "timed out" in err or "timeout" in err
 
 
+# A parallel run freezes the glossary for the whole run: each worker writes new
+# terms into its own `{book_id}_w{index}` namespace and the runner never merges
+# them back. On a book whose glossary is still thin, that means nearly every
+# chapter is translated with no term constraints. Below this many known terms a
+# parallel run is refused unless --force-batch is given.
+MIN_TERMS_FOR_PARALLEL = 500
+
+
+def _guard_batch(batch_size: int, n_terms: int, force: bool) -> str | None:
+    """Refusal message if this parallel run would wreck term consistency.
+
+    ``None`` means proceed. Pure by design so the refusal path is testable
+    without a provider, a ledger, or a real book.
+    """
+    if batch_size <= 1 or force or n_terms >= MIN_TERMS_FOR_PARALLEL:
+        return None
+    return (
+        f"--batch {batch_size} refused: this book has only {n_terms} glossary "
+        f"terms (need {MIN_TERMS_FOR_PARALLEL}+).\n"
+        f"  Parallel workers write new terms into their own namespace and the "
+        f"runner never merges them back, so the glossary stays frozen for the\n"
+        f"  whole run — a new book would be translated with no term constraints.\n"
+        f"  Compile it serially (drop --batch). If you accept the term drift, "
+        f"add --force-batch."
+    )
+
+
 def translate_batch(items: list, agent, cfg, batch_size: int,
                     glossary_snapshot: str) -> list[dict]:
     """Translate one batch; the only place that decides sequential vs concurrent.
@@ -186,6 +213,7 @@ def main():
         if a == "--batch" and i + 1 < len(sys.argv):
             batch_raw = sys.argv[i + 1]
             batch_size = max(1, int(batch_raw))
+    force_batch = "--force-batch" in sys.argv
     args = [a for a in sys.argv[1:]
             if not a.startswith("--")
             and a not in (str(limit), retranslate_raw, batch_raw)]
@@ -200,8 +228,11 @@ def main():
         print("  --retranslate N,M  Redo these chapters and replace their blocks in place")
         print("                    (for corrupt bodies; works with --repair-missing)")
         print("  --batch N  Translate N chapters concurrently (default 1 = serial).")
-        print("             N>1 freezes each chapter's context at the batch start")
-        print("             and gives every worker its own glossary snapshot.")
+        print("             Only for re-runs of books with a mature glossary: workers")
+        print("             get a frozen snapshot and their new terms are NOT merged")
+        print("             back, so the glossary does not grow during the run.")
+        print("  --force-batch  Allow --batch on a book whose glossary is still thin")
+        print("             (new terms found during the run will be lost)")
         print("Available novels:")
         for key, cfg in NOVELS.items():
             print(f"  {key:20s} — {cfg['name']} ({cfg['genre']}, ~{cfg.get('expected_chapters', '?')} chapters)")
@@ -338,6 +369,14 @@ def main():
             print(f"Resuming from chapter {start + 1}/{len(chapters)}")
     elif repair_missing:
         print("--repair-missing: 无 checkpoint，按常规从头编译")
+
+    # Checked after the checkpoint's glossary snapshot is loaded, so this sees
+    # the terms the run will actually start with.
+    refusal = _guard_batch(batch_size, len(agent.exact_store.to_dict()),
+                           force_batch)
+    if refusal:
+        print(refusal)
+        sys.exit(1)
 
     segment_num = 1
     overall_t0 = time.monotonic()

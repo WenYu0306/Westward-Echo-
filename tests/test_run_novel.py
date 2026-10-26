@@ -685,8 +685,51 @@ class TestTranslateBatch:
         runner["install"](_cfg(runner["out_dir"], expected_chapters=3), chapters, results)
 
         # The fixture's fake agent ignores batch_size, so this exercises the
-        # collection/flush wiring rather than real concurrency.
-        runner["run"](["unit_test_book", "--batch", "3"])
+        # collection/flush wiring rather than real concurrency. --force-batch is
+        # explicit because the fake glossary (1 term) is below the parallel floor.
+        runner["run"](["unit_test_book", "--batch", "3", "--force-batch"])
 
         text = _deliverable(runner["out_dir"])
         assert [n for n in (1, 2, 3) if f"## Chapter {n}:" in text] == [1, 2, 3]
+
+
+# ═══════════════════════════════════════════════════════════════
+# --batch guard: parallel freezes the glossary for the whole run
+# ═══════════════════════════════════════════════════════════════
+
+class TestBatchGuard:
+    """Each parallel worker writes new terms into its own `_w{n}` namespace and
+    the runner never merges them back, so a thin glossary stays thin for the
+    entire run. A new book must not be translated in parallel."""
+
+    def test_serial_always_proceeds(self, runner):
+        assert runner["mod"]._guard_batch(1, 0, False) is None
+
+    def test_mature_glossary_proceeds(self, runner):
+        assert runner["mod"]._guard_batch(8, 9056, False) is None
+
+    def test_thin_glossary_is_refused(self, runner):
+        msg = runner["mod"]._guard_batch(8, 1, False)
+        assert msg is not None
+        assert "--batch 8" in msg
+        assert "--force-batch" in msg
+
+    def test_threshold_boundary_is_500_terms(self, runner):
+        # Literal values, not the constant: moving the threshold must fail here.
+        assert runner["mod"]._guard_batch(8, 499, False) is not None
+        assert runner["mod"]._guard_batch(8, 500, False) is None
+
+    def test_force_overrides_refusal(self, runner):
+        assert runner["mod"]._guard_batch(8, 0, True) is None
+
+    def test_parallel_on_new_book_exits_before_translating(self, runner):
+        chapters = [_FakeChapter(i, f"第{i}章", "源文内容") for i in (1, 2)]
+        results = [{"translated_text": GOOD, "chapter_title_en": "Ch",
+                    "chapter_summary": "s"}] * 2
+        runner["install"](_cfg(runner["out_dir"], expected_chapters=2),
+                          chapters, results)
+        with pytest.raises(SystemExit) as exc:
+            runner["run"](["unit_test_book", "--batch", "2"])
+        assert exc.value.code == 1
+        assert _deliverable(runner["out_dir"]) == ""
+
