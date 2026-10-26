@@ -83,6 +83,33 @@ def client():
     return TestClient(create_app())
 
 
+def _reset_status(book_id: str, terms: list[str] | None = None) -> None:
+    """Return this suite's seeded rows to ``pending_review``.
+
+    The store now preserves a human-confirmed status across re-adds (by design:
+    an INSERT OR REPLACE used to silently un-confirm curated terms). These
+    namespaces belong to this suite, so resetting them explicitly is what keeps
+    each test starting from the same row state.
+    """
+    import sqlite3
+
+    from src.config import CHECKPOINT_DB_PATH
+    with sqlite3.connect(CHECKPOINT_DB_PATH) as conn:
+        has_table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name='exact_glossary'").fetchone()
+        if not has_table:
+            return          # fresh per-test DB; the store will create it
+        if terms is None:
+            conn.execute("UPDATE exact_glossary SET status='pending_review' "
+                         "WHERE book_id=?", (book_id,))
+        else:
+            conn.executemany(
+                "UPDATE exact_glossary SET status='pending_review' "
+                "WHERE book_id=? AND term_cn=?",
+                [(book_id, term) for term in terms])
+
+
 @pytest.fixture
 def seed():
     """Two books × two languages, sharing 他 so scoping is observable.
@@ -93,6 +120,9 @@ def seed():
     then asserted on the one that did — a fixture defect that read like a
     product bug.
     """
+    _reset_status(BOOK_A)
+    _reset_status(BOOK_B)
+    _reset_status("default", [DEFAULT_MARKER])
     store_a = ExactGlossary(book_id=BOOK_A)
     store_a.add("他", "he", target_lang="en-US")
     store_a.add("他", "Él", target_lang="es-ES")
@@ -504,10 +534,10 @@ class TestStoreReportsAffectedRows:
 
         Its own book_id on purpose: pointing this at BOOK_A let the API tests'
         ``seed`` leak a Spanish 他 in here, so the "wrong language deletes
-        nothing" test passed alone and failed in a full run. ``add`` is an
-        INSERT OR REPLACE that resets status to pending_review, so every test in
-        this class also starts from the same row state.
+        nothing" test passed alone and failed in a full run. Status is reset
+        explicitly because re-adding a term no longer clears it.
         """
+        _reset_status(BOOK_STORE)
         store = ExactGlossary(book_id=BOOK_STORE)
         store.add("他", "he", target_lang="en-US")
         return store

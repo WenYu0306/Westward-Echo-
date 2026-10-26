@@ -234,20 +234,58 @@ class ExactGlossary:
                       context: str = "", chapter: int = 0, note: str = "",
                       status: str = "pending_review", target_lang: str = "en-US"):
         """【中文】把一个术语写入 SQLite 数据库（内部方法）。
-        · INSERT OR REPLACE：如果同 (book_id, term_cn, target_lang) 的记录
-          已存在就覆盖，不存在就插入
+        · Upsert：同 (book_id, term_cn, target_lang) 已存在就更新译文，
+          但**保留**人工确认过的 status / note / category
         · 每次写入后立即 commit，确保崩溃不丢数据
         """
         with sqlite3.connect(self._db_path) as conn:
+            # Upsert, not INSERT OR REPLACE: REPLACE deletes the old row, which
+            # silently reset a human-confirmed term (status/note/category) back
+            # to pending_review every time the term was seen again.
             conn.execute(
-                """INSERT OR REPLACE INTO exact_glossary
+                """INSERT INTO exact_glossary
                    (book_id, term_cn, term_en, category, context, chapter_first_seen,
                     note, status, target_lang)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(book_id, term_cn, target_lang) DO UPDATE SET
+                     term_en = excluded.term_en,
+                     context = excluded.context,
+                     chapter_first_seen = excluded.chapter_first_seen""",
                 (self._book_id, term_cn, term_en, category, context, chapter, note, status,
                  target_lang),
             )
             conn.commit()
+
+    def bulk_upsert(self, terms: dict[str, str], *,
+                    target_lang: typing.Optional[str] = None,
+                    chapter: int = 0,
+                    status: typing.Optional[str] = None) -> int:
+        """Write many terms in one transaction (memory + SQLite); return the count.
+
+        Used when a whole glossary arrives at once — restoring a checkpoint
+        snapshot or importing a delivered book's ``_glossary.json``. Existing
+        rows keep their review state (``status``/``note``/``category``) unless
+        ``status`` is given explicitly; only the rendering is refreshed.
+        """
+        lang = target_lang or self._active_lang
+        pairs = {cn: en for cn, en in terms.items() if isinstance(en, str) and cn}
+        if not pairs:
+            return 0
+        self._writable_bucket(lang).update(pairs)
+        rows = [(self._book_id, cn, en, "culture", "", chapter, "",
+                 status or "pending_review", lang) for cn, en in pairs.items()]
+        sql = """INSERT INTO exact_glossary
+                 (book_id, term_cn, term_en, category, context, chapter_first_seen,
+                  note, status, target_lang)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(book_id, term_cn, target_lang) DO UPDATE SET
+                   term_en = excluded.term_en"""
+        if status is not None:
+            sql += ", status = excluded.status"
+        with sqlite3.connect(self._db_path) as conn:
+            conn.executemany(sql, rows)
+            conn.commit()
+        return len(pairs)
 
     # ------------------------------------------------------------------
     # Public API
@@ -647,6 +685,7 @@ class ExactGlossary:
             # 嵌套格式：逐个语言恢复
             for loaded_lang, terms in data.items():
                 self._by_lang[loaded_lang] = dict(terms)
+                self.bulk_upsert(terms, target_lang=loaded_lang)
             # Active lang is honoured as given. If it is not among the restored
             # languages, reads return empty rather than silently falling back to
             # some other language's terms.
@@ -657,6 +696,9 @@ class ExactGlossary:
                 cn: en for cn, en in data.items() if isinstance(en, str)
             }
             self._active_lang = lang
+            # Persist as well: restoring used to fill memory only, so a job's
+            # glossary never reached SQLite and the review UI saw an empty table.
+            self.bulk_upsert(self._by_lang[lang], target_lang=lang)
 
     # ------------------------------------------------------------------
     # Review API — human-in-the-loop glossary curation

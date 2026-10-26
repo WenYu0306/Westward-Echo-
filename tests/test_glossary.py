@@ -557,3 +557,52 @@ class TestSnapshotLanguageCompat:
         fresh = ExactGlossary(db_path=temp_store._db_path, book_id="roundtrip")
         fresh.restore_snapshot(snap, target_lang="es-ES")
         assert fresh.get("苏念", target_lang="es-ES") == "Su Nian (ES)"
+
+
+class TestBulkUpsertAndPersistence:
+    """Restoring a snapshot must reach SQLite, and must not undo curation.
+
+    Before this, `restore_snapshot` filled memory only, so a job's glossary
+    never reached the table the review UI reads; and `_persist_term` used
+    INSERT OR REPLACE, which reset a human-confirmed term to pending_review
+    every time the term was seen again.
+    """
+
+    def _store(self, tmp_path, book="b"):
+        return ExactGlossary(db_path=str(tmp_path / "g.db"), book_id=book)
+
+    def test_bulk_upsert_writes_and_is_idempotent(self, tmp_path):
+        store = self._store(tmp_path)
+        assert store.bulk_upsert({"甲": "A", "乙": "B"}) == 2
+        store.bulk_upsert({"甲": "A", "乙": "B"})
+        fresh = self._store(tmp_path)
+        fresh.load_from_db()
+        assert len(fresh) == 2
+
+    def test_bulk_upsert_refreshes_rendering_but_keeps_status(self, tmp_path):
+        store = self._store(tmp_path)
+        store.bulk_upsert({"甲": "A"})
+        store.confirm_term("甲")
+        store.bulk_upsert({"甲": "A2"})
+        assert store.get("甲") == "A2"
+        assert store.get_status("甲") == "confirmed"
+
+    def test_add_does_not_reset_a_confirmed_term(self, tmp_path):
+        store = self._store(tmp_path)
+        store.add("甲", "A")
+        store.confirm_term("甲")
+        store.add("甲", "A")
+        assert store.get_status("甲") == "confirmed"
+
+    def test_restore_snapshot_persists_to_sqlite(self, tmp_path):
+        store = self._store(tmp_path)
+        store.restore_snapshot(json.dumps({"甲": "A", "乙": "B"}),
+                               target_lang="en-US")
+        fresh = self._store(tmp_path)
+        fresh.load_from_db()
+        assert fresh.get("甲") == "A"
+        assert fresh.get("乙") == "B"
+
+    def test_bulk_upsert_ignores_non_string_values(self, tmp_path):
+        store = self._store(tmp_path)
+        assert store.bulk_upsert({"甲": "A", "乙": None, "丙": 3}) == 1
